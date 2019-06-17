@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Multiplayer Compatibility</name>
+  <author>notfood</author>
+  <supportedVersions><li>1.0</li></supportedVersions>
+  <description>Miscellaneous patches to make Multiplayer work
+    Mod Support:
+    - Animals Logic
+    - GiddyUP Core
+    - GiddyUp RideAndRoll
+    - GiddyUp BattleMounts
+    - Hospitality
+    - Path Avoid
+    - Power Logic
+    - Power Switch
+    - Simple Sidearms
+    - Stuffed Floors
+    - Time of day Switch
+    - Toggle Refuelable
+  </description>
+</ModMetaData>

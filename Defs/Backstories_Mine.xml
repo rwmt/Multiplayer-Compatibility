@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+  <AlienRace.BackstoryDef>
+    <defName>nf03</defName>
+    <slot>Childhood</slot>
+    <title>Slimegirl</title>
+    <titleShort>Slimegirl</titleShort>
+    <titleFemale>Slime girl</titleFemale>
+    <titleShortFemale>Slimegirl</titleShortFemale>
+    <baseDescription>[PAWN_nameDef] is a product of alchemy. A human girl long ago, so long she forgot already.</baseDescription>
+    <bodyTypeGlobal>Thin</bodyTypeGlobal>
+    <skillGains>
+      <li><defName>Construction</defName><amount>8</amount></li>
+      <li><defName>Crafting</defName><amount>6</amount></li>
+      <li><defName>Social</defName><amount>4</amount></li>
+    </skillGains>
+    <requiredWorkTags>
+      <li>ManualSkilled</li>
+    </requiredWorkTags>
+    <spawnCategories>
+      <li>Rare</li>
+      <li>Female</li>
+    </spawnCategories>
+    <shuffleable>false</shuffleable>
+  </AlienRace.BackstoryDef>
+  
+  <AlienRace.BackstoryDef>
+    <defName>nf04</defName>
+    <slot>Childhood</slot>
+    <title>Trap</title>
+    <titleShort>Trap</titleShort>
+    <baseDescription>[PAWN_nameDef] is a girl (male). It's magic.</baseDescription>
+    <bodyTypeGlobal>Thin</bodyTypeGlobal>
+    <spawnCategories>
+      <li>Rare</li>
+      <li>Female</li>
+    </spawnCategories>
+    <requiredWorkTags>
+      <li>Animals</li>
+    </requiredWorkTags>
+    <skillGains>
+      <li><defName>Animals</defName><amount>10</amount></li>
+      <li><defName>Crafting</defName><amount>8</amount></li>
+      <li><defName>Melee</defName><amount>15</amount></li>
+    </skillGains>
+    <shuffleable>false</shuffleable>
+  </AlienRace.BackstoryDef>
+  
+  <Def><defName>ignoreMeImadummy</defName></Def>
+</Defs>

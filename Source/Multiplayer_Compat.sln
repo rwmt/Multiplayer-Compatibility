@@ -1,0 +1,17 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Multiplayer_Compat", "Multiplayer_Compat.csproj", "{163F72FB-89D2-4FA7-B392-D31513C473BE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{163F72FB-89D2-4FA7-B392-D31513C473BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{163F72FB-89D2-4FA7-B392-D31513C473BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{163F72FB-89D2-4FA7-B392-D31513C473BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{163F72FB-89D2-4FA7-B392-D31513C473BE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
