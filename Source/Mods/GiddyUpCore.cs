@@ -15,8 +15,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("Giddy-up! Core")]
     class GiddyUpCoreCompat
     {
-        static Type ExtendedPawnDataType;
-
         static Dictionary<object, Pawn> backward;
         static Dictionary<Pawn, object> forward;
 
@@ -62,7 +60,7 @@ namespace Multiplayer.Compat
                     postfix: new HarmonyMethod(typeof(GiddyUpCoreCompat), nameof(DeleteExtendedDataForPostfix)));
             }
             {
-                type = ExtendedPawnDataType = AccessTools.TypeByName("GiddyUpCore.Storage.ExtendedPawnData");
+                type = AccessTools.TypeByName("GiddyUpCore.Storage.ExtendedPawnData");
 
                 MP.RegisterSyncWorker<object>(ExtendedPawnData, type);
             }

@@ -49,10 +49,6 @@
     <Reference Include="0MultiplayerAPI">
       <HintPath>..\References\0MultiplayerAPI.dll</HintPath>
     </Reference>
-    <Reference Include="GiddyUpCore">
-      <HintPath>..\References\GiddyUpCore.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
