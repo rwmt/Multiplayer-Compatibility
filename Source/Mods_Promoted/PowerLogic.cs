@@ -7,7 +7,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Power Logic by Supes</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=812653710"/>
-    /// <remarks>Some widgets are missing due to the difficulty</remarks>
+    /// <remarks>Modder implemented it on his own, congrats!</remarks>
     [MpCompatFor("Power Logic")]
     public class PowerLogicCompat
     {

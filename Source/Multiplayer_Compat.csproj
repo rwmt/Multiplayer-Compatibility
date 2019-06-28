@@ -61,7 +61,6 @@
     <Compile Include="Mods\PowerSwitch.cs" />
     <Compile Include="Mods\ToggleRefuelable.cs" />
     <Compile Include="Mods\PathAvoid.cs" />
-    <Compile Include="Mods\PowerLogic.cs" />
     <Compile Include="Mods_WIP\RT_PowerSwitch.cs" />
     <Compile Include="Mods\GiddyUpCore.cs" />
     <Compile Include="Mods\SimpleSidearms.cs" />
@@ -73,6 +72,10 @@
   <ItemGroup>
     <Folder Include="Mods\" />
     <Folder Include="Mods_WIP\" />
+    <Folder Include="Mods_Promoted\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Mods_Promoted\PowerLogic.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

@@ -17,7 +17,6 @@ GiddyUp RideAndRoll  | [![url][repo]](https://github.com/rheirman/GiddyUpRideAnd
 GiddyUp BattleMounts | [![url][repo]](https://github.com/rheirman/battlemounts)
 Hospitality          | [![url][repo]](https://github.com/OrionFive/Hospitality)
 Path Avoid           | [![url][repo]](https://github.com/KiameV/rimworld-pathavoid)
-Power Logic          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=812653710)
 Power Switch         | [![url][repo]](https://github.com/HaploX1/RimWorld-PowerSwitch)
 Simple Sidearms      | [![url][repo]](https://github.com/PeteTimesSix/SimpleSidearms)
 Stuffed Floors       | [![url][repo]](https://github.com/FluffierThanThou/StuffedFloors)
