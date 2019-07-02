@@ -39,6 +39,12 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(
                 AccessTools.Method("GiddyUpRideAndRoll.Harmony.CaravanEnterMapUtility_Enter:MountCaravanMounts")
             );
+                
+            // Pawn Column Workers
+            {
+                MP.RegisterSyncMethod(AccessTools.Method("GiddyUpRideAndRoll.PawnColumns.PawnColumnWorker_RR_Mountable_Anyone:SetValue"));
+                MP.RegisterSyncMethod(AccessTools.Method("GiddyUpRideAndRoll.PawnColumns.PawnColumnWorker_RR_Mountable_Master:SetValue"));
+            }
 
             // AreaGU Randomness
             {
