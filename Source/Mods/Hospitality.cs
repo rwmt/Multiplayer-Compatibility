@@ -13,7 +13,6 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Hospitality by Orion</summary>
-    /// <remarks>Everything seems to work.</remarks>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=753498552"/>
     /// <see href="https://github.com/OrionFive/Hospitality"/>
     [MpCompatFor("Hospitality")]
@@ -34,23 +33,40 @@ namespace Multiplayer.Compat
         static void LateLoad()
         {
             Type type;
+
+            // Bed Gizmo
             {
                 MP.RegisterSyncMethod(AccessTools.Method("Hospitality.Building_GuestBed:Swap"));
             }
+
+            // Guest MainTab
             {
+                MP.RegisterSyncMethod(AccessTools.Method("Hospitality.MainTab.PawnColumnWorker_AccommodationArea:SetArea"));
+                MP.RegisterSyncMethod(AccessTools.Method("Hospitality.MainTab.PawnColumnWorker_ShoppingArea:SetArea"));
+                MP.RegisterSyncMethod(AccessTools.Method("Hospitality.MainTab.PawnColumnWorker_Entertain:SetValue"));
+                MP.RegisterSyncMethod(AccessTools.Method("Hospitality.MainTab.PawnColumnWorker_Recruit:SetValue"));
+            }
+
+            // Guest Tab
+            {
+                // force recruit button
                 MP.RegisterSyncMethod(AccessTools.Method("Hospitality.GuestUtility:ForceRecruit"));
             }
             {
                 type = AccessTools.TypeByName("Hospitality.ITab_Pawn_Guest");
 
+                // send home button
                 MP.RegisterSyncMethod(AccessTools.Method(type, "SendHome"));
-
+            }
+            {
+                // field watching as Tab shows
                 MpCompat.harmony.Patch(AccessTools.Method(type, "FillTabGuest"),
                     prefix: new HarmonyMethod(typeof(HospitalityCompat), nameof(WatchPrefix)),
                     postfix: new HarmonyMethod(typeof(HospitalityCompat), nameof(WatchPostfix))
                     );
             }
             {
+                // Individual Guest
                 type = AccessTools.TypeByName("Hospitality.CompGuest");
 
                 _chat = MP.RegisterSyncField(type, "chat");
@@ -66,11 +82,14 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<ThingComp>(SyncWorkerForCompGuest, type);
             }
             {
+                // Stops infinite recursion bug, seems to be outdated and unnecesary code in Hospitality.
+                // Should report to author.
                 MpCompat.harmony.Patch(AccessTools.Method("Hospitality.GenericUtility:DoAreaRestriction"),
                     transpiler: new HarmonyMethod(typeof(HospitalityCompat), nameof(StopRecursiveCall))
                     );
             }
             {
+                // Default preferences
                 type = AccessTools.TypeByName("Hospitality.Hospitality_MapComponent");
 
                 _defMode = MP.RegisterSyncField(type, "defaultInteractionMode");
