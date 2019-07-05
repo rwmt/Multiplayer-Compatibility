@@ -22,7 +22,7 @@ namespace Multiplayer.Compat
         static MethodInfo CompTickMethod;
         static MethodInfo ProcessCellMethod;
 
-        static ISyncMethod OmgPlzMethod;
+        static ISyncMethod TurnMethod;
 
         public RTPowerSwitchCompat(ModContentPack mod)
         {
@@ -33,7 +33,7 @@ namespace Multiplayer.Compat
             // compiler generated
             MP.RegisterSyncMethod(CompRTPowerSwitchType, "<CompGetGizmosExtra>b__15_1");
 
-            OmgPlzMethod = MP.RegisterSyncMethod(typeof(RTPowerSwitchCompat), nameof(Omgplz));
+            TurnMethod = MP.RegisterSyncMethod(typeof(RTPowerSwitchCompat), nameof(Turn));
 
             MpCompat.harmony.Patch(
                 ProcessCellMethod,
@@ -76,32 +76,33 @@ namespace Multiplayer.Compat
 
         static void SwitchOn(CompFlickable comp)
         {
-            Log.Message("wants off");
-
-            /*comp.wantSwitchOn = false;
-
-            FlickUtility.UpdateFlickDesignation(comp.parent);*/
-
-            // DESYNCS!!!!
-
-            OmgPlzMethod.DoSync(comp);
-        }
-
-        static void Omgplz(CompFlickable comp)
-        {
-            comp.SwitchIsOn = false;
+            Switch(comp, false);
         }
 
         static void SwitchOff(CompFlickable comp)
         {
-            Log.Message("wants on");
+            Switch(comp, true);
+        }
 
-            /*comp.wantSwitchOn = true;
+        static void Switch(CompFlickable comp, bool value)
+        {
+            if (MP.IsInMultiplayer && !MP.IsHosting) return;
 
-            FlickUtility.UpdateFlickDesignation(comp.parent);*/
+            Log.Message("wants " + value);
 
-            // DESYNCS!!!!
-            comp.SwitchIsOn = true;
+            LongEventHandler.ExecuteWhenFinished(delegate {
+                Turn(comp, value);
+            });
+        }
+
+        static void Turn(CompFlickable comp, bool value)
+        {
+            comp.wantSwitchOn = value;
+            comp.SwitchIsOn = value;
+
+            FlickUtility.UpdateFlickDesignation(comp.parent);
+
+            Log.Message("v: " + value);
         }
     }
 }
