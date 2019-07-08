@@ -68,6 +68,7 @@
     <Compile Include="Mods_WIP\CombatExtended.cs" />
     <Compile Include="Mods\GiddyUpRideAndRoll.cs" />
     <Compile Include="Mods\GiddyUpBattleMounts.cs" />
+    <Compile Include="Mods\GeneticRim.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Mods\" />

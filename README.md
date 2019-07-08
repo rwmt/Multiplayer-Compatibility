@@ -6,12 +6,13 @@
 
 Compatibility for random mods, you are encouraged to take it into your own mod
 
-Requires Zetrith's Multiplayer NotFood flavored: [Download](https://github.com/notfood/RimWorld-Multiplayer/releases)
+Requires latest Zetrith's Multiplayer: [Download](https://github.com/Parexy/Multiplayer)
 
 
 Support added to these mods | _
 --- | ---
 Animals Logic        | [![url][repo]](https://github.com/quicksilverfox/RimworldMods/tree/master/AnimalsLogic)
+Genetic Rim          | [![url][repo]](https://github.com/juanosarg/GeneticRim)
 GiddyUP Core         | [![url][repo]](https://github.com/rheirman/GiddyUpCore)
 GiddyUp RideAndRoll  | [![url][repo]](https://github.com/rheirman/GiddyUpRideAndRoll)
 GiddyUp BattleMounts | [![url][repo]](https://github.com/rheirman/battlemounts)
