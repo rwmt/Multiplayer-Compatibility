@@ -70,6 +70,7 @@
     <Compile Include="Mods\GiddyUpBattleMounts.cs" />
     <Compile Include="Mods\GeneticRim.cs" />
     <Compile Include="Mods\VanillaFishingExpanded.cs" />
+    <Compile Include="Mods\VanillaFurnitureExpandedFarming.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Mods\" />
