@@ -3,7 +3,6 @@ using System.Linq;
 using System.Reflection;
 using Harmony;
 using Multiplayer.API;
-using Multiplayer.Client;
 using RimWorld;
 using Verse;
 

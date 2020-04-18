@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Reflection.Emit;
 using Harmony;
 using Multiplayer.API;
-using Multiplayer.Client;
 using RimWorld;
 using Verse;
 
