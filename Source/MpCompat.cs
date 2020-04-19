@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 
-using Harmony;
+using HarmonyLib;
 using Multiplayer.API;
 using Verse;
 
@@ -9,7 +9,7 @@ namespace Multiplayer.Compat
 {
     public class MpCompat : Mod
     {
-        internal static readonly HarmonyInstance harmony = HarmonyInstance.Create("rimworld.multiplayer.compat");
+        internal static readonly Harmony harmony = new Harmony("rimworld.multiplayer.compat");
 
         public MpCompat(ModContentPack content) : base(content)
         {

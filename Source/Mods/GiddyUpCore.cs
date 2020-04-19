@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
-using Harmony;
+using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using Verse;
@@ -66,12 +66,15 @@ namespace Multiplayer.Compat
             }
 
             // Remove Random
+            // 2020-04-20: disabled as CodeMatcher was removed from Harmony
+            /*
             {
                 MpCompat.harmony.Patch(AccessTools.Method("GiddyUpCore.Utilities.NPCMountUtility:generateMounts"),
                     prefix: new HarmonyMethod(typeof(GiddyUpCoreCompat), nameof(GenerateMountsPrefix)),
                     postfix: new HarmonyMethod(typeof(GiddyUpCoreCompat), nameof(GenerateMountsPostfix)),
                     transpiler: new HarmonyMethod(typeof(GiddyUpCoreCompat), nameof(GenerateMountsTranspiler)));
             }
+            */
         }
 
         #region Sync ExtendedPawnData
@@ -134,6 +137,7 @@ namespace Multiplayer.Compat
                 Rand.PopState();
             }
         }
+        /*
         static IEnumerable<CodeInstruction> GenerateMountsTranspiler(IEnumerable<CodeInstruction> e, ILGenerator generator)
         {
             var myRandom = AccessTools.Method(typeof(GiddyUpCoreCompat), nameof(MakeMeARandom));
@@ -145,6 +149,7 @@ namespace Multiplayer.Compat
                 .Insert(new CodeInstruction(OpCodes.Call, myRandom))
                 .Instructions();
         }
+        */
 
         static int MakeMeARandom()
         {

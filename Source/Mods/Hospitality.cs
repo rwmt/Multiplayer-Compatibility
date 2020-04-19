@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
-using Harmony;
+using HarmonyLib;
 
 using Multiplayer.API;
 
@@ -81,6 +81,8 @@ namespace Multiplayer.Compat
 
                 MP.RegisterSyncWorker<ThingComp>(SyncWorkerForCompGuest, type);
             }
+            /*
+                // 2020-04-20: disabled as CodeMatcher was removed from Harmony
             {
                 // Stops infinite recursion bug, seems to be outdated and unnecesary code in Hospitality.
                 // Should report to author.
@@ -88,6 +90,7 @@ namespace Multiplayer.Compat
                     transpiler: new HarmonyMethod(typeof(HospitalityCompat), nameof(StopRecursiveCall))
                     );
             }
+            */
             {
                 // Default preferences
                 type = AccessTools.TypeByName("Hospitality.Hospitality_MapComponent");
@@ -147,6 +150,7 @@ namespace Multiplayer.Compat
             }
         }
 
+        /*
         static IEnumerable<CodeInstruction> StopRecursiveCall(IEnumerable<CodeInstruction> e, ILGenerator generator) {
 
             var voidMethod = AccessTools.Method(typeof(HospitalityCompat), nameof(Void));
@@ -161,6 +165,7 @@ namespace Multiplayer.Compat
                 .SetInstruction(new CodeInstruction(OpCodes.Call, voidMethod))
                 .Instructions();
         }
+        */
 
         static void Void(object obj, Area area)
         {

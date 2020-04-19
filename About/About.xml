@@ -22,4 +22,18 @@
     - Time of day Switch
     - Toggle Refuelable
   </description>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <downloadUrl>https://github.com/pardeike/Harmony/releases/</downloadUrl>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>Ludeon.RimWorld</li>
+    <li>Ludeon.RimWorld.Royalty</li>
+    <li>brrainz.harmony</li>
+    <li>rwmt.Multiplayer</li>
+  </loadAfter>
 </ModMetaData>

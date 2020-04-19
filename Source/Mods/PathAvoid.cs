@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 using System.Linq;
-using Harmony;
+using HarmonyLib;
 using Multiplayer.API;
 using Verse;
 namespace Multiplayer.Compat
