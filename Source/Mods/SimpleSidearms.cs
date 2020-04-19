@@ -30,16 +30,16 @@ namespace Multiplayer.Compat
             {
                 type = AccessTools.TypeByName("SimpleSidearms.intercepts.FloatMenuMakerMap_AddHumanLikeOrders_Postfix");
 
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_0", "<AddHumanlikeOrders>b__0");
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_1", "<AddHumanlikeOrders>b__0");
             }
             {
                 type = AccessTools.TypeByName("SimpleSidearms.utilities.WeaponAssingment");
 
-                MP.RegisterSyncMethod(type, "SetPrimary");
-                MP.RegisterSyncMethod(type, "weaponSwapSpecific");
+                MP.RegisterSyncMethod(type, "equipSpecificWeaponTypeFromInventory");
+                MP.RegisterSyncMethod(type, "equipSpecificWeapon");
                 MP.RegisterSyncMethod(type, "dropSidearm");
-                MP.RegisterSyncMethod(type, "forgetSidearmMemory");
             }
+            /*
             {
                 type = AccessTools.TypeByName("SimpleSidearms.rimworld.GoldfishModule");
 
@@ -52,9 +52,11 @@ namespace Multiplayer.Compat
                 GoldfishModule_PawnProperty = AccessTools.Property(type, "Owner");
                 GoldfishModule_GetGoldfishForPawnMethod = AccessTools.Method(type, "GetGoldfishForPawn");
             }
+            */
             // All the following for that tiny lock?!
             // This is an exercise of futility testing the limits of the API
             // TODO: Pester modder to encapsulate autoLockOnManualSwap in a method
+            /*
             LongEventHandler.ExecuteWhenFinished(delegate {
                 type = AccessTools.TypeByName("SimpleSidearms.rimworld.SwapControlsHandler");
 
@@ -71,6 +73,7 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(DrawLockPrefix)),
                     postfix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(DrawLockPostfix)));
             });
+            */
         }
 
         // This is required to sync a Pawn, GoldFishModule is included.
