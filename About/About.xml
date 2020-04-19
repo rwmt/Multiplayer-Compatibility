@@ -13,14 +13,15 @@
     - Genetic Rim
     - GiddyUP Core
     - GiddyUp RideAndRoll
-    - GiddyUp BattleMounts
-    - Hospitality
     - Path Avoid
     - Power Switch
-    - Simple Sidearms
     - Stuffed Floors
     - Time of day Switch
     - Toggle Refuelable
+    - Vanilla Furniture Expanded - Farming
+
+    Partial Support:
+    - Simple Sidearms
   </description>
   <modDependencies>
     <li>
