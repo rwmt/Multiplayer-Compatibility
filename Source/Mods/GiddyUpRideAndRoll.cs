@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
@@ -18,6 +19,7 @@ namespace Multiplayer.Compat
         static Type AreaGUType;
 
         static FieldInfo AreaLabelField;
+        static FieldInfo AreaManagerAreasField;
         static MethodInfo SetSelectedAreaMethod;
 
         static Type DesignatorDropAnimalExpandType;
@@ -48,6 +50,7 @@ namespace Multiplayer.Compat
             // AreaGU Randomness
             {
                 AreaGUType = AccessTools.TypeByName("GiddyUpCore.Zones.Area_GU");
+                AreaManagerAreasField = AccessTools.Field(typeof(AreaManager), "areas");
 
                 MpCompat.harmony.Patch(AccessTools.Method("Verse.AreaManager:AddStartingAreas"),
                     postfix: new HarmonyMethod(typeof(GiddyUpRideAndRollCompat), nameof(AddStartingAreasPostfix))
@@ -133,10 +136,11 @@ namespace Multiplayer.Compat
                 "Gu_Area_DropMount",
                 "Gu_Area_NoMount",
             };
+            List<Area> areas = (List<Area>) AreaManagerAreasField.GetValue(__instance);
             foreach(string name in zoneNames) {
                 var areaGU = (Area) Activator.CreateInstance(AreaGUType, new object[] { __instance, name });
 
-                __instance.areas.Add(areaGU);
+                areas.Add(areaGU);
             }
         }
         // Multiplayer supports many player factions, GiddyUP assumes their areas are unique
