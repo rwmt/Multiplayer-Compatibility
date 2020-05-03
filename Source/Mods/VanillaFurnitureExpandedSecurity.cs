@@ -15,65 +15,67 @@ namespace Multiplayer.Compat
     {
         public VFESecurity(ModContentPack mod)
         {
-            LongEventHandler.ExecuteWhenFinished(() =>
+            LongEventHandler.ExecuteWhenFinished(LateFix);
+        }
+
+        private void LateFix()
+        {
+            // Artillery, mostly gizmos
             {
-                // Artillery, mostly gizmos
+                var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
+
+                var methods = new[]
                 {
-                    var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
+                    "StartChoosingTarget",
+                    "ResetForcedTarget",
+                    //"SetTargetedTile",
+                    //"ChooseWorldTarget",
+                };
 
-                    var methods = new[]
-                    {
-                        "StartChoosingTarget",
-                        "ResetForcedTarget",
-                        //"SetTargetedTile",
-                        //"ChooseWorldTarget",
-                    };
+                foreach (var method in methods)
+                    MP.RegisterSyncMethod(type, method);
+            }
 
-                    foreach (var method in methods)
-                        MP.RegisterSyncMethod(type, method);
-                }
-
-                // RNG fix
+            // RNG fix
+            {
+                var methods = new MethodBase[]
                 {
-                    var methods = new MethodBase[]
-                    {
-                        AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_AIBase:Arrived"),
-                        AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Insectoid:StrikeAction"),
-                        AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Map:Arrived"),
-                        AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Outpost:StrikeAction"),
-                        AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_PeaceTalks:Arrived"),
-                        AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Settlement:StrikeAction"),
-                        AccessTools.Method("VFESecurity.ArtilleryComp:CompTick"),
-                        AccessTools.Method("VFESecurity.ArtilleryComp:TryStartBombardment"),
-                        AccessTools.Method("VFESecurity.WorldObjectCompProperties_Artillery:ArtilleryCountFor"),
-                        //AccessTools.Method("VFESecurity.Patch_Building_Trap.Spring:ShouldDestroy"),
-                        AccessTools.Method(AccessTools.Inner(AccessTools.TypeByName("VFESecurity.Patch_Building_Trap"), "Spring"), "ShouldDestroy"),
-                        // ArtilleryStrikeUtility:GetRandomShellFor and ArtilleryStrikeUtility:PotentialStrikeCells are only called by methods that are patched already
-                        AccessTools.Method("VFESecurity.Building_BarbedWire:SpringSub"),
-                        AccessTools.Method("VFESecurity.Building_TrapBear:SpringSub"),
+                    AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_AIBase:Arrived"),
+                    AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Insectoid:StrikeAction"),
+                    AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Map:Arrived"),
+                    AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Outpost:StrikeAction"),
+                    AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_PeaceTalks:Arrived"),
+                    AccessTools.Method("VFESecurity.ArtilleryStrikeArrivalAction_Settlement:StrikeAction"),
+                    AccessTools.Method("VFESecurity.ArtilleryComp:CompTick"),
+                    AccessTools.Method("VFESecurity.ArtilleryComp:TryStartBombardment"),
+                    AccessTools.Method("VFESecurity.WorldObjectCompProperties_Artillery:ArtilleryCountFor"),
+                    //AccessTools.Method("VFESecurity.Patch_Building_Trap.Spring:ShouldDestroy"),
+                    AccessTools.Method(AccessTools.Inner(AccessTools.TypeByName("VFESecurity.Patch_Building_Trap"), "Spring"), "ShouldDestroy"),
+                    // ArtilleryStrikeUtility:GetRandomShellFor and ArtilleryStrikeUtility:PotentialStrikeCells are only called by methods that are patched already
+                    AccessTools.Method("VFESecurity.Building_BarbedWire:SpringSub"),
+                    AccessTools.Method("VFESecurity.Building_TrapBear:SpringSub"),
 
-                        // This one seems like it should have no random calls at all in its hierarchy, but desync traces show that there are actually some.
-                        AccessTools.Method("VFESecurity.Verb_Dazzle:TryCastShot"),
+                    // This one seems like it should have no random calls at all in its hierarchy, but desync traces show that there are actually some.
+                    AccessTools.Method("VFESecurity.Verb_Dazzle:TryCastShot"),
 
-                        AccessTools.Method("VFESecurity.CompLongRangeArtillery:CompTick"),
-                        // ArtilleryComp:TryResolveArtilleryCount is called by ArtilleryComp:CompTick
-                        AccessTools.Method("VFESecurity.Building_Shield:Notify_EnergyDepleted"),
-                        AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }),
-                        AccessTools.Method("VFESecurity.Building_Shield:Draw"),
+                    AccessTools.Method("VFESecurity.CompLongRangeArtillery:CompTick"),
+                    // ArtilleryComp:TryResolveArtilleryCount is called by ArtilleryComp:CompTick
+                    AccessTools.Method("VFESecurity.Building_Shield:Notify_EnergyDepleted"),
+                    AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }),
+                    AccessTools.Method("VFESecurity.Building_Shield:Draw"),
 
-                        // One of the desyncs points to the mote directly, but does not have any non-vanilla calls in its desync trace
-                        AccessTools.Constructor(AccessTools.TypeByName("Verse.Mote")),
-                    };
+                    // One of the desyncs points to the mote directly, but does not have any non-vanilla calls in its desync trace
+                    AccessTools.Constructor(AccessTools.TypeByName("Verse.Mote")),
+                };
 
-                    foreach (var method in methods)
-                    {
-                        MpCompat.harmony.Patch(method,
-                            prefix: new HarmonyMethod(typeof(VFEF), nameof(FixRNGPre)),
-                            postfix: new HarmonyMethod(typeof(VFEF), nameof(FixRNGPos))
-                        );
-                    }
+                foreach (var method in methods)
+                {
+                    MpCompat.harmony.Patch(method,
+                        prefix: new HarmonyMethod(typeof(VFEF), nameof(FixRNGPre)),
+                        postfix: new HarmonyMethod(typeof(VFEF), nameof(FixRNGPos))
+                    );
                 }
-            });
+            }
         }
 
         static void FixRNGPre() => Rand.PushState();
