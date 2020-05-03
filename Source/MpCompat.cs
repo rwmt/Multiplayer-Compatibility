@@ -10,10 +10,13 @@ namespace Multiplayer.Compat
     public class MpCompat : Mod
     {
         internal static readonly Harmony harmony = new Harmony("rimworld.multiplayer.compat");
+        internal static ModContentPack content;
 
         public MpCompat(ModContentPack content) : base(content)
         {
             if (!MP.enabled) return;
+
+            MpCompat.content = content;
 
             var queue = content.assemblies.loadedAssemblies
                 .SelectMany(a => a.GetTypes())
