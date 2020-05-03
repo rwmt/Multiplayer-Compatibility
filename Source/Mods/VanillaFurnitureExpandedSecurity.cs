@@ -25,8 +25,8 @@ namespace Multiplayer.Compat
                     {
                         "StartChoosingTarget",
                         "ResetForcedTarget",
-                        "SetTargetedTile",
-                        "ChooseWorldTarget",
+                        //"SetTargetedTile",
+                        //"ChooseWorldTarget",
                     };
 
                     foreach (var method in methods)
