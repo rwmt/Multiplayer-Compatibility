@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Reflection;
-using System.Linq;
+
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -38,8 +38,6 @@ namespace Multiplayer.Compat
                 string defName = sw.Read<string>();
 
                 def = GenDefDatabase.GetDef(PathAvoidDefType, defName, false);
-
-                Log.Message($"R Def: {def}");
 
                 designator = (Designator) Activator.CreateInstance(Designator_PathAvoidType, new object[] { def });
             }
