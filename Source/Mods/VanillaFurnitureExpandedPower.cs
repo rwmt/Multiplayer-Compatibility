@@ -70,15 +70,8 @@ namespace Multiplayer.Compat
                     "VanillaPowerExpanded.CompPowerAdvancedWind:PostSpawnSetup",
                 };
 
-                PatchRNG(methods);
-                LongEventHandler.ExecuteWhenFinished(() => PatchRNG(methodsForLater));
-            }
-        }
-
-        void PatchRNG(string[] methods)
-        {
-            foreach (var method in methods) {
-                PatchingUtilities.PatchPushPopRand(AccessTools.Method(method));
+                PatchingUtilities.PatchPushPopRand(methods);
+                LongEventHandler.ExecuteWhenFinished(() => PatchingUtilities.PatchPushPopRand(methodsForLater));
             }
         }
     }
