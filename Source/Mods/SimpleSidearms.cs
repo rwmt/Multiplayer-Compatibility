@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
+
 using HarmonyLib;
 using Multiplayer.API;
-using RimWorld;
-using UnityEngine;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -12,127 +9,125 @@ namespace Multiplayer.Compat
     /// <summary>Simple Sidearms by PeteTimesSix</summary>
     /// <see href="https://github.com/PeteTimesSix/SimpleSidearms"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=927155256"/>
-    /// <remarks>autoLockOnManualSwap is costly for the benefits it brings, pestering
-    /// the modder to encapsulate the action in a method is preferable</remarks>
+    /// <remarks>This would be so simple as a PR for SimpleSidearms</remarks>
     [MpCompatFor("PeteTimesSix.SimpleSidearms")]
     public class SimpleSidearmsCompat
     {
-        static PropertyInfo GoldfishModule_PawnProperty;
-        static MethodInfo GoldfishModule_GetGoldfishForPawnMethod;
-
-        static PropertyInfo SwapControlsHandler_PawnProperty;
-        static MethodInfo SwapControlsHandler_GetHandlerForPawnMethod;
-        static ISyncField autoLockOnManualSwapSyncField;
+        static ISyncField primaryWeaponModeSyncField;
 
         public SimpleSidearmsCompat(ModContentPack mod)
         {
             Type type;
+            // Right-click order
             {
                 type = AccessTools.TypeByName("SimpleSidearms.intercepts.FloatMenuMakerMap_AddHumanLikeOrders_Postfix");
 
                 MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_1", "<AddHumanlikeOrders>b__0");
             }
+
+            // Gizmo interactions
             {
                 type = AccessTools.TypeByName("SimpleSidearms.utilities.WeaponAssingment");
 
-                MP.RegisterSyncMethod(type, "equipSpecificWeaponTypeFromInventory");
-                MP.RegisterSyncMethod(type, "equipSpecificWeapon");
-                MP.RegisterSyncMethod(type, "dropSidearm");
+                var methods = new[] {
+                    "equipSpecificWeaponTypeFromInventory",
+                    "equipSpecificWeapon",
+                    "dropSidearm",
+                };
+                foreach (string method in methods) {
+                    MP.RegisterSyncMethod(AccessTools.Method(type, method));
+                }
             }
-            /*
             {
-                type = AccessTools.TypeByName("SimpleSidearms.rimworld.GoldfishModule");
+                type = AccessTools.TypeByName("SimpleSidearms.rimworld.CompSidearmMemory");
 
-                MP.RegisterSyncMethod(type, "SetPrimaryEmpty");
-                MP.RegisterSyncMethod(type, "AddSidearm");
-                MP.RegisterSyncMethod(type, "DropPrimary");
-                MP.RegisterSyncMethod(type, "DropSidearm");
-                MP.RegisterSyncWorker<object>(SyncWorkerForGoldfishModule, type);
+                var methods = new[] {
+                    "SetWeaponAsForced",
+                    "SetRangedWeaponTypeAsDefault",
+                    "SetMeleeWeaponTypeAsPreferred",
+                    "SetUnarmedAsForced",
+                    "SetUnarmedAsPreferredMelee",
+                    "UnsetForcedWeapon",
+                    "UnsetRangedWeaponDefault",
+                    "UnsetMeleeWeaponPreference",
+                    "UnsetUnarmedAsForced",
+                    "UnsetMeleeWeaponPreference",
+                    "ForgetSidearmMemory",
+                };
+                foreach (string method in methods) {
+                    MP.RegisterSyncMethod(AccessTools.Method(type, method));
+                }
 
-                GoldfishModule_PawnProperty = AccessTools.Property(type, "Owner");
-                GoldfishModule_GetGoldfishForPawnMethod = AccessTools.Method(type, "GetGoldfishForPawn");
+                // TODO: Suggest the author to encapsulate this, would simplify things so much
+                primaryWeaponModeSyncField = MP.RegisterSyncField(AccessTools.Field(type, "primaryWeaponMode"));
             }
-            */
-            // All the following for that tiny lock?!
-            // This is an exercise of futility testing the limits of the API
-            // TODO: Pester modder to encapsulate autoLockOnManualSwap in a method
-            /*
-            LongEventHandler.ExecuteWhenFinished(delegate {
-                type = AccessTools.TypeByName("SimpleSidearms.rimworld.SwapControlsHandler");
-
-                MP.RegisterSyncWorker<object>(SyncWorkerForSwapControlsHandler, type);
-
-                autoLockOnManualSwapSyncField = MP.RegisterSyncField(type, "autoLockOnManualSwap");
-
-                SwapControlsHandler_PawnProperty = AccessTools.Property(type, "Owner");
-                SwapControlsHandler_GetHandlerForPawnMethod = AccessTools.Method(type, "GetHandlerForPawn");
-
+            // Required for primaryWeaponMode
+            {
                 type = AccessTools.TypeByName("SimpleSidearms.rimworld.Gizmo_SidearmsList");
 
-                MpCompat.harmony.Patch(AccessTools.Method(type, "DrawLocklock"),
-                    prefix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(DrawLockPrefix)),
-                    postfix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(DrawLockPostfix)));
-            });
-            */
+                MpCompat.harmony.Patch(AccessTools.Method(type, "handleInteraction"),
+                    prefix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(HandleInteractionPrefix)),
+                    postfix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(HandleInteractionPostfix)));
+            }
+            {
+                type = AccessTools.TypeByName("SimpleSidearms.rimworld.CompSidearmMemory");
+
+                MpCompat.harmony.Patch(AccessTools.Method(type, "GetMemoryCompForPawn"),
+                    postfix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(CaptureTheMemory)));
+            }
+            // Used often in the Set* methods for CompSidearmMemory
+            {
+                type = AccessTools.TypeByName("SimpleSidearms.rimworld.ThingDefStuffDefPair");
+
+                MP.RegisterSyncWorker<object>(SyncWorkerForThingDefStuffDefPair, type);
+            }
+
         }
 
-        // This is required to sync a Pawn, GoldFishModule is included.
-        static void SyncWorkerForGoldfishModule(SyncWorker sync, ref object obj)
+        #region ThingDefStuffDefPair
+
+        static void SyncWorkerForThingDefStuffDefPair(SyncWorker sync, ref object obj)
         {
-            Pawn pawn = null;
+            var traverse = Traverse.Create(obj);
+
+            var thingField = traverse.Field("thing");
+            var stuffField = traverse.Field("stuff");
+
             if (sync.isWriting) {
-                pawn = (Pawn) GoldfishModule_PawnProperty.GetValue(obj, new object[] { });
-
-                sync.Write(pawn);
+                sync.Write(thingField.GetValue<ThingDef>());
+                sync.Write(stuffField.GetValue<ThingDef>());
             } else {
-                pawn = sync.Read<Pawn>();
+                thingField.SetValue(sync.Read<ThingDef>());
+                stuffField.SetValue(sync.Read<ThingDef>());
+            }
+        }
+        #endregion
 
-                obj = GoldfishModule_GetGoldfishForPawnMethod.Invoke(null, new object[] { pawn });
+        #region primaryWeaponMode field watch
+        static bool watching;
+
+        // UGLY UGLY this is so UGLY! Yet... it works.
+        static void CaptureTheMemory(object __result)
+        {
+            if (watching) {
+                primaryWeaponModeSyncField.Watch(__result);
             }
         }
 
-        #region DrawLocklock
-        // All the following is for the tiny lock of doom
-
-        static void SyncWorkerForSwapControlsHandler(SyncWorker sync, ref object obj)
-        {
-            Pawn pawn = null;
-            if (sync.isWriting) {
-                pawn = (Pawn) SwapControlsHandler_PawnProperty.GetValue(obj, new object[] { });
-
-                // If Pawn is null, it was saved and got deleted.
-                if (pawn == null) {
-                    sync.Write(false);
-
-                    // Must use more reflection to traverse SimpleSidearms.saveData.handlers
-                    // This will desync if unhandled :(
-
-                    throw new ArgumentException("About to desync, tiny lock of doom triggered. Refusing to comply");
-                } else {
-                    sync.Write(true);
-                    sync.Write(pawn);
-                }
-
-            } else {
-                bool exists = sync.Read<bool>();
-                if (exists) {
-                    pawn = sync.Read<Pawn>();
-                    obj = SwapControlsHandler_GetHandlerForPawnMethod.Invoke(null, new object[] { pawn });
-                }
-            }
-        }
-        static void DrawLockPrefix(object __instance, object handler)
+        static void HandleInteractionPrefix()
         {
             if (MP.IsInMultiplayer) {
                 MP.WatchBegin();
 
-                autoLockOnManualSwapSyncField.Watch(handler);
+                watching = true;
             }
         }
-        static void DrawLockPostfix()
+        static void HandleInteractionPostfix()
         {
             if (MP.IsInMultiplayer) {
                 MP.WatchEnd();
+
+                watching = false;
             }
         }
 
