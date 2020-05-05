@@ -4,13 +4,13 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
+    /// <summary>Vanilla Furniture Expanded - Power by Oskar Potocki and Sarg Bjornson</summary>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2062943477"/>
+    /// <see href="https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Power"/>
+    /// Contribution to Multiplayer Compatibility by Sokyran and Reshiram
     [MpCompatFor("VanillaExpanded.VFEPower")]
     class VanillaPowerExpanded
     {
-        /// <summary>Vanilla Furniture Expanded - Power by Oskar Potocki and Sarg Bjornson</summary>
-        /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2062943477"/>
-        /// <see href="https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Power"/>
-        /// Contribution to Multiplayer Compatibility by Sokyran and Reshiram
         public VanillaPowerExpanded(ModContentPack mod)
         {
             LongEventHandler.ExecuteWhenFinished(LatePatch);
