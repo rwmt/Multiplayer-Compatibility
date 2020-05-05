@@ -64,8 +64,8 @@ namespace Multiplayer.Compat
                     AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }),
                     AccessTools.Method("VFESecurity.Building_Shield:Draw"),
 
-                    // One of the desyncs points to the mote directly, but does not have any non-vanilla calls in its desync trace
-                    AccessTools.Constructor(AccessTools.TypeByName("Verse.Mote")),
+                    AccessTools.Method("VFESecurity.ExtendedMoteMaker:SearchlightEffect"),
+                    AccessTools.Method("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail"),
                 };
 
                 foreach (var method in methods)
