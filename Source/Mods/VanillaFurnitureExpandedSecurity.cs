@@ -34,13 +34,11 @@ namespace Multiplayer.Compat
                     // ArtilleryStrikeUtility:GetRandomShellFor and ArtilleryStrikeUtility:PotentialStrikeCells are only called by methods that are patched already
                     "VFESecurity.Building_BarbedWire:SpringSub",
                     "VFESecurity.Building_TrapBear:SpringSub",
-
                     // This one seems like it should have no random calls at all in its hierarchy, but desync traces show that there are actually some.
                     "VFESecurity.Verb_Dazzle:TryCastShot",
-
                     "VFESecurity.CompLongRangeArtillery:CompTick",
-                    // ArtilleryComp:TryResolveArtilleryCount is called by ArtilleryComp:CompTick
-
+                    "NoCamShakeExplosions.DamageWorker_FlameNoCamShake:Apply",
+                    "NoCamShakeExplosions.DamageWorker_FlameNoCamShake:ExplosionAffectCell",
                     // Motes
                     "VFESecurity.ExtendedMoteMaker:SearchlightEffect",
                     "ExplosiveTrailsEffect.ExhaustFlames:ThrowRocketExhaustFlame",
@@ -55,6 +53,7 @@ namespace Multiplayer.Compat
 
                 var methodsForLater = new[]
                 {
+                    // ArtilleryComp:TryResolveArtilleryCount is called by ArtilleryComp:CompTick
                     "VFESecurity.ArtilleryComp:CompTick",
                     "VFESecurity.ArtilleryComp:TryStartBombardment",
                     "VFESecurity.Building_Shield:Notify_EnergyDepleted",
