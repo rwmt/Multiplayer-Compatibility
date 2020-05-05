@@ -16,9 +16,9 @@ namespace Multiplayer.Compat
         public VFESecurity(ModContentPack mod)
         {
             // Artillery, mostly gizmos
-            {
-                LongEventHandler.ExecuteWhenFinished(LateSyncMethods);
-            }
+            //{
+            //    LongEventHandler.ExecuteWhenFinished(LateSyncMethods);
+            //}
 
             // RNG fix
             {
@@ -67,20 +67,20 @@ namespace Multiplayer.Compat
             }
         }
 
-        static void LateSyncMethods()
-        {
-            var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
+        //static void LateSyncMethods()
+        //{
+        //    var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
 
-            var methods = new[]
-            {
-                "StartChoosingTarget",
-                "ResetForcedTarget",
-                //"SetTargetedTile",
-                //"ChooseWorldTarget",
-            };
+        //    var methods = new[]
+        //    {
+        //        "StartChoosingTarget",
+        //        "ResetForcedTarget",
+        //        //"SetTargetedTile",
+        //        //"ChooseWorldTarget",
+        //    };
 
-            foreach (var method in methods)
-                MP.RegisterSyncMethod(type, method);
-        }
+        //    foreach (var method in methods)
+        //        MP.RegisterSyncMethod(type, method);
+        //}
     }
 }
