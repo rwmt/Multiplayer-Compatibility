@@ -15,11 +15,6 @@ namespace Multiplayer.Compat
     {
         public VFESecurity(ModContentPack mod)
         {
-            // Artillery, mostly gizmos
-            //{
-            //    LongEventHandler.ExecuteWhenFinished(LateSyncMethods);
-            //}
-
             // RNG fix
             {
                 var methodNames = new[]
@@ -51,7 +46,33 @@ namespace Multiplayer.Compat
                     AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }),
                 };
 
-                var methodsForLater = new[]
+                PatchingUtilities.PatchPushPopRand(methodNames);
+                PatchingUtilities.PatchPushPopRand(methods);
+                LongEventHandler.ExecuteWhenFinished(LateSyncMethods);
+            }
+        }
+
+        static void LateSyncMethods()
+        {
+            // Artillery fix
+            {
+                var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
+
+                var methods = new[]
+                {
+                    //"StartChoosingTarget",
+                    "ResetForcedTarget",
+                    //"SetTargetedTile",
+                    //"ChooseWorldTarget",
+                };
+
+                foreach (var method in methods)
+                    MP.RegisterSyncMethod(type, method);
+            }
+
+            // RNG fix
+            {
+                var methods = new[]
                 {
                     // ArtilleryComp:TryResolveArtilleryCount is called by ArtilleryComp:CompTick
                     "VFESecurity.ArtilleryComp:CompTick",
@@ -60,26 +81,8 @@ namespace Multiplayer.Compat
                     "VFESecurity.Building_Shield:Draw",
                 };
 
-                PatchingUtilities.PatchPushPopRand(methodNames);
                 PatchingUtilities.PatchPushPopRand(methods);
-                LongEventHandler.ExecuteWhenFinished(() => PatchingUtilities.PatchPushPopRand(methodsForLater));
             }
         }
-
-        //static void LateSyncMethods()
-        //{
-        //    var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
-
-        //    var methods = new[]
-        //    {
-        //        "StartChoosingTarget",
-        //        "ResetForcedTarget",
-        //        //"SetTargetedTile",
-        //        //"ChooseWorldTarget",
-        //    };
-
-        //    foreach (var method in methods)
-        //        MP.RegisterSyncMethod(type, method);
-        //}
     }
 }
