@@ -20,15 +20,8 @@ namespace Multiplayer.Compat
                 };
 
                 foreach (var method in methods)
-                {
-                    MpCompat.harmony.Patch(method,
-                        prefix: new HarmonyMethod(typeof(VFEF), nameof(FixRNGPre)),
-                        postfix: new HarmonyMethod(typeof(VFEF), nameof(FixRNGPos))
-                    );
-                }
+                    PatchingUtilities.PatchPushPopRand(method);
             }
         }
-        static void FixRNGPre() => Rand.PushState();
-        static void FixRNGPos() => Rand.PopState();
     }
 }
