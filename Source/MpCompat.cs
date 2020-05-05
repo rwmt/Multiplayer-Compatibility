@@ -18,17 +18,17 @@ namespace Multiplayer.Compat
             var queue = content.assemblies.loadedAssemblies
                 .SelectMany(a => a.GetTypes())
                 .Join(LoadedModManager.RunningMods,
-                    type => type.TryGetAttribute<MpCompatForAttribute>()?.PackageId,
-                    mod => mod.PackageId,
+                    type => type.TryGetAttribute<MpCompatForAttribute>()?.PackageId.ToLower(),
+                    mod => mod.PackageId.Replace("_steam", ""),
                     (type, mod) => new { type, mod });
 
             foreach(var action in queue) {
                 try {
                     Activator.CreateInstance(action.type, action.mod);
 
-                    Log.Message($"MPCompat :: Initialized compatibility for {action.mod.Name}");
+                    Log.Message($"MPCompat :: Initialized compatibility for {action.mod.PackageId}");
                 } catch(Exception e) {
-                    Log.Error($"MPCompat :: Exception loading {action.mod.Name}: {e.InnerException}");
+                    Log.Error($"MPCompat :: Exception loading {action.mod.PackageId}: {e.InnerException}");
                 }
             }
 
