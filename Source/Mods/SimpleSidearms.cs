@@ -18,12 +18,6 @@ namespace Multiplayer.Compat
         public SimpleSidearmsCompat(ModContentPack mod)
         {
             Type type;
-            // Right-click order
-            {
-                type = AccessTools.TypeByName("SimpleSidearms.intercepts.FloatMenuMakerMap_AddHumanLikeOrders_Postfix");
-
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_1", "<AddHumanlikeOrders>b__0");
-            }
 
             // Gizmo interactions
             {
