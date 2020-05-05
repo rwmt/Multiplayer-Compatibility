@@ -6,7 +6,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Time of day switches by merthsoft</summary>
     /// <see href="https://bitbucket.org/merthsoft/timeofdayswitch"/>
-    [MpCompatFor("Time-of-Day Switches")]
+    [MpCompatFor("Merthsoft.TimeOfDaySwitches")]
     class TimeOfDAySwitch
     {
         public TimeOfDAySwitch(ModContentPack mod)

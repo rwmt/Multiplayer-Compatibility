@@ -9,32 +9,30 @@
   </supportedVersions>
   <description>Miscellaneous patches to make Multiplayer work
     Mod Support:
+    - Alpha Animals
     - Animals Logic
     - Genetic Rim
-    - GiddyUP Core
-    - GiddyUp RideAndRoll
     - Path Avoid
     - Power Switch
+    - Simple Sidearms
     - Stuffed Floors
     - Time of day Switch
-    - Vanilla Furniture Expanded - Farming
     - Vanilla Fishing Expanded
-
-    Partial Support:
-    - Simple Sidearms
+    - Vanilla Furniture Expanded - Farming
+    - Vanilla Furniture Expanded - Power
   </description>
   <modDependencies>
     <li>
-      <packageId>brrainz.harmony</packageId>
-      <displayName>Harmony</displayName>
-      <downloadUrl>https://github.com/pardeike/Harmony/releases/</downloadUrl>
-      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+      <packageId>rwmt.Multiplayer</packageId>
+      <displayName>Multiplayer</displayName>
+      <downloadUrl>https://github.com/rwmt/Multiplayer/releases</downloadUrl>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/1752864297</steamWorkshopUrl>
     </li>
   </modDependencies>
   <loadAfter>
-    <li>Ludeon.RimWorld</li>
-    <li>Ludeon.RimWorld.Royalty</li>
-    <li>brrainz.harmony</li>
     <li>rwmt.Multiplayer</li>
   </loadAfter>
+  <loadBefore>
+    <li>UnlimitedHugs.HugsLib</li>
+  </loadBefore>
 </ModMetaData>
