@@ -4,7 +4,7 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    [MpCompatFor("Vanilla Furniture Expanded - Power")]
+    [MpCompatFor("VanillaExpanded.VFEPower")]
     class VanillaPowerExpanded
     {
         /// <summary>Vanilla Furniture Expanded - Power by Oskar Potocki and Sarg Bjornson</summary>

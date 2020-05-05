@@ -14,7 +14,7 @@ namespace Multiplayer.Compat
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=927155256"/>
     /// <remarks>autoLockOnManualSwap is costly for the benefits it brings, pestering
     /// the modder to encapsulate the action in a method is preferable</remarks>
-    [MpCompatFor("Simple sidearms")]
+    [MpCompatFor("PeteTimesSix.SimpleSidearms")]
     public class SimpleSidearmsCompat
     {
         static PropertyInfo GoldfishModule_PawnProperty;

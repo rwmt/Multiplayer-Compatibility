@@ -18,8 +18,8 @@ namespace Multiplayer.Compat
             var queue = content.assemblies.loadedAssemblies
                 .SelectMany(a => a.GetTypes())
                 .Join(LoadedModManager.RunningMods,
-                    type => type.TryGetAttribute<MpCompatForAttribute>()?.ModName,
-                    mod => mod.Name,
+                    type => type.TryGetAttribute<MpCompatForAttribute>()?.PackageId,
+                    mod => mod.PackageId,
                     (type, mod) => new { type, mod });
 
             foreach(var action in queue) {
@@ -39,11 +39,11 @@ namespace Multiplayer.Compat
     [AttributeUsage(AttributeTargets.Class)]
     public class MpCompatForAttribute : Attribute
     {
-        public string ModName { get; }
+        public string PackageId { get; }
 
-        public MpCompatForAttribute(string modName)
+        public MpCompatForAttribute(string packageId)
         {
-            this.ModName = modName;
+            this.PackageId = packageId;
         }
     }
 }

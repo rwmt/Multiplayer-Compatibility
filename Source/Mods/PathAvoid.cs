@@ -10,7 +10,7 @@ namespace Multiplayer.Compat
     /// <remarks>Everything works</remarks>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1180719857"/>
     /// <see href="https://github.com/KiameV/rimworld-pathavoid"/>
-    [MpCompatFor("[KV] Path Avoid - 1.1")]
+    [MpCompatFor("pathavoid.kv.rw")]
     public class PathAvoidCompat
     {
         static Type PathAvoidDefType;

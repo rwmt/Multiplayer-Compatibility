@@ -7,7 +7,7 @@ namespace Multiplayer.Compat
     /// <summary>Vanilla Furniture Expanded by Oskar Potocki and dninemfive</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1957158779"/>
     /// contribution to Multiplayer Compatibility by Cody Spring
-    [MpCompatFor("Vanilla Furniture Expanded - Farming")]
+    [MpCompatFor("VanillaExpanded.VFEFarming")]
     class VFEF
     {
         public VFEF(ModContentPack mod)

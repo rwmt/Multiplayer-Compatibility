@@ -9,7 +9,7 @@ namespace Multiplayer.Compat
     /// <summary>Animals logic by Oblitus</summary>
     /// <see href="https://github.com/quicksilverfox/RimworldMods/tree/master/AnimalsLogic"/>
     /// <remarks>Beds are already watched, they just lack ownership. Adding it in the button desyncs. This is a better place.</remarks>
-    [MpCompatFor("Animals Logic")]
+    [MpCompatFor("Oblitus.AnimalsLogic")]
     public class AnimalLogicCompat
     {
         public AnimalLogicCompat(ModContentPack mod)

@@ -10,7 +10,7 @@ namespace Multiplayer.Compat
 
     /// <summary>Stuffed Floors by Fluffy</summary>
     /// <see href="https://github.com/FluffierThanThou/StuffedFloors"/>
-    [MpCompatFor("Stuffed Floors")]
+    [MpCompatFor("fluffy.stuffedfloors")]
     class StuffedFloorsCompat
     {
         static MethodInfo defDatabaseAddMethod;

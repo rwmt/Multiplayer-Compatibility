@@ -13,7 +13,7 @@ namespace Multiplayer.Compat
     /// <summary>Alpha Animals by Sarg Bjornson</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1541721856"/>
     /// contribution to Multiplayer Compatibility by Reshiram and Sokyran
-    [MpCompatFor("Alpha Animals")]
+    [MpCompatFor("sarg.alphaanimals")]
     class AlphaBehavioursAndEvents
     {
         public AlphaBehavioursAndEvents(ModContentPack mod)
