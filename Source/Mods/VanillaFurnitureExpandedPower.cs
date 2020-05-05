@@ -15,11 +15,6 @@ namespace Multiplayer.Compat
     {
         public VanillaPowerExpanded(ModContentPack mod)
         {
-            LongEventHandler.ExecuteWhenFinished(LatePatch);
-        }
-
-        private void LatePatch()
-        {
             Type type;
 
             /// Gizmos
@@ -64,14 +59,26 @@ namespace Multiplayer.Compat
                     "VanillaPowerExpanded.GasPipeNet:PowerNetTick",
                     // PipeNetGrid pushes and pops all Rand calls, no need to patch
                     // CompPowerAdvancedWater:RebuildCache is only calling a seeded random
+                };
+
+                // These methods are loading resources in their .ctor, must be patched later
+                var methodsForLater = new[]
+                {
                     "VanillaPowerExpanded.Building_Tank:Tick",
                     "VanillaPowerExpanded.Building_Tank:PostApplyDamage",
                     "VanillaPowerExpanded.CompPowerAdvancedWater:PostSpawnSetup",
                     "VanillaPowerExpanded.CompPowerAdvancedWind:PostSpawnSetup",
                 };
 
-                foreach (var method in methods)
-                    PatchingUtilities.PatchPushPopRand(AccessTools.Method(method));
+                PatchRNG(methods);
+                LongEventHandler.ExecuteWhenFinished(() => PatchRNG(methodsForLater));
+            }
+        }
+
+        void PatchRNG(string[] methods)
+        {
+            foreach (var method in methods) {
+                PatchingUtilities.PatchPushPopRand(AccessTools.Method(method));
             }
         }
     }
