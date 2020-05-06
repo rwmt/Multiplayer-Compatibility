@@ -14,8 +14,50 @@ namespace Multiplayer.Compat
         static void FixRNGPos() => Rand.PopState();
 
         /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/> as well as patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>.</summary>
+        /// <param name="methods">Methods that needs patching (as string)</param>
+        internal static void PatchSystemRand(string[] methods)
+        {
+            foreach (var method in methods)
+            {
+                PatchSystemRand(AccessTools.Method(method));
+            }
+        }
+
+        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/> as well as patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>.</summary>
+        /// <param name="methods">Methods that needs patching</param>
+        internal static void PatchSystemRand(MethodInfo[] methods)
+        {
+            foreach (var method in methods)
+            {
+                PatchSystemRand(method);
+            }
+        }
+
+        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/> as well as patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>.</summary>
         /// <param name="method">Method that needs patching</param>
         internal static void PatchSystemRand(MethodInfo method) => PatchPushPopRand(method, new HarmonyMethod(typeof(PatchingUtilities), nameof(FixRNG)));
+
+        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
+        /// <param name="methods">Methods that needs patching (as string)</param>
+        /// <param name="transpiler">Transpiler that will be applied to the method</param>
+        internal static void PatchPushPopRand(string[] methods, HarmonyMethod transpiler = null)
+        {
+            foreach (var method in methods)
+            {
+                PatchPushPopRand(AccessTools.Method(method), transpiler);
+            }
+        }
+
+        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
+        /// <param name="methods">Method that needs patching</param>
+        /// <param name="transpiler">Transpiler that will be applied to the method</param>
+        internal static void PatchPushPopRand(MethodInfo[] methods, HarmonyMethod transpiler = null)
+        {
+            foreach (var method in methods)
+            {
+                PatchPushPopRand(method, transpiler);
+            }
+        }
 
         /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
         /// <param name="method">Method that needs patching</param>
