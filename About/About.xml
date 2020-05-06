@@ -1,21 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
+  <packageId>rwmt.MultiplayerCompatibility</packageId>
   <name>Multiplayer Compatibility</name>
   <author>notfood</author>
-  <supportedVersions><li>1.0</li></supportedVersions>
+  <supportedVersions>
+    <li>1.0</li>
+    <li>1.1</li>
+  </supportedVersions>
   <description>Miscellaneous patches to make Multiplayer work
     Mod Support:
+    - Alpha Animals
     - Animals Logic
     - Genetic Rim
-    - GiddyUP Core
-    - GiddyUp RideAndRoll
-    - GiddyUp BattleMounts
-    - Hospitality
     - Path Avoid
     - Power Switch
     - Simple Sidearms
     - Stuffed Floors
     - Time of day Switch
-    - Toggle Refuelable
+    - Vanilla Fishing Expanded
+    - Vanilla Furniture Expanded - Farming
+    - Vanilla Furniture Expanded - Power
   </description>
+  <modDependencies>
+    <li>
+      <packageId>rwmt.Multiplayer</packageId>
+      <displayName>Multiplayer</displayName>
+      <downloadUrl>https://github.com/rwmt/Multiplayer/releases</downloadUrl>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/1752864297</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>rwmt.Multiplayer</li>
+  </loadAfter>
+  <loadBefore>
+    <li>UnlimitedHugs.HugsLib</li>
+  </loadBefore>
 </ModMetaData>

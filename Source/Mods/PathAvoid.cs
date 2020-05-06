@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
-using System.Linq;
-using Harmony;
+
+using HarmonyLib;
 using Multiplayer.API;
 using Verse;
 namespace Multiplayer.Compat
@@ -10,7 +10,7 @@ namespace Multiplayer.Compat
     /// <remarks>Everything works</remarks>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1180719857"/>
     /// <see href="https://github.com/KiameV/rimworld-pathavoid"/>
-    [MpCompatFor("[KV] Path Avoid - 1.0")]
+    [MpCompatFor("pathavoid.kv.rw")]
     public class PathAvoidCompat
     {
         static Type PathAvoidDefType;
@@ -38,8 +38,6 @@ namespace Multiplayer.Compat
                 string defName = sw.Read<string>();
 
                 def = GenDefDatabase.GetDef(PathAvoidDefType, defName, false);
-
-                Log.Message($"R Def: {def}");
 
                 designator = (Designator) Activator.CreateInstance(Designator_PathAvoidType, new object[] { def });
             }
