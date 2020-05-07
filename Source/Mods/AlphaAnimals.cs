@@ -14,14 +14,13 @@ namespace Multiplayer.Compat
             //RNG Fix
             {
                 var rngFixMethods = new[] { //System.Random fixes
-                    AccessTools.Method("AlphaBehavioursAndEvents.CompGasProducer:CompTick"),
-                    AccessTools.Method("AlphaBehavioursAndEvents.CompAnimalProduct:InformGathered"),
-                    AccessTools.Method("AlphaBehavioursAndEvents.CompInitialHediff:CompTickRare"),
-                    AccessTools.Method("AlphaBehavioursAndEvents.Gas_Ocular:Tick"),
-                    AccessTools.Method("AlphaBehavioursAndEvents.Hediff_Crushing:RandomFilthGenerator")
+                    "AlphaBehavioursAndEvents.CompGasProducer:CompTick",
+                    "AlphaBehavioursAndEvents.CompAnimalProduct:InformGathered",
+                    "AlphaBehavioursAndEvents.CompInitialHediff:CompTickRare",
+                    "AlphaBehavioursAndEvents.Gas_Ocular:Tick",
+                    "AlphaBehavioursAndEvents.Hediff_Crushing:RandomFilthGenerator",
                 };
-                foreach (var method in rngFixMethods)
-                    PatchingUtilities.PatchSystemRand(method);
+                PatchingUtilities.PatchSystemRand(rngFixMethods);
             }
         }
     }
