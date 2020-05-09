@@ -31,7 +31,6 @@ namespace Multiplayer.Compat
                     "VFESecurity.Building_TrapBear:SpringSub",
                     // This one seems like it should have no random calls at all in its hierarchy, but desync traces show that there are actually some.
                     "VFESecurity.Verb_Dazzle:TryCastShot",
-                    "VFESecurity.CompLongRangeArtillery:CompTick",
                     "NoCamShakeExplosions.DamageWorker_FlameNoCamShake:Apply",
                     "NoCamShakeExplosions.DamageWorker_FlameNoCamShake:ExplosionAffectCell",
                     // Motes
@@ -40,14 +39,8 @@ namespace Multiplayer.Compat
                     "ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail",
                 };
 
-                var methods = new[]
-                {
-                    AccessTools.Method(AccessTools.Inner(AccessTools.TypeByName("VFESecurity.Patch_Building_Trap"), "Spring"), "ShouldDestroy"),
-                    AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }),
-                };
-
+                PatchingUtilities.PatchPushPopRand(AccessTools.Method(AccessTools.Inner(AccessTools.TypeByName("VFESecurity.Patch_Building_Trap"), "Spring"), "ShouldDestroy"));
                 PatchingUtilities.PatchPushPopRand(methodNames);
-                PatchingUtilities.PatchPushPopRand(methods);
                 LongEventHandler.ExecuteWhenFinished(LateSyncMethods);
             }
         }
@@ -79,8 +72,10 @@ namespace Multiplayer.Compat
                     "VFESecurity.ArtilleryComp:TryStartBombardment",
                     "VFESecurity.Building_Shield:Notify_EnergyDepleted",
                     "VFESecurity.Building_Shield:Draw",
+                    "VFESecurity.CompLongRangeArtillery:CompTick",
                 };
 
+                PatchingUtilities.PatchPushPopRand(AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }));
                 PatchingUtilities.PatchPushPopRand(methods);
             }
         }
