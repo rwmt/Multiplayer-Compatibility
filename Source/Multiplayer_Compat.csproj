@@ -7,11 +7,14 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DebugType>None</DebugType>
-    <ReleaseVersion>0.2.0</ReleaseVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Lib.Harmony" Version="2.0.0.8" />
-    <PackageReference Include="RimWorld.MultiplayerAPI" Version="0.2.0" />
+    <PackageReference Include="Lib.Harmony" Version="2.0.0.8">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="RimWorld.MultiplayerAPI" Version="0.2.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
 
     <Reference Include="UnityEngine">
       <HintPath>..\..\..\RimWorldWin64_Data\Managed\UnityEngine.dll</HintPath>

@@ -15,12 +15,11 @@ namespace Multiplayer.Compat
             //RNG Fix
             {
                 var methods = new[] {
-                    AccessTools.Method("VFEF.MoteSprinkler:NewMote"),
-                    AccessTools.Method("VFEF.MoteSprinkler:ThrowWaterSpray")
+                    "VFEF.MoteSprinkler:NewMote",
+                    "VFEF.MoteSprinkler:ThrowWaterSpray",
                 };
 
-                foreach (var method in methods)
-                    PatchingUtilities.PatchPushPopRand(method);
+                PatchingUtilities.PatchPushPopRand(methods);
             }
         }
     }
