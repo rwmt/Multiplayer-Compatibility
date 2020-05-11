@@ -12,7 +12,11 @@ namespace Multiplayer.Compat
     {
         public VanillaFishingExpanded(ModContentPack mod)
         {
-            MP.RegisterSyncMethod(AccessTools.Method("VCE_Fishing.JobDriver_Fish:SelectFishToCatch"));
+            var method = AccessTools.Method("VCE_Fishing.JobDriver_Fish:SelectFishToCatch");
+
+            PatchingUtilities.PatchSystemRand(method);
+
+            MP.RegisterSyncMethod(method);
         }
     }
 }
