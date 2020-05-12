@@ -80,14 +80,15 @@ namespace Multiplayer.Compat
 
             // RNG patching
             {
-                string[] typesWithRand = {
-                    "NewHatcher.CompHatcherRandomizer",
-                    "NewHatcher.CompIncubator",
-                    "NewHatcher.CompRecombinator",
-                    "NewHatcher.CompRecombinatorSerum",
+                string[] methodsWithRand = {
+                    "NewHatcher.CompHatcherRandomizer:Hatch",
+                    "NewHatcher.CompIncubator:Hatch",
+                    "NewHatcher.CompRecombinator:Hatch",
+                    "NewHatcher.CompRecombinator:RecombinateAgain",
+                    "NewHatcher.CompRecombinatorSerum:Hatch",
                 };
 
-                PatchingUtilities.PatchSystemRand(typesWithRand);
+                PatchingUtilities.PatchSystemRand(methodsWithRand);
             }
         }
     }
