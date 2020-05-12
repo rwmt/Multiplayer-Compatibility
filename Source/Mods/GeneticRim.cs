@@ -78,28 +78,18 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(AccessTools.Method("NewMachinery.Command_SetGeneList:ProcessInput"));
             }
 
-            // RNG mitigation
+            // RNG patching
             {
-                string[] typesWithRand = {
-                    "NewHatcher.CompHatcherRandomizer",
-                    "NewHatcher.CompIncubator",
-                    "NewHatcher.CompRecombinator",
-                    "NewHatcher.CompRecombinatorSerum",
+                string[] methodsWithRand = {
+                    "NewHatcher.CompHatcherRandomizer:Hatch",
+                    "NewHatcher.CompIncubator:Hatch",
+                    "NewHatcher.CompRecombinator:Hatch",
+                    "NewHatcher.CompRecombinator:RecombinateAgain",
+                    "NewHatcher.CompRecombinatorSerum:Hatch",
                 };
 
-                foreach (string typeName in typesWithRand) {
-                    type = AccessTools.TypeByName(typeName);
-
-                    MpCompat.harmony.Patch(AccessTools.Constructor(type),
-                        postfix: new HarmonyMethod(typeof(GeneticRimCompat), nameof(MitigateRNG))
-                    );
-                }
+                PatchingUtilities.PatchSystemRand(methodsWithRand);
             }
-        }
-
-        static void MitigateRNG(ref Random ___rand)
-        {
-            ___rand = new Random(GenDate.DaysPassed);
         }
     }
 }
