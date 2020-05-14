@@ -1,8 +1,14 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
+using RimWorld;
+using RimWorld.Planet;
 using Verse;
+using Verse.Sound;
 
 namespace Multiplayer.Compat
 {
@@ -13,8 +19,23 @@ namespace Multiplayer.Compat
     [MpCompatFor("VanillaExpanded.VFESecurity")]
     class VFESecurity
     {
+        private static PropertyInfo selectedCompsProperty;
+        private static PropertyInfo turretProperty;
+        private static FieldInfo targetedTileField;
+        private static MethodInfo resetWarmupTicksMethod;
+
+        private static MethodInfo resetCurrentTargetMethod;
+        private static MethodInfo resetForcedTargetMethod;
+
         public VFESecurity(ModContentPack mod)
         {
+            // Artillery fix
+            {
+                var type = AccessTools.TypeByName("RimWorld.Building_TurretGun");
+                resetCurrentTargetMethod = AccessTools.Method(type, "ResetCurrentTarget");
+                resetForcedTargetMethod = AccessTools.Method(type, "ResetForcedTarget");
+            }
+
             // RNG fix
             {
                 var methodNames = new[]
@@ -51,16 +72,15 @@ namespace Multiplayer.Compat
             {
                 var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
 
-                var methods = new[]
-                {
-                    //"StartChoosingTarget",
-                    "ResetForcedTarget",
-                    //"SetTargetedTile",
-                    //"ChooseWorldTarget",
-                };
+                selectedCompsProperty = AccessTools.Property(type, "SelectedComps");
+                turretProperty = AccessTools.Property(type, "Turret");
+                targetedTileField = AccessTools.Field(type, "targetedTile");
+                resetWarmupTicksMethod = AccessTools.DeclaredMethod(type, "ResetWarmupTicks");
 
-                foreach (var method in methods)
-                    MP.RegisterSyncMethod(type, method);
+                MP.RegisterSyncMethod(type, "ResetForcedTarget");
+                MP.RegisterSyncMethod(typeof(VFESecurity), nameof(SetTargetedTile));
+
+                MpCompat.harmony.Patch(AccessTools.Method(type, "SetTargetedTile"), new HarmonyMethod(typeof(VFESecurity), nameof(Prefix)));
             }
 
             // RNG fix
@@ -77,6 +97,30 @@ namespace Multiplayer.Compat
 
                 PatchingUtilities.PatchPushPopRand(AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }));
                 PatchingUtilities.PatchPushPopRand(methods);
+            }
+        }
+
+        private static bool Prefix(GlobalTargetInfo t)
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            CameraJumper.TryHideWorld();
+            var selected = (selectedCompsProperty.GetValue(null) as IEnumerable).Cast<ThingComp>().ToList();
+            SetTargetedTile(t.WorldObject, selected);
+            return false;
+        }
+
+        private static void SetTargetedTile(WorldObject worldObject, List<ThingComp> elements)
+        {
+            foreach (var artillery in elements)
+            {
+                var turret = turretProperty.GetValue(artillery) as Building_TurretGun;
+                resetForcedTargetMethod.Invoke(turret, null);
+                resetCurrentTargetMethod.Invoke(turret, null);
+                targetedTileField.SetValue(artillery, new GlobalTargetInfo(worldObject));
+                SoundDefOf.TurretAcquireTarget.PlayOneShot(new TargetInfo(artillery.parent.Position, artillery.parent.Map, false));
+                resetWarmupTicksMethod.Invoke(artillery, null);
             }
         }
     }
