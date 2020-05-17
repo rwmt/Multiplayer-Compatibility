@@ -45,7 +45,8 @@ namespace Multiplayer.Compat.Mods
             PatchingUtilities.PatchPushPopRand(methodsForRngSync);
             PatchingUtilities.PatchSystemRand(methodsForAll);
             // Only patch System.Random out, as this methods is only called by other ones
-            MpCompat.harmony.Patch(AccessTools.Method("VEE.RegularEvents.EarthQuake:DamageInRadius"), transpiler: new HarmonyMethod(typeof(PatchingUtilities), nameof(PatchingUtilities.FixRNG)));
+            MpCompat.harmony.Patch(AccessTools.Method("VEE.RegularEvents.EarthQuake:DamageInRadius"),
+                transpiler: new HarmonyMethod(typeof(PatchingUtilities), nameof(PatchingUtilities.FixRNG)));
         }
     }
 }
