@@ -23,6 +23,7 @@ Time of day Switch   | [![url][repo]](https://bitbucket.org/merthsoft/timeofdays
 VCE-Fishing          | [![url][repo]](https://github.com/juanosarg/VanillaCuisineExpanded-Fishing)
 VFE-Farming          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1957158779)
 VFE-Power            | [![url][repo]](https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Power)
+VFE-Security         | [![url][repo]](https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Security)
 
 WIP. Feel free to PR more if you want them included in Multiplayer Compatibility Release [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1629973374)
 
