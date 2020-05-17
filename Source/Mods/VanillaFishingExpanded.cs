@@ -21,11 +21,7 @@ namespace Multiplayer.Compat
         {
             // RNG fix
             {
-                var method = AccessTools.Method("VCE_Fishing.JobDriver_Fish:SelectFishToCatch");
-
-                PatchingUtilities.PatchSystemRand(method);
-
-                MP.RegisterSyncMethod(method);
+                PatchingUtilities.PatchSystemRand(AccessTools.Method("VCE_Fishing.JobDriver_Fish:SelectFishToCatch"));
             }
 
             // Gizmo (select fish size to catch)
