@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Reflection;
+using System.Runtime.Serialization;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -13,6 +15,9 @@ namespace Multiplayer.Compat
     [MpCompatFor("rimfridge.kv.rw")]
     public class RimFridgeCompat
     {
+        private static FieldInfo fridgeField;
+        private static Type dialogType;
+
         public RimFridgeCompat(ModContentPack mod)
         {
 
@@ -32,6 +37,23 @@ namespace Multiplayer.Compat
                 {
                     MP.RegisterSyncDelegate(type, "<>c__DisplayClass10_0", method);
                 }
+
+                dialogType = AccessTools.TypeByName("RimFridge.Dialog_RenameFridge");
+                fridgeField = AccessTools.Field(dialogType, "fridge");
+
+                MP.RegisterSyncWorker<Dialog_Rename>(SyncFridgeName, dialogType);
+                MP.RegisterSyncMethod(dialogType, "SetName");
+            }
+        }
+
+        private static void SyncFridgeName(SyncWorker sync, ref Dialog_Rename dialog)
+        {
+            if (sync.isWriting)
+                sync.Write((ThingComp)fridgeField.GetValue(dialog));
+            else
+            {
+                dialog = (Dialog_Rename)FormatterServices.GetUninitializedObject(dialogType);
+                fridgeField.SetValue(dialog, sync.Read<ThingComp>());
             }
         }
     }
