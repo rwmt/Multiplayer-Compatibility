@@ -97,7 +97,7 @@ namespace Multiplayer.Compat
                 var ci = instr.ElementAt(i);
 
                 // Checking if random is defined inside of the method (there's high chance it won't work if random is defined more than once)
-                if (ci.opcode == OpCodes.Newobj && ci.operand is ConstructorInfo constructor && constructor == SystemRandConstructor)
+                if (!localRandomOpCode.HasValue && ci.opcode == OpCodes.Newobj && ci.operand is ConstructorInfo constructor && constructor == SystemRandConstructor)
                 {
                     // Check if there's at least one more instruction (just in case)
                     if (i + 1 < instr.Count())
@@ -125,74 +125,96 @@ namespace Multiplayer.Compat
                     // Patching System.Next() as Verse.Rand.Range(0, int.MaxValue)
                     if (operand == SystemNext)
                     {
+                        int result = -1;
                         if (localRandomOpCode.HasValue)
                         {
                             // Replace loading local random field with our first parameter
-                            PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Ldc_I4_0, localRandomOperand);
+                            result = PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Ldc_I4_0, localRandomOperand);
                             // Add a parameter for max value (since we don't have instructions to replace anymore)
-                            yield return new CodeInstruction(opcode: OpCodes.Ldc_I4, operand: int.MaxValue);
+                            if (result != -1)
+                                yield return new CodeInstruction(opcode: OpCodes.Ldc_I4, operand: int.MaxValue);
                         }
-                        else
+                        if (result == -1)
                         {
                             // Replace random loading from field into our rand parameters
                             var pos = PatchEarlierInstruction(instr, i, OpCodes.Ldfld, OpCodes.Ldc_I4, typeof(System.Random), int.MaxValue);
-                            PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Ldc_I4_0);
+                            result = PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Ldc_I4_0);
                         }
-                        ci.opcode = OpCodes.Call;
-                        ci.operand = RandRangeInt;
+
+                        if (result != -1)
+                        {
+                            ci.opcode = OpCodes.Call;
+                            ci.operand = RandRangeInt;
+                        }
                     }
                     // Patching System.Next(max) as Verse.Rand.Range(0, max)
                     else if (operand == SystemNextMax)
                     {
+                        int result = -1;
                         if (localRandomOpCode.HasValue)
                         {
                             // Replace loading local random field with our first parameter
-                            PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Ldc_I4_0, localRandomOperand);
+                            result = PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Ldc_I4_0, localRandomOperand);
                         }
-                        else
+                        if (result == -1)
                         {
                             // Replace random loading from field into our first parameter and nop (as one of the parameters is provided)
                             var pos = PatchEarlierInstruction(instr, i, OpCodes.Ldfld, OpCodes.Ldc_I4_0, typeof(System.Random));
-                            PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Nop);
+                            result = PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Nop);
                         }
-                        ci.opcode = OpCodes.Call;
-                        ci.operand = RandRangeInt;
+
+                        if (result != -1)
+                        {
+                            ci.opcode = OpCodes.Call;
+                            ci.operand = RandRangeInt;
+                        }
                     }
                     // Patching System.Next(min, max) as Verse.Rand.Range(min, max)
                     else if (operand == SystemNextMinMax)
                     {
+                        int result = -1;
                         if (localRandomOpCode.HasValue)
                         {
                             // Replace loading local random field with nop (as we have both of our parameters)
-                            PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Nop, localRandomOperand);
+                            result = PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Nop, localRandomOperand);
                         }
-                        else
+                        if (result == -1)
                         {
                             // Replace random loading from field into nop (as the parameters are already provided)
                             var pos = PatchEarlierInstruction(instr, i, OpCodes.Ldfld, OpCodes.Nop, typeof(System.Random));
-                            PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Nop);
+                            result = PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Nop);
                         }
-                        ci.opcode = OpCodes.Call;
-                        ci.operand = RandRangeInt;
+
+                        if (result != -1)
+                        {
+                            ci.opcode = OpCodes.Call;
+                            ci.operand = RandRangeInt;
+                        }
                     }
                     // Patching System.NextDouble() as Verse.Rand.Range(0f, 1f)
                     else if (operand == SystemNextDouble)
                     {
+                        int result = -1;
                         if (localRandomOpCode.HasValue)
                         {
                             // Replace loading local random field with our first parameter
-                            PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Ldc_R4, localRandomOperand, 0f);
+                            result = PatchEarlierInstruction(instr, i, localRandomOpCode.Value, OpCodes.Ldc_R4, localRandomOperand, 0f);
                             // Add a parameter for max value (since we don't have instructions to replace anymore)
-                            yield return new CodeInstruction(opcode: OpCodes.Ldc_R4, operand: 1f);
+                            if (result != -1)
+                                yield return new CodeInstruction(opcode: OpCodes.Ldc_R4, operand: 1f);
                         }
-                        else
+                        if (result == -1)
                         {
                             // Replace random loading from field into our rand parameters
                             var pos = PatchEarlierInstruction(instr, i, OpCodes.Ldfld, OpCodes.Ldc_R4, typeof(System.Random), 1f);
-                            PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Ldc_R4, null, 0f);
+                            result = PatchEarlierInstruction(instr, pos, OpCodes.Ldarg_0, OpCodes.Ldc_R4, null, 0f);
                         }
-                        ci.opcode = OpCodes.Call;
-                        ci.operand = RandRangeFloat;
+
+                        if (result != -1)
+                        {
+                            ci.opcode = OpCodes.Call;
+                            ci.operand = RandRangeFloat;
+                        }
                     }
                     // We return the same instrucion, although with changed opcode and operand (if possible) to avoid issues with jumps
                     // This shouldn't really be a possibility here, but it's better to be safe just in case
@@ -220,7 +242,7 @@ namespace Multiplayer.Compat
                 }
             }
 
-            return 0;
+            return -1;
         }
 
         private static void GetLdlocFromStloc(CodeInstruction instruction, out OpCode? randomCode, out object operand)
