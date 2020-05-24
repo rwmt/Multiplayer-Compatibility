@@ -13,6 +13,7 @@ Support added to these mods | _
 --- | ---
 Alpha Animals        | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1541721856)
 Animals Logic        | [![url][repo]](https://github.com/quicksilverfox/RimworldMods/tree/master/AnimalsLogic)
+Fertile Fields       | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2012735237)
 Genetic Rim          | [![url][repo]](https://github.com/juanosarg/GeneticRim)
 RimFridge            | [![url][repo]](https://github.com/KiameV/rimworld-rimfridge)
 Path Avoid           | [![url][repo]](https://github.com/KiameV/rimworld-pathavoid)
