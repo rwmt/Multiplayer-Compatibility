@@ -17,10 +17,13 @@ namespace Multiplayer.Compat
 
             var queue = content.assemblies.loadedAssemblies
                 .SelectMany(a => a.GetTypes())
+                .Where(t => t.HasAttribute<MpCompatForAttribute>())
+                .SelectMany(t => (MpCompatForAttribute[]) t.GetCustomAttributes(typeof(MpCompatForAttribute), false),
+                    resultSelector: (type, compat) => new { type, compat })
                 .Join(LoadedModManager.RunningMods,
-                    type => type.TryGetAttribute<MpCompatForAttribute>()?.PackageId.ToLower(),
+                    box => box.compat.PackageId.ToLower(),
                     mod => mod.PackageId.Replace("_steam", ""),
-                    (type, mod) => new { type, mod });
+                    (box, mod) => new { box.type, mod });
 
             foreach(var action in queue) {
                 try {
@@ -36,7 +39,7 @@ namespace Multiplayer.Compat
         }
     }
 
-    [AttributeUsage(AttributeTargets.Class)]
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
     public class MpCompatForAttribute : Attribute
     {
         public string PackageId { get; }
@@ -44,6 +47,12 @@ namespace Multiplayer.Compat
         public MpCompatForAttribute(string packageId)
         {
             this.PackageId = packageId;
+        }
+
+        public override object TypeId {
+            get {
+                return this;
+            }
         }
     }
 }
