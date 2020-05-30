@@ -4,7 +4,7 @@ using Verse;
 
 namespace Multiplayer.Compat.Mods
 {
-    /// <summary>PowerSwitch by Haplo</summary>
+    /// <summary>PowerSwitch by Albion</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1123043922"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1195241161"/>
     [MpCompatFor("Albion.SparklingWorlds.Full")]
