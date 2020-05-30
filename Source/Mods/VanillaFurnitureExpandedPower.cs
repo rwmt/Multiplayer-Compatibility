@@ -20,9 +20,15 @@ namespace Multiplayer.Compat
             /// Gizmos
             // Debug fill/empty
             {
+                type = AccessTools.TypeByName("GasNetwork.CompGasStorage");
+                // Both these methods are calling (basically) the same method,
+                // but that method also has other callers that don't need syncing
+                MP.RegisterSyncMethod(type, "<CompGetGizmosExtra>b__15_0");
+                MP.RegisterSyncMethod(type, "<CompGetGizmosExtra>b__15_1");
+
                 type = AccessTools.TypeByName("VanillaPowerExpanded.CompPipeTank");
-                MP.RegisterSyncMethod(type, "<CompGetGizmosExtra>b__17_0");
-                MP.RegisterSyncMethod(type, "<CompGetGizmosExtra>b__17_1");
+                // This method is only called by 2 gizmos and nothing else (as far as I can tell)
+                MP.RegisterSyncMethod(type, "SetStoredEnergyPct");
             }
             // Order to or cancel plugging the hole (method names shared by both types)
             {
@@ -57,6 +63,7 @@ namespace Multiplayer.Compat
                     "VanillaPowerExpanded.IntermittentGasSprayer:ThrowAirPuffUp",
                     // NewBaseAirPuff is only called by IntermittentGasSprayer:ThrowAirPuffUp, no need for patching
                     "VanillaPowerExpanded.GasPipeNet:PowerNetTick",
+                    "GasNetwork.GasNet:GasNetTick",
                     // PipeNetGrid pushes and pops all Rand calls, no need to patch
                     // CompPowerAdvancedWater:RebuildCache is only calling a seeded random
                 };
@@ -64,8 +71,8 @@ namespace Multiplayer.Compat
                 // These methods are loading resources in their .ctor, must be patched later
                 var methodsForLater = new[]
                 {
-                    "VanillaPowerExpanded.Building_Tank:Tick",
-                    "VanillaPowerExpanded.Building_Tank:PostApplyDamage",
+                    //"VanillaPowerExpanded.Building_Tank:Tick",
+                    //"VanillaPowerExpanded.Building_Tank:PostApplyDamage",
                     "VanillaPowerExpanded.CompPowerAdvancedWater:PostSpawnSetup",
                     "VanillaPowerExpanded.CompPowerAdvancedWind:PostSpawnSetup",
                 };
