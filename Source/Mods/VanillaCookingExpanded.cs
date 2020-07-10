@@ -7,6 +7,8 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Cooking Expanded by Oskar Potocki, Sarg Bjornson, Chowder</summary>
+    /// <see href="https://github.com/juanosarg/ItemProcessor"/>
+    /// <see href="https://github.com/juanosarg/VanillaCookingExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2134308519"/>
     [MpCompatFor("VanillaExpanded.VCookE")]
     class VanillaCookingExpanded
