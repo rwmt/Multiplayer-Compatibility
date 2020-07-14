@@ -1,5 +1,4 @@
-﻿using HarmonyLib;
-using Verse;
+﻿using Verse;
 
 namespace Multiplayer.Compat
 {
@@ -13,14 +12,32 @@ namespace Multiplayer.Compat
         {
             //RNG Fix
             {
-                var rngFixMethods = new[] { //System.Random fixes
+                var rngFixConstructors = new[]
+                {
+                    "AlphaBehavioursAndEvents.CompAnimalProduct",
+                    "AlphaBehavioursAndEvents.CompExploder",
+                    "AlphaBehavioursAndEvents.CompGasProducer",
+                    "AlphaBehavioursAndEvents.CompInitialHediff",
+                    "AlphaBehavioursAndEvents.Gas_Ocular",
+                    "AlphaBehavioursAndEvents.Hediff_Crushing",
+
+                    //"NewAlphaAnimalSubproducts.CompAnimalProduct ", // System.Random initialized, but not used
+                };
+
+                PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
+
+                var rngFixMethods = new[] //System.Random fixes
+                {
                     "AlphaBehavioursAndEvents.CompGasProducer:CompTick",
                     "AlphaBehavioursAndEvents.CompAnimalProduct:InformGathered",
                     "AlphaBehavioursAndEvents.CompInitialHediff:CompTickRare",
                     "AlphaBehavioursAndEvents.Gas_Ocular:Tick",
                     "AlphaBehavioursAndEvents.Hediff_Crushing:RandomFilthGenerator",
+                    "AlphaBehavioursAndEvents.CompExploder:wickInitializer",
                 };
-                PatchingUtilities.PatchSystemRand(rngFixMethods);
+                PatchingUtilities.PatchPushPopRand(rngFixMethods);
+
+                PatchingUtilities.PatchSystemRand("AlphaBehavioursAndEvents.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart");
             }
         }
     }
