@@ -1,6 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
-
+using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -36,6 +37,29 @@ namespace Multiplayer.Compat
             }
 
             harmony.PatchAll();
+        }
+
+        public static IEnumerable<MethodInfo> MethodsByIndex(Type type, string prefix, params int[] index)
+        {
+            return type.GetMethods(AccessTools.allDeclared)
+                .Where(delegate (MethodInfo m) {
+                    return m.Name.StartsWith(prefix, StringComparison.Ordinal);
+                })
+                .Where((m, i) => index.Contains(i));
+        }
+
+        public static IEnumerable<ISyncMethod> RegisterSyncMethodsByIndex(Type type, string prefix, params int[] index) {
+            foreach(var method in MethodsByIndex(type, prefix, index)) {
+                yield return MP.RegisterSyncMethod(method);
+            }
+        }
+
+        public static MethodInfo MethodByIndex(Type type, string prefix, int index) {
+            return MethodsByIndex(type, prefix, index).First();
+        }
+
+        public static ISyncMethod RegisterSyncMethodByIndex(Type type, string prefix, int index) {
+            return MP.RegisterSyncMethod(MethodByIndex(type, prefix, index));
         }
     }
 

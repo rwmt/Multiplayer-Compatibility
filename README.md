@@ -22,6 +22,7 @@ Simple Sidearms      | [![url][repo]](https://github.com/PeteTimesSix/SimpleSide
 Sparkling Worlds     | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1123043922)
 Stuffed Floors       | [![url][repo]](https://github.com/FluffierThanThou/StuffedFloors)
 Time of day Switch   | [![url][repo]](https://bitbucket.org/merthsoft/timeofdayswitch)
+VCE-Cooking          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2134308519)
 VCE-Fishing          | [![url][repo]](https://github.com/juanosarg/VanillaCuisineExpanded-Fishing)
 VEE                  | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1938420742)
 VFE-Farming          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1957158779)
