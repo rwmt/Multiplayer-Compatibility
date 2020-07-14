@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
@@ -19,26 +20,20 @@ namespace Multiplayer.Compat
         {
             var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
             // _1 and _5 are used to check if gizmo should be enabled, so we don't sync them
-            MP.RegisterSyncMethod(type, "<GetGizmos>b__61_0");
-            MP.RegisterSyncMethod(type, "<GetGizmos>b__61_2");
-            MP.RegisterSyncMethod(type, "<GetGizmos>b__61_3");
-            MP.RegisterSyncMethod(type, "<GetGizmos>b__61_4");
-            MP.RegisterSyncMethod(type, "<GetGizmos>b__61_6");
-            MP.RegisterSyncMethod(type, "<GetGizmos>b__61_7");
+            MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 2, 3, 4, 6, 7);
 
             type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
             itemProcessorField = AccessTools.Field(type, "building");
             MP.RegisterSyncWorker<Command>(SyncSetTargetQuality, type, shouldConstruct: true);
-            for (int i = 0; i <= 7; i++)
-                MP.RegisterSyncMethod(type, $"<ProcessInput>b__3_{i}");
+            MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 7).ToArray());
 
             // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
             foreach (var ingredientNumber in new[] { "First", "Second", "Third" })
             {
                 type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
                 MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
-                MP.RegisterSyncMethod(type, "<ProcessInput>b__4_0");
                 MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
+                MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", 0);
             }
 
             // AddHediff desyncs with Arbiter, but seems fine without it
