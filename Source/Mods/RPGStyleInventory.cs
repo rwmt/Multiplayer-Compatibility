@@ -18,6 +18,7 @@ namespace Multiplayer.Compat
         {
             MP.RegisterSyncWorker<ITab_Pawn_Gear> (SyncITab, type);
             MP.RegisterSyncMethod(type, "InterfaceDrop").SetContext(SyncContext.MapSelected);
+            MP.RegisterSyncMethod(type, "InterfaceIngest").SetContext(SyncContext.MapSelected);
 
         }
 
