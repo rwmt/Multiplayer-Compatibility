@@ -15,9 +15,11 @@ namespace Multiplayer.Compat
 
         public RPGStyleInventory(ModContentPack mod)
         {
-            MP.RegisterSyncWorker<ITab_Pawn_Gear> (SyncITab, AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab"));
-            MP.RegisterSyncMethod(AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab"), "InterfaceDrop").SetContext(SyncContext.MapSelected);
-            MP.RegisterSyncMethod(AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab"), "InterfaceIngest").SetContext(SyncContext.MapSelected);
+            Type type = AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab");
+            
+            MP.RegisterSyncWorker<ITab_Pawn_Gear> (SyncITab, type);
+            MP.RegisterSyncMethod(type, "InterfaceDrop").SetContext(SyncContext.MapSelected);
+            MP.RegisterSyncMethod(type, "InterfaceIngest").SetContext(SyncContext.MapSelected);
 
         }
 
