@@ -1,10 +1,9 @@
 ﻿using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
-using Multiplayer.Compat;
 using Verse;
 
-namespace Multiplayer_Compat.Mods
+namespace Multiplayer.Compat
 {
     /// <summary>Common Sense by avil</summary>
     /// <see href="https://github.com/catgirlfighter/RimWorld_CommonSense"/>
@@ -24,7 +23,7 @@ namespace Multiplayer_Compat.Mods
             shouldUnloadSyncField = MP.RegisterSyncField(AccessTools.Field(type, "ShouldUnload"));
             getCompUnlockerCheckerMethod = AccessTools.Method(type, "GetChecker");
 
-            MpCompat.harmony.Patch(AccessTools.Method("CommonSense.ITab_Pawn_Gear_DrawThingRow_CommonSensePatch:Prefix"), 
+            MpCompat.harmony.Patch(AccessTools.Method("RimWorld.ITab_Pawn_Gear:DrawThingRow"),
                 prefix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPrefix)),
                 postfix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPostix)));
         }
