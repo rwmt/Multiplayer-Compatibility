@@ -17,7 +17,7 @@ namespace Multiplayer.Compat
         {
             Type type = AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab");
             
-            MP.RegisterSyncWorker<ITab_Pawn_Gear> (SyncITab, type);
+            MP.RegisterSyncWorker<ITab_Pawn_Gear>(SyncITab, type);
             MP.RegisterSyncMethod(type, "InterfaceDrop").SetContext(SyncContext.MapSelected);
             MP.RegisterSyncMethod(type, "InterfaceIngest").SetContext(SyncContext.MapSelected);
 
