@@ -16,6 +16,4 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_0", "<Postfix>b__1");
             }
     }
-
-
 }
