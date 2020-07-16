@@ -11,8 +11,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("Sandy.RPGStyleInventory")]
     class RPGStyleInventory
     {
-
-
         public RPGStyleInventory(ModContentPack mod)
         {
             Type type = AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab");
