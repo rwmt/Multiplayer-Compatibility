@@ -37,7 +37,7 @@ namespace Multiplayer.Compat
             }
 
             // AddHediff desyncs with Arbiter, but seems fine without it
-            PatchingUtilities.PatchPushPopRand(AccessTools.Method("VanillaCookingExpanded.Thought_Hediff:MoodOffset"));
+            PatchingUtilities.PatchPushPopRand("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
         }
 
         private static void SyncSetTargetQuality(SyncWorker sync, ref Command command)

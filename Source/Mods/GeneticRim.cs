@@ -1,8 +1,6 @@
 ﻿using System;
-
 using HarmonyLib;
 using Multiplayer.API;
-using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -80,6 +78,15 @@ namespace Multiplayer.Compat
 
             // RNG patching
             {
+                string[] constructorsToPatch = {
+                    "NewHatcher.CompHatcherRandomizer",
+                    "NewHatcher.CompIncubator",
+                    "NewHatcher.CompRecombinator",
+                    "NewHatcher.CompRecombinatorSerum",
+                };
+
+                PatchingUtilities.PatchSystemRandCtor(constructorsToPatch, false);
+
                 string[] methodsWithRand = {
                     "NewHatcher.CompHatcherRandomizer:Hatch",
                     "NewHatcher.CompIncubator:Hatch",
@@ -88,7 +95,7 @@ namespace Multiplayer.Compat
                     "NewHatcher.CompRecombinatorSerum:Hatch",
                 };
 
-                PatchingUtilities.PatchSystemRand(methodsWithRand);
+                PatchingUtilities.PatchPushPopRand(methodsWithRand);
             }
         }
     }

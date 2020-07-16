@@ -1,7 +1,6 @@
-﻿using HarmonyLib;
-using Verse;
+﻿using Verse;
 
-namespace Multiplayer.Compat.Mods
+namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Events Expanded by Oskar Potocki, Helixien, Kikohi</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1938420742"/>
@@ -11,15 +10,6 @@ namespace Multiplayer.Compat.Mods
     {
         public VEE(ModContentPack mod)
         {
-            // Methods with no System.Random calls, but calling methods that use it, or just using Verse.Rand
-            var methodsForRngSync = new[]
-            {
-                "VEE.DummySpaceBattle:CreateRandomExplosion",
-                "VEE.DummySpaceBattle:StartRandomFire",
-
-                "VEE.RegularEvents.EarthQuake:TryExecuteWorker",
-            };
-
             var methodsForAll = new[]
             {
                 "VEE.DummySpaceBattle:Tick",
@@ -38,15 +28,15 @@ namespace Multiplayer.Compat.Mods
                 "VEE.RegularEvents.Drought:HarmPlant",
                 "VEE.RegularEvents.HuntingParty:TryExecuteWorker",
                 "VEE.RegularEvents.MeteoriteShower:TryExecuteWorker",
-                //"VEE.RegularEvents.SpaceBattle:GameConditionTick", // This method was having issues with transpiling no matter what I did, skipping it until it can be fixed
+                "VEE.RegularEvents.SpaceBattle:GameConditionTick", // This method was having issues with transpiling no matter what I did, skipping it until it can be fixed
                 "VEE.RegularEvents.WeaponPod:TryExecuteWorker",
             };
 
-            PatchingUtilities.PatchPushPopRand(methodsForRngSync);
-            PatchingUtilities.PatchSystemRand(methodsForAll);
+            PatchingUtilities.PatchSystemRand(methodsForAll, false);
+            // This method only calls other methods that use RNG calls
+            PatchingUtilities.PatchPushPopRand("VEE.RegularEvents.EarthQuake:TryExecuteWorker");
             // Only patch System.Random out, as this methods is only called by other ones
-            MpCompat.harmony.Patch(AccessTools.Method("VEE.RegularEvents.EarthQuake:DamageInRadius"),
-                transpiler: new HarmonyMethod(typeof(PatchingUtilities), nameof(PatchingUtilities.FixRNG)));
+            PatchingUtilities.PatchSystemRand("VEE.RegularEvents.EarthQuake:DamageInRadius", false);
         }
     }
 }
