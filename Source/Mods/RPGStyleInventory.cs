@@ -32,7 +32,6 @@ namespace Multiplayer.Compat
             {
                 gearITab = (ITab_Pawn_Gear)InspectTabManager.GetSharedInstance(sync.Read<Type>());
             }
-
         }
     }
 }
