@@ -49,9 +49,20 @@ namespace Multiplayer.Compat
         }
 
         public static IEnumerable<ISyncMethod> RegisterSyncMethodsByIndex(Type type, string prefix, params int[] index) {
-            foreach(var method in MethodsByIndex(type, prefix, index)) {
-                yield return MP.RegisterSyncMethod(method);
+            if (index.Length == 1) {
+                return new[] {
+                    RegisterSyncMethodByIndex(type, prefix, index[0])
+                };
             }
+
+            var methods = MethodsByIndex(type, prefix, index).ToList();
+            var handles = new List<ISyncMethod>(methods.Count);
+
+            foreach(var method in methods) {
+                handles.Add(MP.RegisterSyncMethod(method));
+            }
+
+            return handles;
         }
 
         public static MethodInfo MethodByIndex(Type type, string prefix, int index) {
