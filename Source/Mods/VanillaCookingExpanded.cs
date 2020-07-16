@@ -20,12 +20,12 @@ namespace Multiplayer.Compat
         {
             var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
             // _1 and _5 are used to check if gizmo should be enabled, so we don't sync them
-            MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 2, 3, 4, 6, 7);
+            foreach (var _ in MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 2, 3, 4, 6, 7));
 
             type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
             itemProcessorField = AccessTools.Field(type, "building");
             MP.RegisterSyncWorker<Command>(SyncSetTargetQuality, type, shouldConstruct: true);
-            MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 7).ToArray());
+            foreach (var _ in MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 8).ToArray()));
 
             // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
             foreach (var ingredientNumber in new[] { "First", "Second", "Third" })
@@ -33,7 +33,7 @@ namespace Multiplayer.Compat
                 type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
                 MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
                 MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
-                MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", 0);
+                MpCompat.RegisterSyncMethodByIndex(type, "<ProcessInput>", 0);
             }
 
             // AddHediff desyncs with Arbiter, but seems fine without it
