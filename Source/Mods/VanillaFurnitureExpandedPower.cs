@@ -23,8 +23,7 @@ namespace Multiplayer.Compat
                 type = AccessTools.TypeByName("GasNetwork.CompGasStorage");
                 // Both these methods are calling (basically) the same method,
                 // but that method also has other callers that don't need syncing
-                MP.RegisterSyncMethod(type, "<CompGetGizmosExtra>b__15_0");
-                MP.RegisterSyncMethod(type, "<CompGetGizmosExtra>b__15_1");
+                MpCompat.RegisterSyncMethodsByIndex(type, "<CompGetGizmosExtra>", 0, 1);
 
                 type = AccessTools.TypeByName("VanillaPowerExpanded.CompPipeTank");
                 // This method is only called by 2 gizmos and nothing else (as far as I can tell)

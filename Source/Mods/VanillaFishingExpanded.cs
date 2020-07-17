@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
 using HarmonyLib;
@@ -31,10 +32,7 @@ namespace Multiplayer.Compat
                 mapField = AccessTools.Field(commandType, "map");
                 fishingZoneField = AccessTools.Field(commandType, "zone");
 
-                MP.RegisterSyncMethod(commandType, "<ProcessInput>b__4_0");
-                MP.RegisterSyncMethod(commandType, "<ProcessInput>b__4_1");
-                MP.RegisterSyncMethod(commandType, "<ProcessInput>b__4_2");
-
+                MpCompat.RegisterSyncMethodsByIndex(commandType, "<ProcessInput>", Enumerable.Range(0, 3).ToArray());
                 MP.RegisterSyncWorker<Command>(SyncFishingZoneChange, commandType, shouldConstruct: false);
             }
         }
