@@ -12,12 +12,16 @@ Requires latest Zetrith's Multiplayer: [Download](https://github.com/rwmt/Multip
 Support added to these mods | _
 --- | ---
 Alpha Animals        | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1541721856)
+Alpha Biomes         | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1841354677)
 Animals Logic        | [![url][repo]](https://github.com/quicksilverfox/RimworldMods/tree/master/AnimalsLogic)
+CutPlantsBeforeBuild | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1539025677)
 Fertile Fields       | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2012735237)
 Genetic Rim          | [![url][repo]](https://github.com/juanosarg/GeneticRim)
 RimFridge            | [![url][repo]](https://github.com/KiameV/rimworld-rimfridge)
 Path Avoid           | [![url][repo]](https://github.com/KiameV/rimworld-pathavoid)
 Power Switch         | [![url][repo]](https://github.com/HaploX1/RimWorld-PowerSwitch)
+RPG Style Inventory  | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1561221991)
+Run and Gun          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550)
 Simple Sidearms      | [![url][repo]](https://github.com/PeteTimesSix/SimpleSidearms)
 Sparkling Worlds     | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1123043922)
 Stuffed Floors       | [![url][repo]](https://github.com/FluffierThanThou/StuffedFloors)
