@@ -25,7 +25,7 @@ namespace Multiplayer.Compat
             type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
             itemProcessorField = AccessTools.Field(type, "building");
             MP.RegisterSyncWorker<Command>(SyncSetTargetQuality, type, shouldConstruct: true);
-            MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 7).ToArray());
+            MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 8).ToArray());
 
             // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
             foreach (var ingredientNumber in new[] { "First", "Second", "Third" })

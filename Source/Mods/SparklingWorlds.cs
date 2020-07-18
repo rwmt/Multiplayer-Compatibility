@@ -2,9 +2,9 @@
 using Multiplayer.API;
 using Verse;
 
-namespace Multiplayer.Compat.Mods
+namespace Multiplayer.Compat
 {
-    /// <summary>PowerSwitch by Albion</summary>
+    /// <summary>Sparkling Worlds by Albion</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1123043922"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1195241161"/>
     [MpCompatFor("Albion.SparklingWorlds.Full")]
