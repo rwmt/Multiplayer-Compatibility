@@ -1,0 +1,74 @@
+﻿using System;
+using System.Collections;
+using System.Linq;
+using System.Reflection;
+
+using HarmonyLib;
+using Multiplayer.API;
+using Verse;
+
+namespace Multiplayer.Compat
+{
+
+    /// <summary>Avoid Friendly Fire by Falconne</summary>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1134165362"/>
+    /// <see href="https://github.com/Falconne/AvoidFriendlyFire"/>
+    [MpCompatFor("falconne.AFF")]
+    public class AvoidFriendlyFire
+    {
+        static IDictionary extendedPawnDataDictionary;
+        static Type extendedPawnDataType;
+        static FieldInfo avoidFriendlyFireField;
+
+        public AvoidFriendlyFire(ModContentPack mod)
+        {
+            Type type;
+            {
+                type = extendedPawnDataType = AccessTools.TypeByName("AvoidFriendlyFire.ExtendedPawnData");
+                MP.RegisterSyncWorker<object>(SyncWorkerFor, type);
+
+                avoidFriendlyFireField = type.GetField("AvoidFriendlyFire");
+            }
+            {
+                type = AccessTools.TypeByName("AvoidFriendlyFire.Pawn_DraftController_GetGizmos_Patch");
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_0", "<Postfix>b__1");
+            }
+        }
+
+        static IDictionary ExtendedPawnDataDictionary {
+            get {
+                if (extendedPawnDataDictionary == null) {
+                    Type type = AccessTools.TypeByName("AvoidFriendlyFire.ExtendedDataStorage");
+
+                    var comp = Find.World.GetComponent(type);
+
+                    extendedPawnDataDictionary = AccessTools.Field(type, "_store").GetValue(comp) as IDictionary;
+                }
+
+                return extendedPawnDataDictionary;
+            }
+        }
+
+        static int GetIdFromExtendedPawnData(object extendedPawnData) {
+            foreach(object key in ExtendedPawnDataDictionary.Keys)
+            {
+                if (ExtendedPawnDataDictionary[key] == extendedPawnData) {
+                    return (int) key;
+                }
+            }
+
+            return 0;
+        }
+
+        static void SyncWorkerFor(SyncWorker sw, ref object extendedPawnData)
+        {
+            if (sw.isWriting) {
+                sw.Write(GetIdFromExtendedPawnData(extendedPawnData));
+            } else {
+                int id = sw.Read<int>();
+
+                extendedPawnData = ExtendedPawnDataDictionary[id];
+            }
+        }
+    }
+}
