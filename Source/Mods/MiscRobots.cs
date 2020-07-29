@@ -13,7 +13,8 @@ namespace Multiplayer.Compat
         public MiscRobots(ModContentPack mod)
         {
             Type rechargestationType = AccessTools.TypeByName("AIRobot.X2_Building_AIRobotRechargeStation");
-         
+            Type robotType = AccessTools.TypeByName("AIRobot.X2_AIRobot");
+
             MP.RegisterSyncMethod(rechargestationType, "Button_CallAllBotsForShutdown");
             MP.RegisterSyncMethod(rechargestationType, "Button_CallBotForShutdown");
             MP.RegisterSyncMethod(rechargestationType, "Button_RepairDamagedRobot");
@@ -21,6 +22,11 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(rechargestationType, "Button_ResetDestroyedRobot");
             MP.RegisterSyncMethod(rechargestationType, "Button_SpawnAllAvailableBots");
             MP.RegisterSyncMethod(rechargestationType, "Button_SpawnBot");
+            
+            //Might as well sync the arrow gizmos in case some one actually click on it, because it is accessible by users,but not affecting gameplay
+            MP.RegisterSyncMethod(robotType, "Debug_ForceGotoDistance");
+            
+            MP.RegisterSyncMethod(rechargestationType, "AddRobotToContainer").SetContext(SyncContext.CurrentMap);
         }
         
     }
