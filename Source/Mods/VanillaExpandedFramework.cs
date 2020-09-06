@@ -7,16 +7,16 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Cooking Expanded by Oskar Potocki, Sarg Bjornson, Chowder</summary>
+    /// <summary>Vanilla Expanded Framework and other Vanilla Expanded mods by Oskar Potocki, Sarg Bjornson, Chowder, XeoNovaDan, Orion, Kikohi, erdelf, Taranchuk, and more</summary>
     /// <see href="https://github.com/juanosarg/ItemProcessor"/>
     /// <see href="https://github.com/juanosarg/VanillaCookingExpanded"/>
-    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2134308519"/>
-    [MpCompatFor("VanillaExpanded.VCookE")]
-    class VanillaCookingExpanded
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2023507013"/>
+    [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
+    class VanillaExpandedFramework
     {
         private static FieldInfo itemProcessorField;
 
-        public VanillaCookingExpanded(ModContentPack mod)
+        public VanillaExpandedFramework(ModContentPack mod)
         {
             var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
             // _1 and _5 are used to check if gizmo should be enabled, so we don't sync them
