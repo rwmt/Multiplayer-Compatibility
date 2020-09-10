@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -11,7 +12,11 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.MedievalModule")]
     class VanillaFactionsMedieval
     {
+        private static bool isTournamentDialogOpen = false;
         private static FieldInfo qualityField;
+
+        private static FieldInfo dialogNodeTreeCurrent;
+        private static MethodInfo diaOptionActivate;
 
         public VanillaFactionsMedieval(ModContentPack mod)
         {
@@ -28,16 +33,16 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterSyncMethodByIndex(AccessTools.TypeByName("VFEMedieval.CompWineFermenter"), "<CompGetGizmosExtra>", 0).SetDebugOnly();
             }
 
-            //// RNG
-            //{
-            //    var methods = new[]
-            //    {
-            //        "VFEMedieval.MedievalTournament:Notify_CaravanArrived",
-            //        "VFEMedieval.MedievalTournament:DoTournament",
-            //    };
+            // Tournament dialog
+            {
+                diaOptionActivate = AccessTools.Method(typeof(DiaOption), "Activate");
+                MpCompat.harmony.Patch(diaOptionActivate, prefix: new HarmonyMethod(typeof(VanillaFactionsMedieval), nameof(PreSyncDialog)));
+                dialogNodeTreeCurrent = AccessTools.Field(typeof(Dialog_NodeTree), "curNode");
+                MP.RegisterSyncMethod(typeof(VanillaFactionsMedieval), nameof(SyncDialog));
 
-            //    PatchingUtilities.PatchPushPopRand(methods);
-            //}
+                var tournamentObjectType = AccessTools.TypeByName("VFEMedieval.MedievalTournament");
+                MpCompat.harmony.Patch(AccessTools.Method(tournamentObjectType, "Notify_CaravanArrived"), prefix: new HarmonyMethod(typeof(VanillaFactionsMedieval), nameof(PreSyncTournament)));
+            }
         }
 
         private static void SyncWineBarrel(SyncWorker sync, ref object obj)
@@ -46,6 +51,53 @@ namespace Multiplayer.Compat
                 sync.Write((byte)qualityField.GetValue(obj));
             else
                 qualityField.SetValue(obj, sync.Read<byte>());
+        }
+
+        private static void PreSyncTournament()
+        {
+            // Mark the dialog as open
+            if (MP.IsInMultiplayer)
+                isTournamentDialogOpen = true;
+        }
+
+        private static bool PreSyncDialog(DiaOption __instance)
+        {
+            // If the dialog is not open, or it's not multiplayer or incorrect dialog, we just let the method run as normal
+            if (!isTournamentDialogOpen)
+                return true;
+            // Just in case
+            if (!MP.IsInMultiplayer || !(__instance.dialog is Dialog_NodeTree))
+            {
+                isTournamentDialogOpen = false;
+                return true;
+            }
+
+            // Get the current node, find the index of the option on it, and call a (synced) method
+            var currentNode = (DiaNode)dialogNodeTreeCurrent.GetValue(__instance.dialog);
+            SyncDialog(__instance.dialog.optionalTitle ?? string.Empty, currentNode.options.FindIndex(x => x == __instance));
+
+            return false;
+        }
+
+        private static void SyncDialog(string optionalTitle, int position)
+        {
+            // Make sure we have the correct dialog and data
+            if (position >= 0 && Find.WindowStack.IsOpen<Dialog_NodeTree>())
+            {
+                var dialog = Find.WindowStack.WindowOfType<Dialog_NodeTree>();
+
+                // Check if the title (if present) matches
+                if (string.IsNullOrWhiteSpace(optionalTitle) || dialog.optionalTitle == optionalTitle)
+                {
+                    isTournamentDialogOpen = false; // Prevents infinite loop, otherwise PreSyncDialog would call this method over and over again
+                    var option = ((DiaNode)dialogNodeTreeCurrent.GetValue(dialog)).options[position]; // Get the correct DiaOption
+                    diaOptionActivate.Invoke(option, Array.Empty<object>()); // Call the Activate method to actually "press" the button
+
+                    if (!option.resolveTree) isTournamentDialogOpen = true; // In case dialog is still open, we mark it as such
+                }
+                else isTournamentDialogOpen = false;
+            }
+            else isTournamentDialogOpen = false;
         }
     }
 }
