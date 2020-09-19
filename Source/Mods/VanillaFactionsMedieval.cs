@@ -62,11 +62,8 @@ namespace Multiplayer.Compat
 
         private static bool PreSyncDialog(DiaOption __instance)
         {
-            // If the dialog is not open, or it's not multiplayer or incorrect dialog, we just let the method run as normal
-            if (!isTournamentDialogOpen)
-                return true;
             // Just in case
-            if (!MP.IsInMultiplayer || !(__instance.dialog is Dialog_NodeTree))
+            if (!MP.IsInMultiplayer || !isTournamentDialogOpen || !(__instance.dialog is Dialog_NodeTree))
             {
                 isTournamentDialogOpen = false;
                 return true;
@@ -74,7 +71,9 @@ namespace Multiplayer.Compat
 
             // Get the current node, find the index of the option on it, and call a (synced) method
             var currentNode = (DiaNode)dialogNodeTreeCurrent.GetValue(__instance.dialog);
-            SyncDialog(__instance.dialog.optionalTitle ?? string.Empty, currentNode.options.FindIndex(x => x == __instance));
+            int index = currentNode.options.FindIndex(x => x == __instance);
+            if (index >= 0)
+                SyncDialog(__instance.dialog.optionalTitle ?? string.Empty, index);
 
             return false;
         }
@@ -87,7 +86,7 @@ namespace Multiplayer.Compat
                 var dialog = Find.WindowStack.WindowOfType<Dialog_NodeTree>();
 
                 // Check if the title (if present) matches
-                if (string.IsNullOrWhiteSpace(optionalTitle) || dialog.optionalTitle == optionalTitle)
+                if ((dialog.optionalTitle ?? string.Empty) == optionalTitle)
                 {
                     isTournamentDialogOpen = false; // Prevents infinite loop, otherwise PreSyncDialog would call this method over and over again
                     var option = ((DiaNode)dialogNodeTreeCurrent.GetValue(dialog)).options[position]; // Get the correct DiaOption
@@ -98,6 +97,17 @@ namespace Multiplayer.Compat
                 else isTournamentDialogOpen = false;
             }
             else isTournamentDialogOpen = false;
+        }
+
+        private class DataResetComponent : GameComponent
+        {
+            public DataResetComponent(Game game) { }
+
+            public override void FinalizeInit()
+            {
+                if (!MP.IsInMultiplayer || (isTournamentDialogOpen && !Find.WindowStack.IsOpen<Dialog_NodeTree>()))
+                    isTournamentDialogOpen = false;
+            }
         }
     }
 }
