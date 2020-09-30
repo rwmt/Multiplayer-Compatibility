@@ -10,6 +10,9 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
+    /// <summary>SRTS Expanded by Smash Phil, Aquamarine, Neceros, more</summary>
+    /// <see href="https://github.com/Neceros/SRTS-Expanded"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1845423808"/>
     [MpCompatFor("smashphil.neceros.srtsexpanded")]
     class SRTSExpanded
     {
@@ -17,9 +20,6 @@ namespace Multiplayer.Compat
         private static MethodInfo tryLaunchMethod;
         private static ISyncField bombTypeSync;
 
-        /// <summary>SRTS Expanded by Smash Phil, Aquamarine, Neceros, more</summary>
-        /// <see href="https://github.com/Neceros/SRTS-Expanded"/>
-        /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1845423808"/>
         public SRTSExpanded(ModContentPack mod)
         {
             LongEventHandler.ExecuteWhenFinished(DelayedPatch);
