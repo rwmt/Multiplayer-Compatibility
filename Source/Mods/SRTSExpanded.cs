@@ -18,6 +18,7 @@ namespace Multiplayer.Compat
     {
         private static bool isSyncing = false;
         private static MethodInfo tryLaunchMethod;
+        private static FieldInfo caravanField;
         private static ISyncField bombTypeSync;
 
         public SRTSExpanded(ModContentPack mod)
@@ -28,6 +29,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncDelegate(AccessTools.TypeByName("SRTS.StartUp"), "<>c__DisplayClass24_1", "<LaunchAndBombGizmosPassthrough>b__3");
 
             // Bombing
+            MP.RegisterSyncWorker<Pair<IntVec3, IntVec3>>(SyncIntVec3Pair, typeof(Pair<IntVec3, IntVec3>));
             var type = AccessTools.TypeByName("SRTS.CompBombFlyer");
             MP.RegisterSyncMethod(type, "TryLaunchBombRun");
             bombTypeSync = MP.RegisterSyncField(type, "bombType");
@@ -41,10 +43,13 @@ namespace Multiplayer.Compat
         private static void DelayedPatch()
         {
             // Launching the shuttle
-            tryLaunchMethod = AccessTools.Method(AccessTools.TypeByName("SRTS.CompLaunchableSRTS"), "TryLaunch");
+            var type = AccessTools.TypeByName("SRTS.CompLaunchableSRTS");
+            caravanField = AccessTools.Field(type, "carr");
+            tryLaunchMethod = AccessTools.Method(type, "TryLaunch");
+
             MpCompat.harmony.Patch(tryLaunchMethod,
                 prefix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PreTryLaunch)));
-
+            
             foreach (var method in new[] { nameof(SyncLandInSpecificCell), nameof(SyncFormCaravan), nameof(SyncAttackSettlement), nameof(SyncGiveGift), nameof(SyncVisitSettlement), nameof(SyncVisitSite), nameof(SyncGiveToCaravan), nameof(SyncShuttle) })
                 MP.RegisterSyncMethod(typeof(SRTSExpanded), method);
         }
@@ -74,50 +79,74 @@ namespace Multiplayer.Compat
 
             isSyncing = true;
 
+            var caravanFieldValue = caravanField.GetValue(__instance) as Caravan;
+
             if (arrivalAction is TransportPodsArrivalAction_LandInSpecificCell landInSpecificCell)
-                SyncLandInSpecificCell(__instance, destinationTile, landInSpecificCell, cafr);
+                SyncLandInSpecificCell(__instance, destinationTile, landInSpecificCell, cafr, caravanFieldValue);
             else if (arrivalAction is TransportPodsArrivalAction_VisitSettlement visitSettlement)
-                SyncVisitSettlement(__instance, destinationTile, visitSettlement, cafr);
+                SyncVisitSettlement(__instance, destinationTile, visitSettlement, cafr, caravanFieldValue);
             else if (arrivalAction is TransportPodsArrivalAction_FormCaravan formCaravan)
-                SyncFormCaravan(__instance, destinationTile, formCaravan, cafr);
+                SyncFormCaravan(__instance, destinationTile, formCaravan, cafr, caravanFieldValue);
             else if (arrivalAction is TransportPodsArrivalAction_AttackSettlement attackSettlement)
-                SyncAttackSettlement(__instance, destinationTile, attackSettlement, cafr);
+                SyncAttackSettlement(__instance, destinationTile, attackSettlement, cafr, caravanFieldValue);
             else if (arrivalAction is TransportPodsArrivalAction_GiveGift giveGift)
-                SyncGiveGift(__instance, destinationTile, giveGift, cafr);
+                SyncGiveGift(__instance, destinationTile, giveGift, cafr, caravanFieldValue);
             else if (arrivalAction is TransportPodsArrivalAction_VisitSite visitSite)
-                SyncVisitSite(__instance, destinationTile, visitSite, cafr);
+                SyncVisitSite(__instance, destinationTile, visitSite, cafr, caravanFieldValue);
+            // These two are unused, but let's sync them anyway, just in case
             else if (arrivalAction is TransportPodsArrivalAction_GiveToCaravan giveToCaravan)
-                SyncGiveToCaravan(__instance, destinationTile, giveToCaravan, cafr);
+                SyncGiveToCaravan(__instance, destinationTile, giveToCaravan, cafr, caravanFieldValue);
             else if (arrivalAction is TransportPodsArrivalAction_Shuttle shuttle)
-                SyncShuttle(__instance, destinationTile, shuttle, cafr);
+                SyncShuttle(__instance, destinationTile, shuttle, cafr, caravanFieldValue);
             else
+            {
+                isSyncing = false;
                 Log.Error($"Unsupported multiplayer SRTS arrival action of type {arrivalAction.GetType()}");
+            }
 
             return false;
         }
 
-        private static void SyncLandInSpecificCell(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_LandInSpecificCell arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncedUniversalArrivalAction(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+        {
+            isSyncing = true;
+            caravanField.SetValue(compLaunchableSrts, caravanFieldValue);
+            tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, caravanMethodParameter });
+        }
 
-        private static void SyncFormCaravan(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_FormCaravan arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncLandInSpecificCell(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_LandInSpecificCell arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue) 
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
-        private static void SyncAttackSettlement(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_AttackSettlement arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncFormCaravan(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_FormCaravan arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
-        private static void SyncGiveGift(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_GiveGift arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncAttackSettlement(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_AttackSettlement arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
-        private static void SyncVisitSettlement(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_VisitSettlement arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncGiveGift(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_GiveGift arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
-        private static void SyncVisitSite(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_VisitSite arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncVisitSettlement(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_VisitSettlement arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
-        private static void SyncGiveToCaravan(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_GiveToCaravan arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncVisitSite(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_VisitSite arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
-        private static void SyncShuttle(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_Shuttle arrivalAction, Caravan cafr)
-            => tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, cafr });
+        private static void SyncGiveToCaravan(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_GiveToCaravan arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
+
+        private static void SyncShuttle(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_Shuttle arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
+
+        private static void SyncIntVec3Pair(SyncWorker sync, ref Pair<IntVec3, IntVec3> pair)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(pair.First);
+                sync.Write(pair.Second);
+            }
+            else
+                pair = new Pair<IntVec3, IntVec3>(sync.Read<IntVec3>(), sync.Read<IntVec3>());
+        }
     }
 }
