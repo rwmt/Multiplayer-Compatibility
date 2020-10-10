@@ -177,9 +177,13 @@ namespace Multiplayer.Compat
         private static readonly MethodInfo UnityRandomRangeIntObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), new[] { typeof(int), typeof(int) });
         private static readonly MethodInfo UnityRandomRangeFloat = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.Range), new[] { typeof(float), typeof(float) });
         private static readonly MethodInfo UnityRandomRangeFloatObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), new[] { typeof(float), typeof(float) });
+        private static readonly MethodInfo UnityRandomValue = AccessTools.PropertyGetter(typeof(UnityEngine.Random), nameof(UnityEngine.Random.value));
+        private static readonly MethodInfo UnityInsideUnitCircle = AccessTools.PropertyGetter(typeof(UnityEngine.Random), nameof(UnityEngine.Random.insideUnitCircle));
 
         private static readonly MethodInfo VerseRandomRangeInt = AccessTools.Method(typeof(Rand), nameof(Rand.Range), new[] { typeof(int), typeof(int) });
         private static readonly MethodInfo VerseRandomRangeFloat = AccessTools.Method(typeof(Rand), nameof(Rand.Range), new[] { typeof(float), typeof(float) });
+        private static readonly MethodInfo VerseRandomValue = AccessTools.PropertyGetter(typeof(Rand), nameof(Rand.Value));
+        private static readonly MethodInfo VerseInsideUnitCircle = AccessTools.PropertyGetter(typeof(Rand), nameof(Rand.InsideUnitCircle));
 
         internal static IEnumerable<CodeInstruction> FixUnityRNG(IEnumerable<CodeInstruction> instr)
         {
@@ -191,6 +195,10 @@ namespace Multiplayer.Compat
                         ci.operand = VerseRandomRangeInt;
                     else if (method == UnityRandomRangeFloat || method == UnityRandomRangeFloatObsolete)
                         ci.operand = VerseRandomRangeFloat;
+                    else if (method == UnityRandomValue)
+                        ci.operand = VerseRandomValue;
+                    else if (method == UnityInsideUnitCircle)
+                        ci.operand = VerseInsideUnitCircle;
                 }
 
                 yield return ci;
