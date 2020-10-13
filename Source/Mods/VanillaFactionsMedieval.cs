@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
@@ -12,11 +13,7 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.MedievalModule")]
     class VanillaFactionsMedieval
     {
-        private static bool isTournamentDialogOpen = false;
         private static FieldInfo qualityField;
-
-        private static FieldInfo dialogNodeTreeCurrent;
-        private static MethodInfo diaOptionActivate;
 
         public VanillaFactionsMedieval(ModContentPack mod)
         {
@@ -35,13 +32,9 @@ namespace Multiplayer.Compat
 
             // Tournament dialog
             {
-                diaOptionActivate = AccessTools.Method(typeof(DiaOption), "Activate");
-                MpCompat.harmony.Patch(diaOptionActivate, prefix: new HarmonyMethod(typeof(VanillaFactionsMedieval), nameof(PreSyncDialog)));
-                dialogNodeTreeCurrent = AccessTools.Field(typeof(Dialog_NodeTree), "curNode");
-                MP.RegisterSyncMethod(typeof(VanillaFactionsMedieval), nameof(SyncDialog));
-
-                var tournamentObjectType = AccessTools.TypeByName("VFEMedieval.MedievalTournament");
-                MpCompat.harmony.Patch(AccessTools.Method(tournamentObjectType, "Notify_CaravanArrived"), prefix: new HarmonyMethod(typeof(VanillaFactionsMedieval), nameof(PreSyncTournament)));
+                NodeTreeDialogSync.EnableNodeTreeDialogSync();
+                MpCompat.harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VFEMedieval.MedievalTournament"), "Notify_CaravanArrived"),
+                    prefix: NodeTreeDialogSync.HarmonyMethodMarkDialogAsOpen);
             }
         }
 
@@ -53,60 +46,15 @@ namespace Multiplayer.Compat
                 qualityField.SetValue(obj, sync.Read<byte>());
         }
 
-        private static void PreSyncTournament()
-        {
-            // Mark the dialog as open
-            if (MP.IsInMultiplayer)
-                isTournamentDialogOpen = true;
-        }
-
-        private static bool PreSyncDialog(DiaOption __instance)
-        {
-            // Just in case
-            if (!MP.IsInMultiplayer || !isTournamentDialogOpen || !(__instance.dialog is Dialog_NodeTree))
-            {
-                isTournamentDialogOpen = false;
-                return true;
-            }
-
-            // Get the current node, find the index of the option on it, and call a (synced) method
-            var currentNode = (DiaNode)dialogNodeTreeCurrent.GetValue(__instance.dialog);
-            int index = currentNode.options.FindIndex(x => x == __instance);
-            if (index >= 0)
-                SyncDialog(__instance.dialog.optionalTitle ?? string.Empty, index);
-
-            return false;
-        }
-
-        private static void SyncDialog(string optionalTitle, int position)
-        {
-            // Make sure we have the correct dialog and data
-            if (position >= 0 && Find.WindowStack.IsOpen<Dialog_NodeTree>())
-            {
-                var dialog = Find.WindowStack.WindowOfType<Dialog_NodeTree>();
-
-                // Check if the title (if present) matches
-                if ((dialog.optionalTitle ?? string.Empty) == optionalTitle)
-                {
-                    isTournamentDialogOpen = false; // Prevents infinite loop, otherwise PreSyncDialog would call this method over and over again
-                    var option = ((DiaNode)dialogNodeTreeCurrent.GetValue(dialog)).options[position]; // Get the correct DiaOption
-                    diaOptionActivate.Invoke(option, Array.Empty<object>()); // Call the Activate method to actually "press" the button
-
-                    if (!option.resolveTree) isTournamentDialogOpen = true; // In case dialog is still open, we mark it as such
-                }
-                else isTournamentDialogOpen = false;
-            }
-            else isTournamentDialogOpen = false;
-        }
-
+        // Leaving it here as I believe it would cause load errors due to missing GameComponent
         private class DataResetComponent : GameComponent
         {
             public DataResetComponent(Game game) { }
 
             public override void FinalizeInit()
             {
-                if (!MP.IsInMultiplayer || (isTournamentDialogOpen && !Find.WindowStack.IsOpen<Dialog_NodeTree>()))
-                    isTournamentDialogOpen = false;
+                if (!MP.IsInMultiplayer || (NodeTreeDialogSync.isDialogOpen && !Find.WindowStack.IsOpen<Dialog_NodeTree>()))
+                    NodeTreeDialogSync.isDialogOpen = false;
             }
         }
     }
