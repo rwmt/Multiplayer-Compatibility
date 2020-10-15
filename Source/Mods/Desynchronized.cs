@@ -11,7 +11,6 @@ namespace Multiplayer.Compat
     {
         public Desynchronized(ModContentPack mod)
         {
-            Log.Message("HEY GUYS THIS IS ARI WITH A BRAND NEW EPISODE OF MULTIPLAYER COMPATABILITY");
             var rngFixMethods = new[]
             {
                 "Desynchronized.TNDBS.Pawn_NewsKnowledgeTracker:ForgetRandom",
@@ -22,7 +21,6 @@ namespace Multiplayer.Compat
                 "Desynchronized.TNDBS.TaleNewsPawnDied:CalculateNewsImportanceForPawn",
             };
             PatchingUtilities.PatchPushPopRand(rngFixMethods);
-            Log.Message("ALRIGHT DON'T FORGET TO SMASH AND LIKE BUTTON AND SUBSCRIBE");
         }
     }
 }
