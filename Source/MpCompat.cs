@@ -37,6 +37,8 @@ namespace Multiplayer.Compat
             }
 
             harmony.PatchAll();
+
+            SyncDictionaryFuture.RegisterSyncWorkers();
         }
 
         public static IEnumerable<MethodInfo> MethodsByIndex(Type type, string prefix, params int[] index)
