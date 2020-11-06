@@ -81,6 +81,7 @@ namespace Multiplayer.Compat
             foreach (var method in methods)
                 PatchPushPopRand(method, transpiler);
         }
+
         /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
         /// <param name="method">Method that needs patching</param>
         /// <param name="transpiler">Transpiler that will be applied to the method</param>
@@ -99,7 +100,44 @@ namespace Multiplayer.Compat
             );
         }
 
-        #region RNG transpiler
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <param name="methods">Methods that needs patching</param>
+        /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
+        internal static void PatchUnityRand(string[] methods, bool patchPushPop = true)
+        {
+            foreach (var method in methods)
+                PatchUnityRand(AccessTools.Method(method), patchPushPop);
+        }
+
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <param name="methods">Methods that needs patching</param>
+        /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
+        internal static void PatchUnityRand(MethodBase[] methods, bool patchPushPop = true)
+        {
+            foreach (var method in methods)
+                PatchUnityRand(method, patchPushPop);
+        }
+
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <param name="methods">Methods that needs patching</param>
+        /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
+        internal static void PatchUnityRand(string method, bool patchPushPop = true)
+            => PatchUnityRand(AccessTools.Method(method), patchPushPop);
+
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <param name="methods">Method that needs patching</param>
+        /// <param name="patchPushPop">Determines if the method should be surrounded with push/pop calls</param>
+        internal static void PatchUnityRand(MethodBase method, bool patchPushPop = true)
+        {
+            var transpiler = new HarmonyMethod(typeof(PatchingUtilities), nameof(FixUnityRNG));
+
+            if (patchPushPop)
+                PatchPushPopRand(method, transpiler);
+            else
+                MpCompat.harmony.Patch(method, transpiler: transpiler);
+        }
+
+        #region System RNG transpiler
         private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Array.Empty<Type>());
         private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Array.Empty<Type>());
 
@@ -131,6 +169,40 @@ namespace Multiplayer.Compat
             }
 
             public override double NextDouble() => Rand.Range(0f, 1f);
+        }
+        #endregion
+
+        #region Unity RNG transpiler
+        private static readonly MethodInfo UnityRandomRangeInt = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.Range), new[] { typeof(int), typeof(int) });
+        private static readonly MethodInfo UnityRandomRangeIntObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), new[] { typeof(int), typeof(int) });
+        private static readonly MethodInfo UnityRandomRangeFloat = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.Range), new[] { typeof(float), typeof(float) });
+        private static readonly MethodInfo UnityRandomRangeFloatObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), new[] { typeof(float), typeof(float) });
+        private static readonly MethodInfo UnityRandomValue = AccessTools.PropertyGetter(typeof(UnityEngine.Random), nameof(UnityEngine.Random.value));
+        private static readonly MethodInfo UnityInsideUnitCircle = AccessTools.PropertyGetter(typeof(UnityEngine.Random), nameof(UnityEngine.Random.insideUnitCircle));
+
+        private static readonly MethodInfo VerseRandomRangeInt = AccessTools.Method(typeof(Rand), nameof(Rand.Range), new[] { typeof(int), typeof(int) });
+        private static readonly MethodInfo VerseRandomRangeFloat = AccessTools.Method(typeof(Rand), nameof(Rand.Range), new[] { typeof(float), typeof(float) });
+        private static readonly MethodInfo VerseRandomValue = AccessTools.PropertyGetter(typeof(Rand), nameof(Rand.Value));
+        private static readonly MethodInfo VerseInsideUnitCircle = AccessTools.PropertyGetter(typeof(Rand), nameof(Rand.InsideUnitCircle));
+
+        internal static IEnumerable<CodeInstruction> FixUnityRNG(IEnumerable<CodeInstruction> instr)
+        {
+            foreach (var ci in instr)
+            {
+                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method)
+                {
+                    if (method == UnityRandomRangeInt || method == UnityRandomRangeIntObsolete)
+                        ci.operand = VerseRandomRangeInt;
+                    else if (method == UnityRandomRangeFloat || method == UnityRandomRangeFloatObsolete)
+                        ci.operand = VerseRandomRangeFloat;
+                    else if (method == UnityRandomValue)
+                        ci.operand = VerseRandomValue;
+                    else if (method == UnityInsideUnitCircle)
+                        ci.operand = VerseInsideUnitCircle;
+                }
+
+                yield return ci;
+            }
         }
         #endregion
     }

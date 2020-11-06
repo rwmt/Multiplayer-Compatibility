@@ -18,7 +18,7 @@ namespace Multiplayer.Compat
 
             // Several Gizmos
             {
-                type = AccessTools.TypeByName("DraftingPatcher.Pawn_GetGizmos_Patch");
+                type = AccessTools.TypeByName("GeneticRim.GeneticRim_Pawn_GetGizmos_Patch");
 
                 string[] methods = {
                     "<AddGizmo>b__0",
@@ -45,11 +45,11 @@ namespace Multiplayer.Compat
 
             // ArchotechShip startup
             {
-                MP.RegisterSyncMethod(AccessTools.Method("NewMachinery.ArchotechUtility:StartupHibernatingParts"));
-                MP.RegisterSyncMethod(AccessTools.Method("NewMachinery.ArchotechCountdown:InitiateCountdown"));
+                MP.RegisterSyncMethod(AccessTools.Method("GeneticRim.ArchotechUtility:StartupHibernatingParts"));
+                MP.RegisterSyncMethod(AccessTools.Method("GeneticRim.ArchotechCountdown:InitiateCountdown"));
             }
             {
-                type = AccessTools.TypeByName("NewMachinery.ArchotechCountdown");
+                type = AccessTools.TypeByName("GeneticRim.ArchotechCountdown");
 
                 string[] methods = {
                     "InitiateCountdown",
@@ -62,37 +62,27 @@ namespace Multiplayer.Compat
                 }
             }
 
-            // Genepod
-            {
-                type = AccessTools.TypeByName("NewMachinery.Building_NewGenePod");
-
-                MP.RegisterSyncMethod(type, "<GetGizmos>b__20_0");
-                MP.RegisterSyncMethod(type, "<GetGizmos>b__20_1");
-            }
-
-            // Commands
-            {
-                MP.RegisterSyncMethod(AccessTools.Method("NewMachinery.Command_SetGene2List:ProcessInput"));
-                MP.RegisterSyncMethod(AccessTools.Method("NewMachinery.Command_SetGeneList:ProcessInput"));
-            }
-
             // RNG patching
             {
                 string[] constructorsToPatch = {
-                    "NewHatcher.CompHatcherRandomizer",
-                    "NewHatcher.CompIncubator",
-                    "NewHatcher.CompRecombinator",
-                    "NewHatcher.CompRecombinatorSerum",
+                    "GeneticRim.CompHatcherRandomizer",
+                    "GeneticRim.CompIncubator",
+                    "GeneticRim.CompRecombinator",
+                    "GeneticRim.CompRecombinatorSerum",
+                    "GeneticRim.DeathActionWorker_Eggxplosion",
+                    "GeneticRim.CompExploder",
                 };
 
                 PatchingUtilities.PatchSystemRandCtor(constructorsToPatch, false);
 
                 string[] methodsWithRand = {
-                    "NewHatcher.CompHatcherRandomizer:Hatch",
-                    "NewHatcher.CompIncubator:Hatch",
-                    "NewHatcher.CompRecombinator:Hatch",
-                    "NewHatcher.CompRecombinator:RecombinateAgain",
-                    "NewHatcher.CompRecombinatorSerum:Hatch",
+                    "GeneticRim.CompHatcherRandomizer:Hatch",
+                    "GeneticRim.CompIncubator:Hatch",
+                    "GeneticRim.CompRecombinator:Hatch",
+                    "GeneticRim.CompRecombinator:RecombinateAgain",
+                    "GeneticRim.CompRecombinatorSerum:Hatch",
+                    "GeneticRim.DeathActionWorker_Eggxplosion:PawnDied",
+                    "GeneticRim.CompExploder:wickInitializer",
                 };
 
                 PatchingUtilities.PatchPushPopRand(methodsWithRand);

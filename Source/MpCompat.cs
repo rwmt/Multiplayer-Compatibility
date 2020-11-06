@@ -37,6 +37,8 @@ namespace Multiplayer.Compat
             }
 
             harmony.PatchAll();
+
+            SyncDictionaryFuture.RegisterSyncWorkers();
         }
 
         public static IEnumerable<MethodInfo> MethodsByIndex(Type type, string prefix, params int[] index)
@@ -71,6 +73,47 @@ namespace Multiplayer.Compat
 
         public static ISyncMethod RegisterSyncMethodByIndex(Type type, string prefix, int index) {
             return MP.RegisterSyncMethod(MethodByIndex(type, prefix, index));
+        }
+
+        /// <summary>Get the first method in the given type that matches the specified signature, return null if failed.</summary>
+        /// <param name="type">The type of the target method</param>
+        /// <param name="paramsType">The list of types of the target method's parameter</param>
+        public static MethodInfo GetFirstMethodBySignature(Type type, Type[] paramsType)
+        {
+            foreach (MethodInfo mi in AccessTools.GetDeclaredMethods(type))
+            {
+                List<Type> foundParamsType = new List<Type>();
+                if (mi.GetParameters().Length != 0) 
+                { 
+                    foreach (ParameterInfo pi in mi.GetParameters())
+                    {
+                        foundParamsType.Add(pi.ParameterType);
+                    }
+                }
+                if (paramsType.All(foundParamsType.Contains) && paramsType.Count() == foundParamsType.Count) { return mi; }
+            }
+            return null;
+        }
+
+        /// <summary>Get the first method in the given type that matches the specified signature, return null if failed.</summary>
+        /// <param name="type">The type of the target method</param>
+        /// <param name="paramsType">The list of types of the target method's parameter</param>
+        /// <param name="returnType">The return type of the target method</param>
+        public static MethodInfo GetFirstMethodBySignature(Type type, Type[] paramsType, Type returnType)
+        {
+            foreach (MethodInfo mi in AccessTools.GetDeclaredMethods(type))
+            {
+                List<Type> foundParamsType = new List<Type>();
+                if (mi.GetParameters().Length != 0)
+                {
+                    foreach (ParameterInfo pi in mi.GetParameters())
+                    {
+                        foundParamsType.Add(pi.ParameterType);
+                    }
+                }
+                if (paramsType.All(foundParamsType.Contains) && paramsType.Count() == foundParamsType.Count && returnType == mi.ReturnType) { return mi; }
+            }
+            return null;
         }
     }
 
