@@ -10,6 +10,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Gastronomy by Orion</summary>
+    /// <see href="https://github.com/OrionFive/Gastronomy"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2279786905"/>
     [MpCompatFor("Orion.Gastronomy")]
     class Gastronomy
@@ -37,6 +38,12 @@ namespace Multiplayer.Compat
         private static MethodInfo allowCategoryHelperMethod;
 
         public Gastronomy(ModContentPack mod)
+        {
+            // Don't even ask why it needs to be execute late. If it isn't then it breaks other mods (VFE Security and VFE Mechanoids). That's all I know.
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
+        }
+
+        private static void LatePatch()
         {
             // Tables
             {
