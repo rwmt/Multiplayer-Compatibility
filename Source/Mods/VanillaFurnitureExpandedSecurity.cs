@@ -88,7 +88,7 @@ namespace Multiplayer.Compat
                 var methods = new[]
                 {
                     // ArtilleryComp:TryResolveArtilleryCount is called by ArtilleryComp:CompTick
-                    "VFESecurity.ArtilleryComp:CompTick",
+                    "VFESecurity.ArtilleryComp:BombardmentTick",
                     "VFESecurity.ArtilleryComp:TryStartBombardment",
                     "VFESecurity.Building_Shield:Notify_EnergyDepleted",
                     "VFESecurity.Building_Shield:Draw",
