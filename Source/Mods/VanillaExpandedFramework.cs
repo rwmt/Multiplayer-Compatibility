@@ -60,6 +60,11 @@ namespace Multiplayer.Compat
             MpCompat.RegisterSyncMethodByIndex(type, "<ProcessInput>", 0);
             MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
             MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
+
+            type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
+            MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_1", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
+            MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_6", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
+            MP.RegisterSyncDelegate(type, "<>c__DisplayClass21_0", "<CompGetGizmosExtra>b__4");
         }
 
         private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
