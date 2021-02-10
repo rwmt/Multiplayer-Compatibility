@@ -56,8 +56,6 @@ namespace Multiplayer.Compat
                     "NoCamShakeExplosions.DamageWorker_FlameNoCamShake:ExplosionAffectCell",
                     // Motes
                     "VFESecurity.ExtendedMoteMaker:SearchlightEffect",
-                    "ExplosiveTrailsEffect.ExhaustFlames:ThrowRocketExhaustFlame",
-                    "ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail",
                 };
 
                 PatchingUtilities.PatchPushPopRand(AccessTools.Method(AccessTools.Inner(AccessTools.TypeByName("VFESecurity.Patch_Building_Trap"), "Spring"), "ShouldDestroy"));
