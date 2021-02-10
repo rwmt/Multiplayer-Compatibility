@@ -154,7 +154,7 @@ namespace Multiplayer.Compat
         }
 
         /// <summary>This class allows replacing any <see cref="System.Random"/> calls with <see cref="Verse.Rand"/> calls</summary>
-        private class RandRedirector : Random
+        public class RandRedirector : Random
         {
             public override int Next() => Rand.Range(0, int.MaxValue);
 
