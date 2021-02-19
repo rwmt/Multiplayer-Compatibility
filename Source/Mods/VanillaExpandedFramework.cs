@@ -19,52 +19,80 @@ namespace Multiplayer.Compat
 
         public VanillaExpandedFramework(ModContentPack mod)
         {
-            var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
-            // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
-            MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 2, 3, 4, 6, 8, 9, 10);
-
-            type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-            MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 8).ToArray());
-
-            type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-            MP.RegisterSyncMethod(type, "TryConfigureIngredientsByOutput");
-
-            // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
-            foreach (var ingredientNumber in new[] { "First", "Second", "Third", "Fourth" })
+            // ItemProcessor
             {
-                type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
-                MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
-                MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
-                MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", 0);
+                var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
+                // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
+                MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 2, 3, 4, 6, 8, 9, 10);
+
+                type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
+                MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+                MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 8).ToArray());
+
+                type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
+                MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+                MP.RegisterSyncMethod(type, "TryConfigureIngredientsByOutput");
+
+                // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
+                foreach (var ingredientNumber in new[] { "First", "Second", "Third", "Fourth" })
+                {
+                    type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
+                    MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
+                    MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
+                    MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", 0);
+                }
             }
 
-            // AddHediff desyncs with Arbiter, but seems fine without it
-            PatchingUtilities.PatchPushPopRand("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
+            // Vanilla Cooking Expanded
+            {
+                // AddHediff desyncs with Arbiter, but seems fine without it
+                PatchingUtilities.PatchPushPopRand("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
+            }
 
-            type = AccessTools.TypeByName("VFECore.CompPawnDependsOn");
-            MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0).SetDebugOnly();
+            // VFE Core
+            {
+                var type = AccessTools.TypeByName("VFECore.CompPawnDependsOn");
+                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0).SetDebugOnly();
+            }
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompConfigurableSpawner");
-            MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0).SetDebugOnly();
+            // Vanilla Furniture Expanded
+            {
+                var type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompConfigurableSpawner");
+                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0).SetDebugOnly();
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
-            MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
+                type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRockSpawner");
-            MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0);
+                type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRockSpawner");
+                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0);
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
-            setStoneBuildingField = AccessTools.Field(type, "building");
-            MpCompat.RegisterSyncMethodByIndex(type, "<ProcessInput>", 0);
-            MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
-            MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
+                type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
+                setStoneBuildingField = AccessTools.Field(type, "building");
+                MpCompat.RegisterSyncMethodByIndex(type, "<ProcessInput>", 0);
+                MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
+            }
 
-            type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
-            MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_1", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
-            MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_6", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
-            MP.RegisterSyncDelegate(type, "<>c__DisplayClass21_0", "<CompGetGizmosExtra>b__4");
+            // Vanilla Faction Mechanoids
+            {
+                var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
+                MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_1", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
+                MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_6", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass21_0", "<CompGetGizmosExtra>b__4");
+            }
+
+            // AnimalBehaviours
+            {
+                // RNG
+                PatchingUtilities.PatchSystemRand("AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart", false);
+                PatchingUtilities.PatchSystemRandCtor(new[] { "AnimalBehaviours.CompAnimalProduct", "AnimalBehaviours.CompGasProducer" }, false);
+
+                // Gizmos
+                // Might not work, as I could not find a mod that uses this to test this
+                var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
+                MP.RegisterSyncMethod(type, "SetObjectForDestruction");
+                MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
+            }
         }
 
         private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
