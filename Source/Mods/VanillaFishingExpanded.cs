@@ -34,6 +34,8 @@ namespace Multiplayer.Compat
 
                 MpCompat.RegisterSyncMethodsByIndex(commandType, "<ProcessInput>", Enumerable.Range(0, 3).ToArray());
                 MP.RegisterSyncWorker<Command>(SyncFishingZoneChange, commandType, shouldConstruct: false);
+
+                MpCompat.RegisterSyncMethodByIndex(AccessTools.TypeByName("VCE_Fishing.Zone_Fishing"), "<GetGizmos>", 1);
             }
         }
 
