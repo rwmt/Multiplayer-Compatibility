@@ -11,10 +11,12 @@ namespace Multiplayer.Compat
     class RunandGun
     {
         public RunandGun(ModContentPack mod)
-            {
-                Type type = AccessTools.TypeByName("RunAndGun.Harmony.Pawn_DraftController_GetGizmos_Patch");
-                
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_0", "<Postfix>b__1");
-            }
+        {
+            Type type = AccessTools.TypeByName("RunAndGun.Harmony.Pawn_DraftController_GetGizmos_Patch");
+
+            MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_0", "<Postfix>b__1");
+
+            PatchingUtilities.PatchSystemRand("RunAndGun.Harmony.MentalStateHandler_TryStartMentalState:shouldRunAndGun", false);
+        }
     }
 }
