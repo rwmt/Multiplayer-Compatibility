@@ -20,6 +20,7 @@ namespace Multiplayer.Compat
                     "AlphaBehavioursAndEvents.CompInitialHediff",
                     "AlphaBehavioursAndEvents.Gas_Ocular",
                     "AlphaBehavioursAndEvents.Hediff_Crushing",
+                    "AlphaBehavioursAndEvents.DeathActionWorker_ExplodeAndSpawnEggs",
 
                     //"NewAlphaAnimalSubproducts.CompAnimalProduct ", // System.Random initialized, but not used
                 };
