@@ -23,7 +23,7 @@ namespace Multiplayer.Compat
                     resultSelector: (type, compat) => new { type, compat })
                 .Join(LoadedModManager.RunningMods,
                     box => box.compat.PackageId.ToLower(),
-                    mod => mod.PackageId.Replace("_steam", ""),
+                    mod => mod.PackageId.Replace("_steam", "").Replace("_copy", ""),
                     (box, mod) => new { box.type, mod });
 
             foreach(var action in queue) {
@@ -83,8 +83,8 @@ namespace Multiplayer.Compat
             foreach (MethodInfo mi in AccessTools.GetDeclaredMethods(type))
             {
                 List<Type> foundParamsType = new List<Type>();
-                if (mi.GetParameters().Length != 0) 
-                { 
+                if (mi.GetParameters().Length != 0)
+                {
                     foreach (ParameterInfo pi in mi.GetParameters())
                     {
                         foundParamsType.Add(pi.ParameterType);
