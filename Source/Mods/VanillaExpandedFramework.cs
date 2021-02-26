@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -16,6 +17,14 @@ namespace Multiplayer.Compat
     class VanillaExpandedFramework
     {
         private static FieldInfo setStoneBuildingField;
+
+        // MVCF
+        private static MethodInfo mvcfGetWorldCompMethod;
+        private static FieldInfo mvcfVerbsField;
+        private static FieldInfo mvcfAllManagersField;
+
+        // System
+        private static MethodInfo weakReferenceTryGetMethod;
 
         public VanillaExpandedFramework(ModContentPack mod)
         {
@@ -93,6 +102,29 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(type, "SetObjectForDestruction");
                 MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
             }
+
+            // MVCF (Multi Verb Combat Framework)
+            {
+                var type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
+                mvcfGetWorldCompMethod = AccessTools.Method(type, "GetComp");
+                mvcfAllManagersField = AccessTools.Field(type, "allManagers");
+
+                type = AccessTools.TypeByName("MVCF.VerbManager");
+                MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
+                mvcfVerbsField = AccessTools.Field(type, "verbs");
+
+                var weakReferenceType = typeof(System.WeakReference<>).MakeGenericType(new[] { type });
+                weakReferenceTryGetMethod = AccessTools.Method(weakReferenceType, "TryGetTarget");
+
+                type = AccessTools.TypeByName("MVCF.ManagedVerb");
+                MP.RegisterSyncWorker<object>(SyncManagedVerb, type, isImplicit: true);
+                MP.RegisterSyncMethod(type, "Toggle");
+
+                type = AccessTools.TypeByName("MVCF.Harmony.Gizmos");
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass4_0", "<GetGizmos_Postfix>b__1");
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass5_0", "<GetAttackGizmos_Postfix>b__4");
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass6_0", "<Pawn_GetGizmos_Postfix>b__0");
+            }
         }
 
         private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
@@ -130,6 +162,92 @@ namespace Multiplayer.Compat
                 sync.Write(setStoneBuildingField.GetValue(obj) as ThingComp);
             else
                 setStoneBuildingField.SetValue(obj, sync.Read<ThingComp>());
+        }
+
+        private static void SyncVerbManager(SyncWorker sync, ref object obj)
+        {
+            var comp = mvcfGetWorldCompMethod.Invoke(null, Array.Empty<object>());
+            var allManagers = mvcfAllManagersField.GetValue(comp) as IList;
+
+            if (sync.isWriting)
+            {
+                var foundManager = false;
+
+                for (int managerIndex = 0; managerIndex < allManagers.Count; managerIndex++)
+                {
+                    var weakReference = allManagers[managerIndex];
+                    var outParam = new object[] { null };
+                    if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam) && outParam[0] == obj)
+                    {
+                        sync.Write(managerIndex);
+                        foundManager = true;
+                        break;
+                    }
+                }
+
+                if (!foundManager) sync.Write(-1);
+            }
+            else
+            {
+                var managerIndex = sync.Read<int>();
+
+                if (managerIndex >= 0)
+                {
+                    var weakReference = allManagers[managerIndex];
+                    var outParam = new object[] { null };
+                    if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam))
+                        obj = outParam[0];
+                }
+            }
+        }
+
+        private static void SyncManagedVerb(SyncWorker sync, ref object obj)
+        {
+            var comp = mvcfGetWorldCompMethod.Invoke(null, Array.Empty<object>());
+            var allManagers = mvcfAllManagersField.GetValue(comp) as IList;
+
+            if (sync.isWriting)
+            {
+                var foundVerb = false;
+
+                for (int managerIndex = 0; managerIndex < allManagers.Count; managerIndex++)
+                {
+                    var weakReference = allManagers[managerIndex];
+                    var outParam = new object[] { null };
+                    if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam))
+                    {
+                        var managedVerbs = mvcfVerbsField.GetValue(outParam[0]) as IList;
+
+                        for (int verbIndex = 0; verbIndex < managedVerbs.Count; verbIndex++)
+                        {
+                            if (managedVerbs[verbIndex] == obj)
+                            {
+                                sync.Write(managerIndex);
+                                sync.Write(verbIndex);
+                                foundVerb = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!foundVerb) sync.Write(-1);
+            }
+            else
+            {
+                var managerIndex = sync.Read<int>();
+                if (managerIndex >= 0)
+                {
+                    var verbIndex = sync.Read<int>();
+
+                    var weakReference = allManagers[managerIndex];
+                    var outParam = new object[] { null };
+                    if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam))
+                    {
+                        var managedVerbs = mvcfVerbsField.GetValue(outParam[0]) as IList;
+                        obj = managedVerbs[verbIndex];
+                    }
+                }
+            }
         }
     }
 }
