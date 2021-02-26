@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -23,6 +24,9 @@ namespace Multiplayer.Compat
         private static FieldInfo controllerMenuField;
         private static ISyncField[] controllerFieldsToSync;
         private static ISyncField controllerTimesSync; // Synced manually
+        private static FieldInfo controllerDebtField;
+        // RestaurantDebt
+        private static FieldInfo restaurantDebtAllDebtsField;
         // Building_CashRegister
         private static FieldInfo restaurantControllerField;
         // RestaurantMenu
@@ -61,16 +65,27 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(Gastronomy), nameof(FillTabPrefix)),
                     postfix: new HarmonyMethod(typeof(Gastronomy), nameof(FillTabPostfix)));
 
+                // Clear debt on cliking it
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass18_0", "<DrawDebts>b__1").CancelIfAnyFieldNull().CancelIfNoSelectedObjects().SetContext(SyncContext.CurrentMap);
+
+                // Sync worker for debt itself, requires SyncContext.CurrentMap
+                type = AccessTools.TypeByName("Gastronomy.Restaurant.Debt");
+                MP.RegisterSyncWorker<object>(SyncDebt, type);
+
+                // RestaurantDebt, used for finding the debt
+                type = AccessTools.TypeByName("Gastronomy.Restaurant.RestaurantDebt");
+                restaurantDebtAllDebtsField = AccessTools.Field(type, "debts");
+
                 // Building_CashRegister
                 type = AccessTools.TypeByName("Gastronomy.TableTops.Building_CashRegister");
                 restaurantControllerField = AccessTools.Field(type, "restaurant");
 
                 // TimetableBool
-                type = AccessTools.TypeByName("Gastronomy.Timetable.TimetableBool");
+                type = AccessTools.TypeByName("Gastronomy.Restaurant.Timetable.TimetableBool");
                 timetableTimesField = AccessTools.Field(type, "times");
 
                 // RestaurantMenu
-                type = AccessTools.TypeByName("Gastronomy.RestaurantMenu");
+                type = AccessTools.TypeByName("Gastronomy.Restaurant.RestaurantMenu");
                 menuFilterField = AccessTools.Field(type, "menuFilter");
                 menuGlobalFilterField = AccessTools.Field(type, "menuGlobalFilter");
                 initMenuFilterMethod = AccessTools.Method(type, "InitMenuFilter");
@@ -81,10 +96,11 @@ namespace Multiplayer.Compat
 
                 // RestaurantController
                 restaurantControllerType = AccessTools.TypeByName("Gastronomy.RestaurantController");
-                controllerFieldsToSync = (new[] { "openForBusiness", "allowGuests", "allowColonists", "guestPricePercentage" }).Select(x => MP.RegisterSyncField(restaurantControllerType, x)).ToArray();
+                controllerFieldsToSync = (new[] { "openForBusiness", "allowGuests", "allowColonists", "allowPrisoners", "guestPricePercentage" }).Select(x => MP.RegisterSyncField(restaurantControllerType, x)).ToArray();
                 controllerTimetableField = AccessTools.Field(restaurantControllerType, "timetableOpen");
                 controllerMenuField = AccessTools.Field(restaurantControllerType, "menu");
                 controllerTimesSync = MP.RegisterSyncField(restaurantControllerType, "timetableOpen/times").SetBufferChanges();
+                controllerDebtField = AccessTools.Field(restaurantControllerType, "debts");
             }
             // MP overrides
             {
@@ -283,6 +299,31 @@ namespace Multiplayer.Compat
             var hiddenSpecialFilter = hiddenSpecialThingFiltersMethod.Invoke(null, Array.Empty<object>());
 
             allowCategoryHelperMethod.Invoke(null, new object[] { filter, categoryDef, allow, parentFilter, null, hiddenSpecialFilter });
+        }
+
+        private static void SyncDebt(SyncWorker sync, ref object obj)
+        {
+            var controller = Find.CurrentMap.GetComponent(restaurantControllerType);
+
+            if (sync.isWriting)
+            {
+                var debt = controllerDebtField.GetValue(controller);
+                var allDebts = restaurantDebtAllDebtsField.GetValue(debt) as IList;
+
+                sync.Write(allDebts.IndexOf(obj));
+            }
+            else
+            {
+                var index = sync.Read<int>();
+
+                if (index >= 0)
+                {
+                    var debt = controllerDebtField.GetValue(controller);
+                    var allDebts = restaurantDebtAllDebtsField.GetValue(debt) as IList;
+
+                    obj = allDebts[index];
+                }
+            }
         }
     }
 }
