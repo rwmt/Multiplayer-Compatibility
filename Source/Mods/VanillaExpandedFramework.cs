@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
+using RimWorld.Planet;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -16,15 +17,28 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     class VanillaExpandedFramework
     {
+        // Vanilla Furniture Expanded
         private static FieldInfo setStoneBuildingField;
 
         // MVCF
-        private static MethodInfo mvcfGetWorldCompMethod;
+        // VerbManager
+        private static ConstructorInfo mvcfVerbManagerCtor;
+        private static MethodInfo mvcfInitializeManagerMethod;
+        private static MethodInfo mvcfUniqueVerbOwnerIDMethod;
+        private static MethodInfo mvcfPawnSetter;
         private static FieldInfo mvcfVerbsField;
-        private static FieldInfo mvcfAllManagersField;
+        // WorldComponent_MVCF
+        private static MethodInfo mvcfGetWorldCompMethod;
+        private static FieldInfo mvcfAllManagersListField;
+        private static FieldInfo mvcfManagersTableField;
 
         // System
+        // WeakReference
+        private static ConstructorInfo weakReferenceCtor;
         private static MethodInfo weakReferenceTryGetMethod;
+        // ConditionalWeakTable
+        private static MethodInfo conditionalWeakTableAddMethod;
+        private static MethodInfo conditionalWeakTableTryGetValueMethod;
 
         public VanillaExpandedFramework(ModContentPack mod)
         {
@@ -107,17 +121,31 @@ namespace Multiplayer.Compat
             {
                 var type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
                 mvcfGetWorldCompMethod = AccessTools.Method(type, "GetComp");
-                mvcfAllManagersField = AccessTools.Field(type, "allManagers");
+                mvcfAllManagersListField = AccessTools.Field(type, "allManagers");
+                mvcfManagersTableField = AccessTools.Field(type, "managers");
+                MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(InitVerbManager));
+                MpCompat.harmony.Patch(AccessTools.Method(type, "GetManagerFor"),
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(GetManagerForPrefix)));
 
                 type = AccessTools.TypeByName("MVCF.VerbManager");
                 MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
+                mvcfVerbManagerCtor = AccessTools.Constructor(type);
+                mvcfInitializeManagerMethod = AccessTools.Method(type, "Initialize");
+                mvcfUniqueVerbOwnerIDMethod = AccessTools.Method(type, "UniqueVerbOwnerID");
+                mvcfPawnSetter = AccessTools.PropertySetter(type, "Pawn");
                 mvcfVerbsField = AccessTools.Field(type, "verbs");
 
                 var weakReferenceType = typeof(System.WeakReference<>).MakeGenericType(new[] { type });
+                weakReferenceCtor = AccessTools.FirstConstructor(weakReferenceType, ctor => ctor.GetParameters().Count() == 1);
                 weakReferenceTryGetMethod = AccessTools.Method(weakReferenceType, "TryGetTarget");
+
+                var conditionalWeakTableType = typeof(System.Runtime.CompilerServices.ConditionalWeakTable<,>).MakeGenericType(new[] { typeof(Pawn), type });
+                conditionalWeakTableAddMethod = AccessTools.Method(conditionalWeakTableType, "Add");
+                conditionalWeakTableTryGetValueMethod = AccessTools.Method(conditionalWeakTableType, "TryGetValue");
 
                 type = AccessTools.TypeByName("MVCF.ManagedVerb");
                 MP.RegisterSyncWorker<object>(SyncManagedVerb, type, isImplicit: true);
+                // Seems like selecting the Thing that holds the verb inits some stuff, so we need to set the context
                 MP.RegisterSyncMethod(type, "Toggle");
 
                 type = AccessTools.TypeByName("MVCF.Harmony.Gizmos");
@@ -167,36 +195,44 @@ namespace Multiplayer.Compat
         private static void SyncVerbManager(SyncWorker sync, ref object obj)
         {
             var comp = mvcfGetWorldCompMethod.Invoke(null, Array.Empty<object>());
-            var allManagers = mvcfAllManagersField.GetValue(comp) as IList;
+            var allManagers = mvcfAllManagersListField.GetValue(comp) as IList;
 
             if (sync.isWriting)
             {
                 var foundManager = false;
 
-                for (int managerIndex = 0; managerIndex < allManagers.Count; managerIndex++)
+                // Try to find our VerbManager (obj) inside of the list of weak references to VerManager
+                // If we find it we sync the unique ID (string), so we can easily find it
+                // The manager should be there somehwere, but in case we can't find it we sync null (as string)
+                // Trying to use an index is not a good idea, as the list of weak references is too volatile for that
+                foreach (var weakReference in allManagers)
                 {
-                    var weakReference = allManagers[managerIndex];
                     var outParam = new object[] { null };
                     if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam) && outParam[0] == obj)
                     {
-                        sync.Write(managerIndex);
+                        sync.Write((string)mvcfUniqueVerbOwnerIDMethod.Invoke(outParam[0], Array.Empty<object>()));
                         foundManager = true;
                         break;
                     }
                 }
 
-                if (!foundManager) sync.Write(-1);
+                if (!foundManager) sync.Write((string)null);
             }
             else
             {
-                var managerIndex = sync.Read<int>();
-
-                if (managerIndex >= 0)
+                // If the ID we got isn't null then we try to find the VerbManager with the ID we got
+                var managerId = sync.Read<string>();
+                if (managerId != null)
                 {
-                    var weakReference = allManagers[managerIndex];
-                    var outParam = new object[] { null };
-                    if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam))
-                        obj = outParam[0];
+                    foreach (var weakReference in allManagers)
+                    {
+                        var outParam = new object[] { null };
+                        if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam) && (string)mvcfUniqueVerbOwnerIDMethod.Invoke(outParam[0], Array.Empty<object>()) == managerId)
+                        {
+                            obj = outParam[0];
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -204,15 +240,20 @@ namespace Multiplayer.Compat
         private static void SyncManagedVerb(SyncWorker sync, ref object obj)
         {
             var comp = mvcfGetWorldCompMethod.Invoke(null, Array.Empty<object>());
-            var allManagers = mvcfAllManagersField.GetValue(comp) as IList;
+            var allManagers = mvcfAllManagersListField.GetValue(comp) as IList;
 
             if (sync.isWriting)
             {
                 var foundVerb = false;
 
-                for (int managerIndex = 0; managerIndex < allManagers.Count; managerIndex++)
+                // Try to find the VerbManager which holds our ManagedVerb (obj)
+                // Once we find both the verb inside of a verb manager, we sync both the index of the
+                // verb inside of the manager, as well as the unique ID of the manager (string)
+                // If we can't find it we only sync -1 (we omit the string),
+                // as negative value for index is a neat way here to display that we don't have a value
+                // Trying to use an index for the verb manager itself is not a good idea, as the list of weak references is too volatile for that
+                foreach (var weakReference in allManagers)
                 {
-                    var weakReference = allManagers[managerIndex];
                     var outParam = new object[] { null };
                     if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam))
                     {
@@ -222,8 +263,8 @@ namespace Multiplayer.Compat
                         {
                             if (managedVerbs[verbIndex] == obj)
                             {
-                                sync.Write(managerIndex);
                                 sync.Write(verbIndex);
+                                sync.Write((string)mvcfUniqueVerbOwnerIDMethod.Invoke(outParam[0], Array.Empty<object>()));
                                 foundVerb = true;
                             }
                         }
@@ -234,20 +275,85 @@ namespace Multiplayer.Compat
             }
             else
             {
-                var managerIndex = sync.Read<int>();
-                if (managerIndex >= 0)
+                // If the index we got is bigger to or equal to zero, then we also read the ID of verb manager.
+                // Then, we try to find the manager with the ID and find the verb with specific index inside of it
+                var verbIndex = sync.Read<int>();
+                if (verbIndex >= 0)
                 {
-                    var verbIndex = sync.Read<int>();
+                    var managerId = sync.Read<string>();
 
-                    var weakReference = allManagers[managerIndex];
-                    var outParam = new object[] { null };
-                    if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam))
+                    foreach (var weakReference in allManagers)
                     {
-                        var managedVerbs = mvcfVerbsField.GetValue(outParam[0]) as IList;
-                        obj = managedVerbs[verbIndex];
+                        var outParam = new object[] { null };
+                        if ((bool)weakReferenceTryGetMethod.Invoke(weakReference, outParam) && (string)mvcfUniqueVerbOwnerIDMethod.Invoke(outParam[0], Array.Empty<object>()) == managerId)
+                        {
+                            var managedVerbs = mvcfVerbsField.GetValue(outParam[0]) as IList;
+                            obj = managedVerbs[verbIndex];
+                        }
                     }
                 }
             }
+        }
+
+        private static bool GetManagerForPrefix(Pawn pawn, bool createIfMissing, WorldComponent __instance, ref object __result)
+        {
+            if (!createIfMissing) return true; // We don't care and let the method run, we only care if we might need to creat a VerbManager
+
+            var table = mvcfManagersTableField.GetValue(__instance);
+            var parameters = new object[] { pawn, null };
+
+            if ((bool)conditionalWeakTableTryGetValueMethod.Invoke(table, parameters))
+            {
+                // Might as well give the result back instead of continuing the normal execution of the method,
+                // as it would just do the same stuff as we do here again
+                __result = parameters[1];
+            }
+            else
+            {
+                // We basically setup an empty reference, but we'll initialize it in the synced method.
+                // We just return the reference for it so other objects can use it now. The data they
+                // have will be updated after the sync, so the gizmos related to verbs might not be
+                // shown immediately for players who selected specific pawns.
+                __result = CreateAndAddVerbManagerToCollections(pawn, __instance, table: table);
+                // Delay the initialization of the VerbManager to a synced method
+                InitVerbManager(pawn);
+            }
+
+            return false;
+        }
+
+        // Synced method for initializing the verb manager for all players, used in sitations where the moment of creation of the verb might not be synced
+        private static void InitVerbManager(Pawn pawn)
+        {
+            var comp = (WorldComponent)mvcfGetWorldCompMethod.Invoke(null, Array.Empty<object>());
+            var table = mvcfManagersTableField.GetValue(comp);
+            var parameters = new object[] { pawn, null };
+            object verbManager;
+
+            // Try to find the verb manager first, as it might exist (and it will definitely exist for at least one player)
+            if ((bool)conditionalWeakTableTryGetValueMethod.Invoke(table, parameters))
+                verbManager = parameters[1];
+            // If the verb manager doesn't exist, we create an empty one here and add it to the verb manager list and table
+            else
+                verbManager = CreateAndAddVerbManagerToCollections(pawn, comp);
+
+            mvcfInitializeManagerMethod.Invoke(verbManager, new object[] { pawn });
+        }
+
+        // Helper method for creating an empty verb manager for a pawn
+        private static object CreateAndAddVerbManagerToCollections(Pawn pawn, WorldComponent worldComponent, object list = null, object table = null)
+        {
+            var verbManager = mvcfVerbManagerCtor.Invoke(Array.Empty<object>());
+            // The pawn is used to get ID, so we might need it to exist for the purpose of syncing it (if the manager wasn't initialized yet)
+            mvcfPawnSetter.Invoke(verbManager, new object[] { pawn });
+
+            if (list == null) list = mvcfAllManagersListField.GetValue(worldComponent);
+            if (table == null) table = mvcfManagersTableField.GetValue(worldComponent);
+
+            conditionalWeakTableAddMethod.Invoke(table, new object[] { pawn, verbManager });
+            ((IList)list).Add(weakReferenceCtor.Invoke(new object[] { verbManager }));
+
+            return verbManager;
         }
     }
 }
