@@ -149,9 +149,9 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(type, "Toggle");
 
                 type = AccessTools.TypeByName("MVCF.Harmony.Gizmos");
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass4_0", "<GetGizmos_Postfix>b__1");
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass5_0", "<GetAttackGizmos_Postfix>b__4");
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass6_0", "<Pawn_GetGizmos_Postfix>b__0");
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass5_0", "<GetGizmos_Postfix>b__1"); // Fire at will
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass6_0", "<GetAttackGizmos_Postfix>b__4"); // Interrupt Attack
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass7_0", "<Pawn_GetGizmos_Postfix>b__0"); // Also interrupt Attack
             }
         }
 
