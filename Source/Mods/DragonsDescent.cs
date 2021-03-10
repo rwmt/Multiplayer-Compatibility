@@ -9,6 +9,9 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
+    /// <summary>Dragon's Descent by Onyxae</summary>
+    /// <see href="https://github.com/Aether-Guild/Dragons-Descent/"/>
+    /// <see href="https://steamcommunity.com/workshop/filedetails/?id=2026992161"/>
     [MpCompatFor("onyxae.dragonsdescent")]
     public class DragonsDescent
     {
