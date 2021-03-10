@@ -53,13 +53,11 @@ namespace Multiplayer.Compat
             // Abilities
             {
                 var type = AccessTools.TypeByName("DD.AbilityComp_AbilityControl");
-                MpCompat.RegisterSyncMethodByIndex(type, "<get_Gizmo>", 1); // Toggle active
-
+                var gizmoActionMethod = MpCompat.MethodByIndex(type, "<get_Gizmo>", 1);
+                MP.RegisterSyncMethod(gizmoActionMethod); // Toggle active
+                MpCompat.harmony.Patch(gizmoActionMethod,
+                    prefix: new HarmonyMethod(typeof(DragonsDescent), nameof(PreGizmoActionCalled)));
                 abilityCompGizmoGetter = AccessTools.PropertyGetter(type, "Gizmo");
-                MP.RegisterSyncMethod(typeof(DragonsDescent), nameof(SyncTryInitGizmo));
-                MpCompat.harmony.Patch(abilityCompGizmoGetter,
-                    prefix: new HarmonyMethod(typeof(DragonsDescent), nameof(PreAbilityControlGizmoGetter)),
-                    postfix: new HarmonyMethod(typeof(DragonsDescent), nameof(PostAbilityControlGizmoGetter)));
             }
 
             // Hostility response type changing
@@ -106,18 +104,11 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static void PreAbilityControlGizmoGetter(Command ___gizmo, ref bool __state) => __state = ___gizmo == null;
-
-        private static void PostAbilityControlGizmoGetter(AbilityComp __instance, Command ___gizmo, ref bool __state)
+        private static void PreGizmoActionCalled(AbilityComp __instance, Command ___gizmo)
         {
-            // Check if the gizmo was just created
-            if (MP.IsInMultiplayer && __state && ___gizmo != null)
-                SyncTryInitGizmo(__instance); // The gizmo should be created for others before any (synced) interaction with it is done
+            if (MP.IsInMultiplayer && ___gizmo == null)
+                abilityCompGizmoGetter.Invoke(__instance, Array.Empty<object>());
         }
-
-        // Calls the getter for the gizmo, which will initialize it if needed (or do simple stuff, like setting up icons, etc.)
-        // This is called only when the gizmo was created for someone, so it should be only called once per ability
-        private static void SyncTryInitGizmo(AbilityComp ability) => abilityCompGizmoGetter.Invoke(ability, Array.Empty<object>());
 
         private static bool PreSetHostilityResponseType(object __instance, IList ___options, int ___index)
         {
