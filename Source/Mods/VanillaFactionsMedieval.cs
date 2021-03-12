@@ -32,9 +32,7 @@ namespace Multiplayer.Compat
 
             // Tournament dialog
             {
-                NodeTreeDialogSync.EnableNodeTreeDialogSync();
-                MpCompat.harmony.Patch(AccessTools.Method(AccessTools.TypeByName("VFEMedieval.MedievalTournament"), "Notify_CaravanArrived"),
-                    prefix: NodeTreeDialogSync.HarmonyMethodMarkDialogAsOpen);
+                MP.RegisterSyncDialogNodeTree(AccessTools.TypeByName("VFEMedieval.MedievalTournament"), "Notify_CaravanArrived");
             }
         }
 
@@ -46,16 +44,17 @@ namespace Multiplayer.Compat
                 qualityField.SetValue(obj, sync.Read<byte>());
         }
 
-        // Leaving it here as I believe it would cause load errors due to missing GameComponent
+        // To be removed in the future, for now leaving it here to let it remove itself from game
+        // Removing it here will prevent errors from appearing when loading a save file in the future that had this component once it's removed
+        // It's not foolproof, but should prevent errors at least for the save files that were created after the change to this class
+        [Obsolete("No longer needed, all related code was moved to MP API, and additionally the purpose of this code is being handled differently.")]
         private class DataResetComponent : GameComponent
         {
-            public DataResetComponent(Game game) { }
+            private readonly Game game;
 
-            public override void FinalizeInit()
-            {
-                if (!MP.IsInMultiplayer || (NodeTreeDialogSync.isDialogOpen && !Find.WindowStack.IsOpen<Dialog_NodeTree>()))
-                    NodeTreeDialogSync.isDialogOpen = false;
-            }
+            public DataResetComponent(Game game) => this.game = game;
+
+            public override void FinalizeInit() => game.components.RemoveAll(x => x.GetType() == typeof(DataResetComponent));
         }
     }
 }
