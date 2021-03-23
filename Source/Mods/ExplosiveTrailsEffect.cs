@@ -2,7 +2,7 @@
 
 namespace Multiplayer.Compat
 {
-    /// <summary>ExplosiveTrailsEffect.dll is used (at least) by Vanilal Furniture Expanded - Security and Vanilla Weapons Expanded</summary>
+    /// <summary>ExplosiveTrailsEffect.dll is used (at least) by Vanilla Furniture Expanded - Security and Vanilla Weapons Expanded</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1814383360"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1845154007"/>
     /// <see href="https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Security"/>
