@@ -8,31 +8,57 @@
   </supportedVersions>
   <description>Miscellaneous patches to make Multiplayer work
     Mod Support:
+    - [KV] RimFridge
+    - [KV] Path Avoid
     - Alpha Animals
     - Alpha Biomes
     - Animals Logic
     - Avoid Friendly Fire
     - Cleaning Area
-    - CutPlantsBeforeBuild
+    - Common Sense
+    - Cut Plants Before Building
+    - Desynchronized: Tales and News (Continued)
+    - Dragon's Descent
     - Fertile Fields
+    - Gastronomy
     - Genetic Rim
+    - Immortals
+    - LWM's Deep Storage
     - Misc Robots
-    - RimFridge
-    - Path Avoid
-    - Power Switch
-    - RimFridge
-    - RPG Style Inventory
-    - Run and Gun
+    - Misc. Training
+    - Netrve's DeepStorage GUI
+    - PowerSwitch
+    - Prison Labor
+    - QualityBuilder
+    - Reunion
+    - RunAndGun
+    - Sandy's RPG Style Inventory
     - Simple Sidearms
-    - Sparkling Worlds
+    - Simply More Bridges (Continued)
+    - Smarter Construction
+    - Sparkling Worlds - Full Mod
+    - Sparkling Worlds - Modular Core - Reduced features
+    - SRTS Expanded
     - Stuffed Floors
-    - Time of day Switch
+    - Time-of-Day Switches
+    - Vanilla Achievements Expanded
+    - Vanilla Animals Expanded — Endangered
+    - Vanilla Brewing Expanded
     - Vanilla Cooking Expanded
     - Vanilla Events Expanded
+    - Vanilla Expanded Framework
+    - Vanilla Factions Expanded - Insectoids
+    - Vanilla Factions Expanded - Mechanoids
+    - Vanilla Factions Expanded - Medieval
+    - Vanilla Factions Expanded - Settlers
+    - Vanilla Factions Expanded - Vikings
     - Vanilla Fishing Expanded
     - Vanilla Furniture Expanded - Farming
     - Vanilla Furniture Expanded - Power
     - Vanilla Furniture Expanded - Security
+    - Vanilla Hair Expanded
+    - Vanilla Weapons Expanded - Laser
+    - What the hack?!
   </description>
   <modDependencies>
     <li>
