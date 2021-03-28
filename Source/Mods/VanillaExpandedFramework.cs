@@ -108,10 +108,9 @@ namespace Multiplayer.Compat
             {
                 // RNG
                 PatchingUtilities.PatchSystemRand("AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart", false);
-                PatchingUtilities.PatchSystemRandCtor(new[] { "AnimalBehaviours.CompAnimalProduct", "AnimalBehaviours.CompGasProducer" }, false);
+                PatchingUtilities.PatchSystemRandCtor(new[] { "AnimalBehaviours.CompAnimalProduct", "AnimalBehaviours.CompGasProducer", "AnimalBehaviours.CompFilthProducer" }, false);
 
                 // Gizmos
-                // Might not work, as I could not find a mod that uses this to test this
                 var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
                 MP.RegisterSyncMethod(type, "SetObjectForDestruction");
                 MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
