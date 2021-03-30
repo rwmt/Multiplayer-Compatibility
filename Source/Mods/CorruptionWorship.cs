@@ -50,6 +50,10 @@ namespace Multiplayer.Compat
         private static FieldInfo wonderWorkerTargetableTargetField;
         private static FieldInfo wonderWorkerTargetableCanceledField;
 
+        // WonderWorker_Targetable inner class
+        private static FieldInfo winderWorkerTargetableInnerBaseField;
+        private static bool shouldCallCheckCancelled = true;
+
         // WonderDef
         private static FieldInfo wonderDefWorkerIntField; // Not actually an int, it's just named like that
 
@@ -115,7 +119,7 @@ namespace Multiplayer.Compat
                 wonderWorkerTargetableCanceledField = AccessTools.Field(wonderWorkerTargetableType, "cancelled");
                 MP.RegisterSyncWorker<object>(SyncWonderWorker, wonderWorkerType, isImplicit: true);
                 MP.RegisterSyncWorker<object>(SyncWonderTargetableWorker, wonderWorkerTargetableType, isImplicit: true);
-                // Refunds the points if it was cancelled
+                MP.RegisterSyncMethod(wonderWorkerTargetableType, "StartTargeting");
                 MP.RegisterSyncMethod(wonderWorkerTargetableType, "CheckCancelled");
 
                 // Sync the method for each class inheriting from TryExecuteWonder
@@ -131,14 +135,12 @@ namespace Multiplayer.Compat
                         MP.RegisterSyncMethod(method);
                 }
 
-                // Same as before, but we sync it for classes that have a specific target
-                foreach (var subtype in wonderWorkerTargetableType.AllSubclasses())
-                {
-                    // Include types for maximum safety
-                    var method = AccessTools.Method(subtype, "TryDoEffectOnTarget", new[] { typeof(Def), typeof(int) });
-                    if (method != null)
-                        MP.RegisterSyncMethod(method);
-                }
+                var inner = AccessTools.Inner(wonderWorkerTargetableType, "<>c__DisplayClass6_0");
+                winderWorkerTargetableInnerBaseField = AccessTools.Field(inner, "<>4__this");
+                MpCompat.harmony.Patch(MpCompat.MethodByIndex(inner, "<TryExecuteWonderInt>", 0),
+                    prefix: new HarmonyMethod(typeof(CorruptionWorship), nameof(PreStartTargetting)));
+                MpCompat.harmony.Patch(MpCompat.MethodByIndex(inner, "<TryExecuteWonderInt>", 1),
+                    prefix: new HarmonyMethod(typeof(CorruptionWorship), nameof(PreCheckCancelled)));
 
                 // WonderDef, all we want is the field storing the WonderWorker for sync worker
                 var type = AccessTools.TypeByName("Corruption.Worship.Wonders.WonderDef");
@@ -203,10 +205,6 @@ namespace Multiplayer.Compat
                 // Drop effigy
                 type = AccessTools.TypeByName("Corruption.Worship.CompShrine");
                 MP.RegisterSyncMethod(type, "DropEffigy");
-
-                // (Debug) force return from pilgrimage
-                type = AccessTools.TypeByName("Corruption.Worship.PilgrimageComp");
-                MpCompat.RegisterSyncMethodByIndex(type, "<GetCaravanGizmos>", 0).SetDebugOnly();
             }
         }
 
@@ -349,7 +347,7 @@ namespace Multiplayer.Compat
                     var altar = sync.Read<Building>();
                     var sermon = GetSermon(altar, index);
                     var type = sync.Read<bool>() ? assignPreacherType : assignAssistantType;
-                    
+
                     obj = Activator.CreateInstance(type, altar, sermon) as Window;
                 }
             }
@@ -474,6 +472,23 @@ namespace Multiplayer.Compat
         {
             if (altarTryStartSermonMethod != null)
                 altarTryStartSermonMethod.Invoke(altar, new object[] { GetSermon(altar, index) });
+        }
+
+        private static void PreStartTargetting(object __instance)
+        {
+            if (!MP.IsInMultiplayer) return;
+
+            var targetableWorker = winderWorkerTargetableInnerBaseField.GetValue(__instance);
+            wonderWorkerTargetableCanceledField.SetValue(targetableWorker, false);
+            shouldCallCheckCancelled = false;
+        }
+
+        private static bool PreCheckCancelled()
+        {
+            var value = shouldCallCheckCancelled;
+            shouldCallCheckCancelled = true;
+
+            return !MP.IsInMultiplayer || value;
         }
     }
 }

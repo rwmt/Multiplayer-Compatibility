@@ -68,9 +68,6 @@ namespace Multiplayer.Compat
                 postfix: new HarmonyMethod(typeof(CorruptionPsykers), nameof(PostPsykerDoWindowContents)));
 
             MP.RegisterSyncMethod(typeof(CorruptionPsykers), nameof(SyncedTryLearnPower));
-            MP.RegisterSyncMethod(typeof(CorruptionPsykers), nameof(SyncedInjectedAddXp));
-            MpCompat.harmony.Patch(AccessTools.Method(psykerWindowType, "DrawSelectedPower"),
-                transpiler: new HarmonyMethod(typeof(CorruptionPsykers), nameof(Transpiler)));
 
             var psykerLearnablePowerType = AccessTools.TypeByName("Corruption.Psykers.PsykerLearnablePower");
 
@@ -86,6 +83,9 @@ namespace Multiplayer.Compat
 
             var database = typeof(DefDatabase<>).MakeGenericType(new Type[] { type });
             getDefByShortHash = AccessTools.Method(database, "GetByShortHash");
+
+            MpCompat.harmony.Patch(AccessTools.Method(psykerWindowType, "DrawSelectedPower"),
+                transpiler: new HarmonyMethod(typeof(CorruptionPsykers), nameof(Transpiler)));
         }
 
         private static void PrePsykerDoWindowContents(Window __instance, ref object[] __state)
@@ -126,7 +126,7 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static void SyncedAddMinorDiscipline(ThingComp comp, ushort hash) 
+        private static void SyncedAddMinorDiscipline(ThingComp comp, ushort hash)
             => ((IList)compPsykerMinorDisciplinesField.GetValue(comp)).Add(getDefByShortHash.Invoke(null, new object[] { hash }));
 
         private static void SyncPsykerDisciplineWindow(SyncWorker sync, ref object obj) => SyncPsykerDisciplineWindowAny(sync, ref obj, psykerDisciplineWindowType);
@@ -167,32 +167,22 @@ namespace Multiplayer.Compat
         {
             foreach (var ci in instr)
             {
-                if (ci.opcode == OpCodes.Callvirt)
+                if (ci.opcode == OpCodes.Callvirt && ci.operand is MethodInfo method && method == compPsykerTryLearnPowerMethod)
                 {
-                    var method = (MethodInfo)ci.operand;
-
-                    if (method == compPsykerAddXpMethod)
-                    {
-                        ci.opcode = OpCodes.Call;
-                        ci.operand = AccessTools.Method(typeof(CorruptionPsykers), nameof(SyncedInjectedAddXp));
-                    }
-                    else if (method == compPsykerTryLearnPowerMethod)
-                    {
-                        ci.opcode = OpCodes.Call;
-                        ci.operand = AccessTools.Method(typeof(CorruptionPsykers), nameof(InjectedTryLearnPower));
-                    }
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = AccessTools.Method(typeof(CorruptionPsykers), nameof(InjectedTryLearnPower));
                 }
-            }
 
-            return instr;
+                yield return ci;
+            }
         }
 
-        private static void InjectedTryLearnPower(ThingComp comp, object selectedPower)
+        private static bool InjectedTryLearnPower(ThingComp comp, object selectedPower)
         {
             var disciplineDef = compPsykerMainDisciplineField.GetValue(comp);
             var list = (IList)psykerDisciplineDefAbilitiesField.GetValue(disciplineDef);
             var index = list.IndexOf(selectedPower);
-            
+
             if (index >= 0)
             {
                 SyncedTryLearnPower(comp, int.MinValue, index);
@@ -212,6 +202,8 @@ namespace Multiplayer.Compat
                     }
                 }
             }
+
+            return true;
         }
 
         private static void SyncedTryLearnPower(ThingComp comp, int disciplineIndex, int abilityIndex)
@@ -230,12 +222,6 @@ namespace Multiplayer.Compat
             }
 
             compPsykerTryLearnPowerMethod.Invoke(comp, new object[] { abilityList[abilityIndex] });
-        }
-
-        private static void SyncedInjectedAddXp(ThingComp comp, int xp)
-        {
-            if (comp != null)
-                compPsykerAddXpMethod.Invoke(comp, new object[] { xp });
         }
     }
 }
