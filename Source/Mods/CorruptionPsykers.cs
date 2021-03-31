@@ -97,6 +97,7 @@ namespace Multiplayer.Compat
                 MP.WatchBegin();
                 compPsykerXpSyncField.Watch(comp);
 
+                // Copy all the currently learned minor disciplines, we'll check later if there were any changes
                 var list = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
                 __state = new object[list.Count];
                 list.CopyTo(__state, 0);
@@ -112,6 +113,7 @@ namespace Multiplayer.Compat
                 var comp = psykerWindowCompField.GetValue(__instance);
                 var list = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
 
+                // Check through all learned minor disciplines, look for any changes
                 if (__state.Length != list.Count)
                 {
                     foreach (var item in list)
@@ -169,6 +171,8 @@ namespace Multiplayer.Compat
             {
                 if (ci.opcode == OpCodes.Callvirt && ci.operand is MethodInfo method && method == compPsykerTryLearnPowerMethod)
                 {
+                    // Try replacing TryLearnPower from the mod with the one we have here
+                    // Our method is synced (we shouldn't really sync the original method, as it's called from other places)
                     ci.opcode = OpCodes.Call;
                     ci.operand = AccessTools.Method(typeof(CorruptionPsykers), nameof(InjectedTryLearnPower));
                 }
@@ -183,10 +187,12 @@ namespace Multiplayer.Compat
             var list = (IList)psykerDisciplineDefAbilitiesField.GetValue(disciplineDef);
             var index = list.IndexOf(selectedPower);
 
+            // Main discipline, we have an index to it in the list
             if (index >= 0)
             {
                 SyncedTryLearnPower(comp, int.MinValue, index);
             }
+            // We don't have a discipline index, so it's a minor discipline - find which one and sync it
             else
             {
                 var defsList = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
@@ -210,11 +216,13 @@ namespace Multiplayer.Compat
         {
             IList abilityList;
 
+            // Minor discipline
             if (disciplineIndex >= 0)
             {
                 var defsList = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
                 abilityList = (IList)psykerDisciplineDefAbilitiesField.GetValue(defsList[disciplineIndex]);
             }
+            // Main discipline
             else
             {
                 var disciplineDef = compPsykerMainDisciplineField.GetValue(comp);

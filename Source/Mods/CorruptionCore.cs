@@ -98,6 +98,7 @@ namespace Multiplayer.Compat
                 var previousFavourList = (float[])__state[1];
                 var favoursList = (IList)soulFavourTrackerFavoursField.GetValue(favourTracker);
 
+                // Check for changes, revert them (if any) and change them in synced method
                 for (int i = 0; i < favoursList.Count; i++)
                 {
                     var newValue = (float)favourProgressFavourValueField.GetValue(favoursList[i]);
@@ -108,6 +109,7 @@ namespace Multiplayer.Compat
                         favourProgressFavourValueField.SetValue(favoursList[i], oldValue);
                         SyncFavourValue((ThingComp)soul, i, newValue);
                         // We could break here, but let's just keep going in case there's more than one changed
+                        // There shouldn't be more than a single difference, but let's be safe
                     }
                 }
             }

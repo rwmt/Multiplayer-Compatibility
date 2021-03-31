@@ -278,12 +278,14 @@ namespace Multiplayer.Compat
                 var duration = (float)sermonTemplateSermonDurationHoursField.GetValue(sermon);
                 var active = (bool)sermonTemplateActiveField.GetValue(sermon);
 
+                // Check if there were changes, revert them if they were and then change them in the synced method
                 if (startTime != (int)__state[0] || duration != (float)__state[1] || active != (bool)__state[2])
                 {
                     sermonTemplatePreferredStartTimeField.SetValue(sermon, __state[0]);
                     sermonTemplateSermonDurationHoursField.SetValue(sermon, __state[1]);
                     sermonTemplateActiveField.SetValue(sermon, __state[2]);
 
+                    // There shouldn't be more than a single change per call, so this method shouldn't be called more than once
                     SyncSimpleSermonData(altar, index, startTime, duration, active);
                 }
             }
@@ -427,6 +429,8 @@ namespace Multiplayer.Compat
                 {
                     var operand = (MethodInfo)ci.operand;
 
+                    // Replace the unsynced methods with synced ones
+                    // We shouldn't sync the methods themselves as they're called from different places as well
                     if (operand == receiveMemo)
                     {
                         ci.opcode = OpCodes.Call;
@@ -478,6 +482,9 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsInMultiplayer) return;
 
+            // Check if the targetting was cancelled
+            // Due to using synced methods the value will be set with delay, so this prevents
+            // the value from being unsynced
             var targetableWorker = winderWorkerTargetableInnerBaseField.GetValue(__instance);
             wonderWorkerTargetableCanceledField.SetValue(targetableWorker, false);
             shouldCallCheckCancelled = false;
@@ -488,6 +495,8 @@ namespace Multiplayer.Compat
             var value = shouldCallCheckCancelled;
             shouldCallCheckCancelled = true;
 
+            // Continue the method normally if it's not MP, or if the targetting was cancelled
+            // The actual value we have in MP will most likely be treated as canceled, even if it wasn't, so this should fix this
             return !MP.IsInMultiplayer || value;
         }
     }
