@@ -12,7 +12,6 @@ namespace Multiplayer.Compat
         {
             var methodsForAll = new[]
             {
-                "VEE.DummySpaceBattle:Tick",
                 "VEE.HeddifComp_MightJoin:CompPostTick",
                 "VEE.Shuttle:Tick",
                 
@@ -25,10 +24,8 @@ namespace Multiplayer.Compat
 
                 "VEE.RegularEvents.ApparelPod:TryExecuteWorker",
                 "VEE.RegularEvents.CaravanAnimalWI:GenerateGroup",
-                "VEE.RegularEvents.Drought:HarmPlant",
                 "VEE.RegularEvents.HuntingParty:TryExecuteWorker",
                 "VEE.RegularEvents.MeteoriteShower:TryExecuteWorker",
-                "VEE.RegularEvents.SpaceBattle:GameConditionTick", // This method was having issues with transpiling no matter what I did, skipping it until it can be fixed
                 "VEE.RegularEvents.WeaponPod:TryExecuteWorker",
             };
 
@@ -37,6 +34,10 @@ namespace Multiplayer.Compat
             PatchingUtilities.PatchPushPopRand("VEE.RegularEvents.EarthQuake:TryExecuteWorker");
             // Only patch System.Random out, as this methods is only called by other ones
             PatchingUtilities.PatchSystemRand("VEE.RegularEvents.EarthQuake:DamageInRadius", false);
+
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
+
+        public static void LatePatch() => PatchingUtilities.PatchSystemRand("VEE.RegularEvents.SpaceBattle:GameConditionTick", false);
     }
 }
