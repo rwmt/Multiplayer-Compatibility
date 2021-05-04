@@ -108,7 +108,14 @@ namespace Multiplayer.Compat
             {
                 // RNG
                 PatchingUtilities.PatchSystemRand("AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart", false);
-                PatchingUtilities.PatchSystemRandCtor(new[] { "AnimalBehaviours.CompAnimalProduct", "AnimalBehaviours.CompGasProducer", "AnimalBehaviours.CompFilthProducer" }, false);
+                var rngFixConstructors = new[]
+                {
+                    "AnimalBehaviours.CompAnimalProduct",
+                    "AnimalBehaviours.CompFilthProducer",
+                    "AnimalBehaviours.CompGasProducer",
+                    "AnimalBehaviours.CompInitialHediff",
+                };
+                PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
 
                 // Gizmos
                 var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
