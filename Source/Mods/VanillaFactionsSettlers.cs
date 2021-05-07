@@ -14,8 +14,7 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("VFE_Settlers.Utilities.UtilityEvent");
 
             // Protection fee event
-            NodeTreeDialogSync.EnableNodeTreeDialogSync();
-            MpCompat.harmony.Patch(AccessTools.Method(type, "ProtectionFee"), prefix: NodeTreeDialogSync.HarmonyMethodMarkDialogAsOpen);
+            MP.RegisterSyncDialogNodeTree(type, "ProtectionFee");
             // Caravan gizmo - turn in wanted criminal to settlement
             MP.RegisterSyncDelegate(type, "<>c__DisplayClass8_0", "<CommandTurnInWanted>b__0");
             // Dev mode set progress to 1

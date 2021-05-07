@@ -1,7 +1,8 @@
 ﻿using System;
-
+using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
+using UnityEngine;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -13,6 +14,8 @@ namespace Multiplayer.Compat
     [MpCompatFor("VanillaExpanded.VFEPower")]
     class VanillaPowerExpanded
     {
+        private static FieldInfo windDirectionField;
+
         public VanillaPowerExpanded(ModContentPack mod)
         {
             Type type;
@@ -78,7 +81,33 @@ namespace Multiplayer.Compat
 
                 PatchingUtilities.PatchPushPopRand(methods);
                 LongEventHandler.ExecuteWhenFinished(() => PatchingUtilities.PatchPushPopRand(methodsForLater));
+
+                // Wind map comp
+                windDirectionField = AccessTools.Field(AccessTools.TypeByName("GasNetwork.MapComponent_WindDirection"), "windDirection");
+                
+                PatchingUtilities.PatchUnityRand("GasNetwork.MapComponent_WindDirection:MapGenerated");
+                MpCompat.harmony.Patch(AccessTools.Method("GasNetwork.MapComponent_WindDirection:MapComponentTick"),
+                    prefix: new HarmonyMethod(typeof(VanillaPowerExpanded), nameof(ReplaceWindMapComponentTick)));
             }
+        }
+
+        private static bool ReplaceWindMapComponentTick(MapComponent __instance)
+        {
+            if (!MP.IsInMultiplayer) return true;
+
+            // Removed GetHashCode from here, most likely the source of issues with this method?
+            // It means that the wind update for all maps will happen at the same time.
+            // If we want to change it, the potential workarounds:
+            // Use (__instance.map.Index * 10), multiply by 10 as there is a max of 20 maps for wind (would HashCode from int be more consistant?)
+            // Something like Verse.Rand.RangeInclusiveSeeded(0, 250, __instance.map.Index)
+            if (GenTicks.TicksAbs % 250 == 0)
+            {
+                const float twoPI = Mathf.PI * 2;
+                // Use Verse rand instead of Unity
+                windDirectionField.SetValue(__instance, ((float)windDirectionField.GetValue(__instance) + Rand.Range(-0.3f, 0.3f)) % twoPI);
+            }
+
+            return false;
         }
     }
 }
