@@ -37,7 +37,14 @@ namespace Multiplayer.Compat
 
             windowType = AccessTools.TypeByName("AchievementsExpanded.MainTabWindow_Achievements");
 
-            MpCompat.harmony.Patch(AccessTools.Method(windowType, "DrawSidePanel"), transpiler: new HarmonyMethod(typeof(VanillaAchievements), nameof(Transpiler)));
+            var methods = new[]
+            {
+                AccessTools.Method(windowType, "DrawSidePanel"),
+                AccessTools.DeclaredMethod(AccessTools.TypeByName("AchievementsExpanded.TraderTracker"), "Trigger"),
+            };
+
+            foreach (var method in methods)
+                MpCompat.harmony.Patch(method, transpiler: new HarmonyMethod(typeof(VanillaAchievements), nameof(Transpiler)));
 
             // Sync our method
             MP.RegisterSyncMethod(typeof(VanillaAchievements), nameof(SyncedCalls));
@@ -70,11 +77,22 @@ namespace Multiplayer.Compat
             usedReward = false;
         }
 
+        // Tradeable.GetPriceFor() seems to be called with a Tradeable that has null Thing, this should handle it
+        // Returning 0 here won't have any effect
+        private static float SaferGetPriceFor(Tradeable tradeable, TradeAction action)
+        {
+            if (MP.IsInMultiplayer && tradeable.AnyThing == null)
+                return 0;
+            return tradeable.GetPriceFor(action);
+        }
+
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instr)
         {
             // Basically change reward.PurchaseReward() into VanillaAchievements.PurchaseReward(reward)
             // Callvirt uses first loaded parameter as the class we call the method on,
             // but we use static class with Call, so it becomes the first parameter instead.
+
+            var getPriceForMethod = AccessTools.Method(typeof(Tradeable), nameof(Tradeable.GetPriceFor));
 
             foreach (var ci in instr)
             {
@@ -86,6 +104,12 @@ namespace Multiplayer.Compat
                     {
                         ci.opcode = OpCodes.Call;
                         ci.operand = AccessTools.Method(typeof(VanillaAchievements), nameof(PurchaseReward));
+                        break;
+                    }
+                    else if (operand == getPriceForMethod)
+                    {
+                        ci.opcode = OpCodes.Call;
+                        ci.operand = AccessTools.Method(typeof(VanillaAchievements), nameof(SaferGetPriceFor));
                         break;
                     }
                 }
