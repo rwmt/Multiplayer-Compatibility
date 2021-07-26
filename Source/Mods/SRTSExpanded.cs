@@ -96,7 +96,7 @@ namespace Multiplayer.Compat
             // These two are unused, but let's sync them anyway, just in case
             else if (arrivalAction is TransportPodsArrivalAction_GiveToCaravan giveToCaravan)
                 SyncGiveToCaravan(__instance, destinationTile, giveToCaravan, cafr, caravanFieldValue);
-            else if (arrivalAction is TransportPodsArrivalAction_Shuttle shuttle)
+            else if (arrivalAction is TransportPodsArrivalAction_TransportShip shuttle)
                 SyncShuttle(__instance, destinationTile, shuttle, cafr, caravanFieldValue);
             else
             {
@@ -135,7 +135,7 @@ namespace Multiplayer.Compat
         private static void SyncGiveToCaravan(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_GiveToCaravan arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
             => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
-        private static void SyncShuttle(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_Shuttle arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+        private static void SyncShuttle(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_TransportShip arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
             => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
         private static void SyncIntVec3Pair(SyncWorker sync, ref Pair<IntVec3, IntVec3> pair)
