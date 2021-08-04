@@ -20,17 +20,13 @@ namespace Multiplayer.Compat
         {
             Type type;
 
-            /// Gizmos
+            // Gizmos
             // Debug fill/empty
             {
                 type = AccessTools.TypeByName("GasNetwork.CompGasStorage");
                 // Both these methods are calling (basically) the same method,
                 // but that method also has other callers that don't need syncing
-                MpCompat.RegisterSyncMethodsByIndex(type, "<CompGetGizmosExtra>", 0, 1);
-
-                type = AccessTools.TypeByName("VanillaPowerExpanded.CompPipeTank");
-                // This method is only called by 2 gizmos and nothing else (as far as I can tell)
-                MP.RegisterSyncMethod(type, "SetStoredEnergyPct");
+                MpCompat.RegisterSyncMethodsByIndex(type, "<CompGetGizmosExtra>", 0, 1).Do(m => m.SetDebugOnly());
             }
             // Order to or cancel plugging the hole (method names shared by both types)
             {
@@ -57,14 +53,10 @@ namespace Multiplayer.Compat
                     "VanillaPowerExpanded.MapComponentExtender:doMapSpawns",
                     "VanillaPowerExpanded.CompPlantHarmRadiusIfBroken:CompTick",
                     // HarmRandomPlantInRadius is only called by CompPlantHarmRadiusIfBroken:CompTick, no need for patching
-                    "VanillaPowerExpanded.CompPowerPlantNuclear:AffectCell",
-                    "VanillaPowerExpanded.Building_GasGeyser:StartSpray",
-                    "VanillaPowerExpanded.GasExplosionUtility:TryStartFireNear",
-                    "VanillaPowerExpanded.IncidentWorker_GasExplosion:TryExecuteWorker",
+                    // CompPowerPlantNuclear:AffectCell is only calling a seeded random
                     "VanillaPowerExpanded.IntermittentGasSprayer:SteamSprayerTick",
-                    "VanillaPowerExpanded.IntermittentGasSprayer:ThrowAirPuffUp",
-                    // NewBaseAirPuff is only called by IntermittentGasSprayer:ThrowAirPuffUp, no need for patching
-                    "VanillaPowerExpanded.GasPipeNet:PowerNetTick",
+                    // IntermittentGasSprayer - NewBaseAirPuff is only called by ThrowAirPuffUp which is called by SteamSprayerTick, no need for patching
+                    // Building_GasGeyser:StartSpray is assigned to IntermittentGasSprayer:startSprayCallback, which is called from SteamSprayerTick
                     "GasNetwork.GasNet:GasNetTick",
                     // PipeNetGrid pushes and pops all Rand calls, no need to patch
                     // CompPowerAdvancedWater:RebuildCache is only calling a seeded random
@@ -73,8 +65,6 @@ namespace Multiplayer.Compat
                 // These methods are loading resources in their .ctor, must be patched later
                 var methodsForLater = new[]
                 {
-                    //"VanillaPowerExpanded.Building_Tank:Tick",
-                    //"VanillaPowerExpanded.Building_Tank:PostApplyDamage",
                     "VanillaPowerExpanded.CompPowerAdvancedWater:PostSpawnSetup",
                     "VanillaPowerExpanded.CompPowerAdvancedWind:PostSpawnSetup",
                 };

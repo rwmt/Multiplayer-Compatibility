@@ -37,7 +37,7 @@ namespace Multiplayer.Compat
                 var constructors = new[]
                 {
                     "InsectoidBioengineering.Building_BioengineeringIncubator",
-                    "VFEI.CompFilthProducer",
+                    //"VFEI.CompFilthProducer",
                 };
 
                 PatchingUtilities.PatchSystemRandCtor(constructors, false);

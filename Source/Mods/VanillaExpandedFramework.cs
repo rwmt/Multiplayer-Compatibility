@@ -94,6 +94,9 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterSyncMethodByIndex(type, "<ProcessInput>", 0);
                 MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
                 MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
+
+                type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
+                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0);
             }
 
             // Vanilla Faction Mechanoids
@@ -158,6 +161,12 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncDelegate(type, "<>c__DisplayClass6_0", "<GetAttackGizmos_Postfix>b__4"); // Interrupt Attack
                 MP.RegisterSyncDelegate(type, "<>c__DisplayClass7_0", "<Pawn_GetGizmos_Postfix>b__0"); // Also interrupt Attack
             }
+
+            // Explosive Trails Effect
+            {
+                // RNG
+                PatchingUtilities.PatchPushPopRand("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail");
+            }
         }
 
         private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
@@ -180,12 +189,21 @@ namespace Multiplayer.Compat
             if (sync.isWriting)
             {
                 sync.Write(building.GetValue() as Thing);
-                sync.Write(ingredientList.GetValue() as List<Thing>);
+                var ingredientListValue = ingredientList.GetValue();
+                if (ingredientListValue == null)
+                {
+                    sync.Write(false);
+                }
+                else
+                {
+                    sync.Write(true);
+                    sync.Write(ingredientList.GetValue() as List<Thing>);
+                }
             }
             else
             {
                 building.SetValue(sync.Read<Thing>());
-                ingredientList.SetValue(sync.Read<List<Thing>>());
+                if (sync.Read<bool>()) ingredientList.SetValue(sync.Read<List<Thing>>());
             }
         }
 

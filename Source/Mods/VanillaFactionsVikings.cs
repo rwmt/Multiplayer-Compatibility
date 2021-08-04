@@ -30,15 +30,10 @@ namespace Multiplayer.Compat
         {
             LongEventHandler.ExecuteWhenFinished(LatePatch);
 
-            // Debug commands, other stuff
-            var type = AccessTools.TypeByName("VFEV.Building_MeadBarrel");
+            // Debug stuff
+            var type = AccessTools.TypeByName("VFEV.Apiary");
+            MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 1).Do(m => m.SetDebugOnly());
 
-            MpCompat.RegisterSyncMethodByIndex(type, "<GetGizmos>", 0).SetDebugOnly();
-
-            type = AccessTools.TypeByName("VFEV.Apiary");
-
-            foreach (var gizmo in MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 1))
-                gizmo.SetDebugOnly();
             // This method seems unused... But I guess it's better to be safe than sorry.
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "ResetTend"), false);
         }

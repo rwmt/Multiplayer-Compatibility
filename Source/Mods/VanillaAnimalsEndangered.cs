@@ -14,7 +14,7 @@ namespace Multiplayer.Compat
         {
             var type = AccessTools.TypeByName("VanillaAnimalsExpandedEndangered.Pawn_GetGizmos_Patch");
 
-            MP.RegisterSyncDelegate(type, "<>c__DisplayClass1_0", "<Postfix>b__1");
+            MP.RegisterSyncDelegate(type, "<>c__DisplayClass3_0", "<Postfix>b__1");
         }
     }
 }
