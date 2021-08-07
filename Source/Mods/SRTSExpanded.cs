@@ -12,6 +12,9 @@ namespace Multiplayer.Compat
     [MpCompatFor("smashphil.neceros.srtsexpanded")]
     class SRTSExpanded
     {
+        private static bool isSyncing = false;
+        private static MethodInfo tryLaunchMethod;
+        private static FieldInfo caravanField;
         private static ISyncField bombTypeSync;
 
         public SRTSExpanded(ModContentPack mod)
@@ -37,7 +40,11 @@ namespace Multiplayer.Compat
         {
             // Launching the shuttle
             var type = AccessTools.TypeByName("SRTS.CompLaunchableSRTS");
-            MP.RegisterSyncMethod(type, "TryLaunch").ExposeParameter(1);
+            caravanField = AccessTools.Field(type, "carr");
+            tryLaunchMethod = AccessTools.Method(type, "TryLaunch");
+
+            MpCompat.harmony.Patch(tryLaunchMethod, prefix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PreTryLaunch)));
+            MP.RegisterSyncMethod(typeof(SRTSExpanded), nameof(SyncedLaunch)).ExposeParameter(2);
         }
 
         private static void PreSyncBombType(ThingComp __instance)
@@ -53,6 +60,29 @@ namespace Multiplayer.Compat
         {
             if (MP.IsInMultiplayer)
                 MP.WatchEnd();
+        }
+
+        private static bool PreTryLaunch(ThingComp __instance, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan cafr = null)
+        {
+            if (!MP.IsInMultiplayer || isSyncing)
+            {
+                isSyncing = false;
+                return true;
+            }
+
+            isSyncing = true;
+
+            var caravanFieldValue = caravanField.GetValue(__instance) as Caravan;
+            SyncedLaunch(__instance, destinationTile, arrivalAction, cafr, caravanFieldValue);
+
+            return false;
+        }
+
+        private static void SyncedLaunch(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+        {
+            isSyncing = true;
+            caravanField.SetValue(compLaunchableSrts, caravanFieldValue);
+            tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, caravanMethodParameter });
         }
 
         private static void SyncIntVec3Pair(SyncWorker sync, ref Pair<IntVec3, IntVec3> pair)
