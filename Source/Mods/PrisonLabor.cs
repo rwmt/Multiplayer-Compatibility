@@ -74,7 +74,7 @@ namespace Multiplayer.Compat
         }
         public static void ConvertPrisoner(Pawn pawn)
         {
-            pawn.guest.SetGuestStatus(null, false);
+            pawn.guest.SetGuestStatus(null, GuestStatus.Prisoner);
             pawn.SetFaction(Faction.OfPlayer, null);
         }
     }

@@ -35,6 +35,7 @@ MinifyEverything                                   | [![url][repo]](https://gith
 Misc. Robots                                       | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=724602224)
 Misc. Training                                     | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=717575199)
 Netrve's DeepStorage GUI                           | [![url][repo]](https://github.com/Dakraid/RW_DSGUI)
+Pocket Sand                                        | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2226330302)
 Power Switch                                       | [![url][repo]](https://github.com/HaploX1/RimWorld-PowerSwitch)
 Prison Labor                                       | [![url][repo]](https://github.com/Aviuz/PrisonLabor)
 QualityBuilder                                     | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=754637870)
