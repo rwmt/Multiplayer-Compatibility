@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+﻿using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
-using RimWorld;
 using RimWorld.Planet;
 using Verse;
 
@@ -47,11 +43,8 @@ namespace Multiplayer.Compat
             caravanField = AccessTools.Field(type, "carr");
             tryLaunchMethod = AccessTools.Method(type, "TryLaunch");
 
-            MpCompat.harmony.Patch(tryLaunchMethod,
-                prefix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PreTryLaunch)));
-            
-            foreach (var method in new[] { nameof(SyncLandInSpecificCell), nameof(SyncFormCaravan), nameof(SyncAttackSettlement), nameof(SyncGiveGift), nameof(SyncVisitSettlement), nameof(SyncVisitSite), nameof(SyncGiveToCaravan), nameof(SyncShuttle) })
-                MP.RegisterSyncMethod(typeof(SRTSExpanded), method);
+            MpCompat.harmony.Patch(tryLaunchMethod, prefix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PreTryLaunch)));
+            MP.RegisterSyncMethod(typeof(SRTSExpanded), nameof(SyncedLaunch)).ExposeParameter(2);
         }
 
         private static void PreSyncBombType(ThingComp __instance)
@@ -80,63 +73,17 @@ namespace Multiplayer.Compat
             isSyncing = true;
 
             var caravanFieldValue = caravanField.GetValue(__instance) as Caravan;
-
-            if (arrivalAction is TransportPodsArrivalAction_LandInSpecificCell landInSpecificCell)
-                SyncLandInSpecificCell(__instance, destinationTile, landInSpecificCell, cafr, caravanFieldValue);
-            else if (arrivalAction is TransportPodsArrivalAction_VisitSettlement visitSettlement)
-                SyncVisitSettlement(__instance, destinationTile, visitSettlement, cafr, caravanFieldValue);
-            else if (arrivalAction is TransportPodsArrivalAction_FormCaravan formCaravan)
-                SyncFormCaravan(__instance, destinationTile, formCaravan, cafr, caravanFieldValue);
-            else if (arrivalAction is TransportPodsArrivalAction_AttackSettlement attackSettlement)
-                SyncAttackSettlement(__instance, destinationTile, attackSettlement, cafr, caravanFieldValue);
-            else if (arrivalAction is TransportPodsArrivalAction_GiveGift giveGift)
-                SyncGiveGift(__instance, destinationTile, giveGift, cafr, caravanFieldValue);
-            else if (arrivalAction is TransportPodsArrivalAction_VisitSite visitSite)
-                SyncVisitSite(__instance, destinationTile, visitSite, cafr, caravanFieldValue);
-            // These two are unused, but let's sync them anyway, just in case
-            else if (arrivalAction is TransportPodsArrivalAction_GiveToCaravan giveToCaravan)
-                SyncGiveToCaravan(__instance, destinationTile, giveToCaravan, cafr, caravanFieldValue);
-            else if (arrivalAction is TransportPodsArrivalAction_TransportShip shuttle)
-                SyncShuttle(__instance, destinationTile, shuttle, cafr, caravanFieldValue);
-            else
-            {
-                isSyncing = false;
-                Log.Error($"Unsupported multiplayer SRTS arrival action of type {arrivalAction.GetType()}");
-            }
+            SyncedLaunch(__instance, destinationTile, arrivalAction, cafr, caravanFieldValue);
 
             return false;
         }
 
-        private static void SyncedUniversalArrivalAction(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+        private static void SyncedLaunch(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
         {
             isSyncing = true;
             caravanField.SetValue(compLaunchableSrts, caravanFieldValue);
             tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, caravanMethodParameter });
         }
-
-        private static void SyncLandInSpecificCell(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_LandInSpecificCell arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue) 
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
-
-        private static void SyncFormCaravan(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_FormCaravan arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
-
-        private static void SyncAttackSettlement(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_AttackSettlement arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
-
-        private static void SyncGiveGift(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_GiveGift arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
-
-        private static void SyncVisitSettlement(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_VisitSettlement arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
-
-        private static void SyncVisitSite(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_VisitSite arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
-
-        private static void SyncGiveToCaravan(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_GiveToCaravan arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
-
-        private static void SyncShuttle(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction_TransportShip arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
-            => SyncedUniversalArrivalAction(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter, caravanFieldValue);
 
         private static void SyncIntVec3Pair(SyncWorker sync, ref Pair<IntVec3, IntVec3> pair)
         {
