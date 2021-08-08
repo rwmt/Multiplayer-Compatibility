@@ -21,7 +21,7 @@ namespace Multiplayer.Compat
 
             // Gizmo interactions
             {
-                type = AccessTools.TypeByName("SimpleSidearms.utilities.WeaponAssingment");
+                type = AccessTools.TypeByName("PeteTimesSix.SimpleSidearms.Utilities.WeaponAssingment");
 
                 var methods = new[] {
                     "equipSpecificWeaponTypeFromInventory",
