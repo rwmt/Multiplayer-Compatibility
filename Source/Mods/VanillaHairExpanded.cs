@@ -19,7 +19,6 @@ namespace Multiplayer.Compat
         private static Type changeHairstyleDialogType;
         private static FieldInfo orderedHairstyleDefsField;
         private static ISyncField newHairstyleComboSync;
-        private static ISyncField coloursTiedSync;
 
         private static FieldInfo hairDefField;
         private static FieldInfo beardDefField;
@@ -35,7 +34,6 @@ namespace Multiplayer.Compat
             orderedHairstyleDefsField = AccessTools.Field(changeHairstyleDialogType, "orderedHairDefs");
 
             newHairstyleComboSync = MP.RegisterSyncField(AccessTools.Field(changeHairstyleDialogType, "newHairBeardCombo"));
-            coloursTiedSync = MP.RegisterSyncField(AccessTools.Field(changeHairstyleDialogType, "coloursTied"));
             MP.RegisterSyncMethod(changeHairstyleDialogType, "SetHairstyle");
             MP.RegisterSyncWorker<Window>(SyncDialog, changeHairstyleDialogType);
 
@@ -64,7 +62,6 @@ namespace Multiplayer.Compat
 
             MP.WatchBegin();
             newHairstyleComboSync.Watch(__instance);
-            coloursTiedSync.Watch();
         }
 
         private static void PostDoWindowContents()
