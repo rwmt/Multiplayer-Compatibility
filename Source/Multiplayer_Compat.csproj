@@ -9,31 +9,17 @@
     <DebugType>None</DebugType>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Lib.Harmony" Version="2.0.1">
+    <PackageReference Include="Lib.Harmony">
+      <Version>2.1.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="RimWorld.MultiplayerAPI" Version="0.3.0">
+    <PackageReference Include="RimWorld.MultiplayerAPI">
+      <Version>0.3.0</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-
-    <Reference Include="UnityEngine">
-      <HintPath>..\..\..\RimWorldWin64_Data\Managed\UnityEngine.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
+    <PackageReference Include="Krafs.Rimworld.Ref">
+      <Version>1.3.*</Version>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
-  <ProjectExtensions>
-    <MonoDevelop>
-      <Properties>
-        <Deployment.LinuxDeployData generatePcFile="False" />
-      </Properties>
-    </MonoDevelop>
-  </ProjectExtensions>
 </Project>
