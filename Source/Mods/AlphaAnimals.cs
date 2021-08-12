@@ -15,16 +15,22 @@ namespace Multiplayer.Compat
                 var rngFixConstructors = new[]
                 {
                     "AlphaBehavioursAndEvents.DeathActionWorker_ExplodeAndSpawnEggs",
-                    "AlphaBehavioursAndEvents.Gas_Ocular",
                     "AlphaBehavioursAndEvents.Hediff_Crushing",
+
+                    // Ocular plant conversion
+                    "AlphaBehavioursAndEvents.CompAbilityOcularConversion",
+                    "AlphaBehavioursAndEvents.Gas_Ocular",
                 };
 
                 PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
 
                 var rngFixMethods = new[] //System.Random fixes
                 {
-                    "AlphaBehavioursAndEvents.Gas_Ocular:Tick",
                     "AlphaBehavioursAndEvents.Hediff_Crushing:RandomFilthGenerator",
+
+                    // Ocular plant conversion
+                    "AlphaBehavioursAndEvents.CompAbilityOcularConversion:Apply",
+                    "AlphaBehavioursAndEvents.Gas_Ocular:Tick",
                 };
                 PatchingUtilities.PatchPushPopRand(rngFixMethods);
             }
