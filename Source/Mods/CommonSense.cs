@@ -23,9 +23,11 @@ namespace Multiplayer.Compat
             shouldUnloadSyncField = MP.RegisterSyncField(AccessTools.Field(type, "ShouldUnload"));
             getCompUnlockerCheckerMethod = AccessTools.Method(type, "GetChecker");
 
-            MpCompat.harmony.Patch(AccessTools.Method("RimWorld.ITab_Pawn_Gear:DrawThingRow"),
+            MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
                 prefix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPrefix)),
                 postfix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPostix)));
+
+            PatchingUtilities.PatchUnityRand("CommonSense.JobGiver_Wander_TryGiveJob_CommonSensePatch:Postfix", false);
         }
 
         private static void CommonSensePatchPrefix(Thing thing)
