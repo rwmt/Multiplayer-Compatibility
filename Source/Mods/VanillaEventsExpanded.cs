@@ -13,7 +13,6 @@ namespace Multiplayer.Compat
             var methodsForAll = new[]
             {
                 "VEE.HeddifComp_MightJoin:CompPostTick",
-                "VEE.Shuttle:Tick",
                 
                 // These 4 methods initialize System.Random, but don't use them in any way whatsoever.
                 //"VEE.PurpleEvents.GlobalWarming:ChangeBiomes",
@@ -34,6 +33,9 @@ namespace Multiplayer.Compat
             PatchingUtilities.PatchPushPopRand("VEE.RegularEvents.EarthQuake:TryExecuteWorker");
             // Only patch System.Random out, as this methods is only called by other ones
             PatchingUtilities.PatchSystemRand("VEE.RegularEvents.EarthQuake:DamageInRadius", false);
+
+            // Unity RNG
+            PatchingUtilities.PatchUnityRand("VEE.Shuttle:Tick");
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
