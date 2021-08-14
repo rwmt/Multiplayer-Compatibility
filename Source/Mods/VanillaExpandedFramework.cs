@@ -117,6 +117,7 @@ namespace Multiplayer.Compat
                     "AnimalBehaviours.CompFilthProducer",
                     "AnimalBehaviours.CompGasProducer",
                     "AnimalBehaviours.CompInitialHediff",
+                    "AnimalBehaviours.DeathActionWorker_DropOnDeath",
                 };
                 PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
 
@@ -166,6 +167,18 @@ namespace Multiplayer.Compat
             {
                 // RNG
                 PatchingUtilities.PatchPushPopRand("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail");
+            }
+
+            // KCSG (Custom Structure Generation)
+            {
+                // RNG
+                var methods = new[]
+                {
+                    "KCSG.SymbolResolver_AddFields:Resolve",
+                    "KCSG.SymbolResolver_Settlement:GenerateRooms",
+                };
+
+                PatchingUtilities.PatchSystemRand(methods, false);
             }
         }
 
