@@ -38,6 +38,8 @@ namespace Multiplayer.Compat
                     MP.RegisterSyncDelegate(type, "<>c__DisplayClass10_0", method);
                 }
 
+                MpCompat.RegisterSyncMethodByIndex(AccessTools.TypeByName("RimFridge.CompToggleGlower"), "<CompGetGizmosExtra>", 0);
+
                 dialogType = AccessTools.TypeByName("RimFridge.Dialog_RenameFridge");
                 fridgeField = AccessTools.Field(dialogType, "fridge");
 
