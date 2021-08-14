@@ -10,6 +10,7 @@ namespace Multiplayer.Compat
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1561221991"/>
     [MpCompatFor("Sandy.RPGStyleInventory")]
     [MpCompatFor("Nykot.RPGStyleInventory")]
+    [MpCompatFor("Sandy.RPGStyleInventory.avilmask.Revamped")]
     class RPGStyleInventory
     {
         public RPGStyleInventory(ModContentPack mod)
