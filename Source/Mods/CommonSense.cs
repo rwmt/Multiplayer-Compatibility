@@ -19,8 +19,10 @@ namespace Multiplayer.Compat
         {
             manualUnloadEnabledField = AccessTools.Field(AccessTools.TypeByName("CommonSense.Settings"), "gui_manual_unload");
             var type = AccessTools.TypeByName("CommonSense.CompUnloadChecker");
+            // We need to make a sync worker for this Comp, as it is initialized dynamically and might not exists at the time
             MP.RegisterSyncWorker<ThingComp>(SyncComp, type);
             shouldUnloadSyncField = MP.RegisterSyncField(AccessTools.Field(type, "ShouldUnload"));
+            // The GetChecker method either gets an existing, or creates a new comp
             getCompUnlockerCheckerMethod = AccessTools.Method(type, "GetChecker");
 
             MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
@@ -51,6 +53,7 @@ namespace Multiplayer.Compat
             if (sync.isWriting)
                 sync.Write<Thing>(thing.parent);
             else
+                // Get existing or create a new comp
                 thing = (ThingComp)getCompUnlockerCheckerMethod.Invoke(null, new object[] { sync.Read<Thing>(), false, false });
         }
     }
