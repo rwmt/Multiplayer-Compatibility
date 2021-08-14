@@ -12,12 +12,10 @@ namespace Multiplayer.Compat
     class CommonSense
     {
         private static ISyncField shouldUnloadSyncField;
-        private static FieldInfo manualUnloadEnabledField;
         private static MethodInfo getCompUnlockerCheckerMethod;
 
         public CommonSense(ModContentPack mod)
         {
-            manualUnloadEnabledField = AccessTools.Field(AccessTools.TypeByName("CommonSense.Settings"), "gui_manual_unload");
             var type = AccessTools.TypeByName("CommonSense.CompUnloadChecker");
             // We need to make a sync worker for this Comp, as it is initialized dynamically and might not exists at the time
             MP.RegisterSyncWorker<ThingComp>(SyncComp, type);
@@ -25,16 +23,18 @@ namespace Multiplayer.Compat
             // The GetChecker method either gets an existing, or creates a new comp
             getCompUnlockerCheckerMethod = AccessTools.Method(type, "GetChecker");
 
+            // Watch unload bool changes
             MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
                 prefix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPrefix)),
                 postfix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPostix)));
 
+            // RNG Patch
             PatchingUtilities.PatchUnityRand("CommonSense.JobGiver_Wander_TryGiveJob_CommonSensePatch:Postfix", false);
         }
 
         private static void CommonSensePatchPrefix(Thing thing)
         {
-            if (MP.IsInMultiplayer && (bool)manualUnloadEnabledField.GetValue(null))
+            if (MP.IsInMultiplayer)
             {
                 MP.WatchBegin();
                 var comp = getCompUnlockerCheckerMethod.Invoke(null, new object[] { thing, false, false });
@@ -44,7 +44,7 @@ namespace Multiplayer.Compat
 
         private static void CommonSensePatchPostix()
         {
-            if (MP.IsInMultiplayer && (bool)manualUnloadEnabledField.GetValue(null))
+            if (MP.IsInMultiplayer)
                 MP.WatchEnd();
         }
 
