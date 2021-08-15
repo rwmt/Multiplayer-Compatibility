@@ -41,6 +41,7 @@ Prison Labor                                       | [![url][repo]](https://gith
 QualityBuilder                                     | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=754637870)
 Reunion                                            | [![url][repo]](https://github.com/kyrun/rimworld-reunion)
 RunAndGun                                          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550)
+RPG Style Inventory Revamped                       | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2478833213)
 Sandy's RPG Style Inventory                        | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1561221991)
 Simple Sidearms                                    | [![url][repo]](https://github.com/PeteTimesSix/SimpleSidearms)
 Simply More Bridges (Continued)                    | [![url][repo]](https://github.com/emipa606/SimplyMoreBridges)
@@ -66,6 +67,8 @@ Vanilla Furniture Expanded - Farming               | [![url][steam]](https://ste
 Vanilla Furniture Expanded - Power                 | [![url][repo]](https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Power)
 Vanilla Furniture Expanded - Security              | [![url][repo]](https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Security)
 Vanilla Hair Expanded                              | [![url][repo]](https://github.com/AndroidQuazar/VanillaHairExpanded)
+Vanilla Social Interactions Expanded               | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2439736083)
+Vanilla Traits Expanded (Partial Support)          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2296404655)
 Vanilla Weapons Expanded - Laser                   | [![url][repo]](https://github.com/AndroidQuazar/VanillaWeaponsExpanded-Laser)
 What the hack?!                                    | [![url][repo]](https://github.com/rheirman/WhatTheHack)
 
