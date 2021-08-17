@@ -12,18 +12,26 @@ namespace Multiplayer.Compat
     [MpCompatFor("fluffy.stuffedfloors")]
     class StuffedFloorsCompat
     {
-        static MethodInfo defDatabaseAddMethod;
+        internal static MethodInfo defDatabaseAddMethod;
 
         public StuffedFloorsCompat(ModContentPack mod)
         {
-            Type[] generic = { typeof(BuildableDef) };
-
-            defDatabaseAddMethod = AccessTools.Method(typeof(DefDatabase<>).MakeGenericType(generic), "Add", generic);
+            Init();
 
             MpCompat.harmony.Patch(
                 AccessTools.Method("StuffedFloors.FloorTypeDef:GetStuffedTerrainDef"),
                 postfix: new HarmonyMethod(typeof(StuffedFloorsCompat), nameof(GetStuffedTerrainDefPosfix))
                 );
+        }
+
+        internal static void Init()
+        {
+            if (defDatabaseAddMethod == null)
+            {
+                Type[] generic = { typeof(BuildableDef) };
+
+                defDatabaseAddMethod = AccessTools.Method(typeof(DefDatabase<>).MakeGenericType(generic), "Add", generic);
+            }
         }
 
         static void GetStuffedTerrainDefPosfix(TerrainDef __result)
