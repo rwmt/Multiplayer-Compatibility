@@ -13,6 +13,7 @@ Support added to these mods | _
 --- | ---
 [KV] RimFridge                                     | [![url][repo]](https://github.com/KiameV/rimworld-rimfridge)
 [KV] Path Avoid                                    | [![url][repo]](https://github.com/KiameV/rimworld-pathavoid)
+[O21] Clutter Structures                           | [![url][repo]](https://github.com/neronix17/-O21-Clutter-Structure)
 Alpha Animals                                      | [![url][repo]](https://github.com/juanosarg/AlphaAnimals)
 Alpha Biomes                                       | [![url][repo]](https://github.com/juanosarg/AlphaBiomes)
 Animals Logic                                      | [![url][repo]](https://github.com/quicksilverfox/RimworldMods/tree/master/AnimalsLogic)
@@ -67,6 +68,7 @@ Vanilla Furniture Expanded - Farming               | [![url][steam]](https://ste
 Vanilla Furniture Expanded - Power                 | [![url][repo]](https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Power)
 Vanilla Furniture Expanded - Security              | [![url][repo]](https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Security)
 Vanilla Hair Expanded                              | [![url][repo]](https://github.com/AndroidQuazar/VanillaHairExpanded)
+Vanilla Plants Expanded - Auto Plow Patch          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2497914485)
 Vanilla Social Interactions Expanded               | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2439736083)
 Vanilla Traits Expanded (Partial Support)          | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2296404655)
 Vanilla Weapons Expanded - Laser                   | [![url][repo]](https://github.com/AndroidQuazar/VanillaWeaponsExpanded-Laser)
