@@ -12,6 +12,11 @@ namespace Multiplayer.Compat
     {
         public PocketSandCompat(ModContentPack mod)
         {
+            LongEventHandler.ExecuteWhenFinished(LateLoad);
+        }
+
+        static void LateLoad()
+        {
             Type type = AccessTools.TypeByName("PocketSand.PawnExtensions");
 
             MP.RegisterSyncMethod(type, "EquipFromInventory");
