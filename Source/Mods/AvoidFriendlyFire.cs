@@ -22,16 +22,14 @@ namespace Multiplayer.Compat
 
         public AvoidFriendlyFire(ModContentPack mod)
         {
-            Type type;
             {
-                type = extendedPawnDataType = AccessTools.TypeByName("AvoidFriendlyFire.ExtendedPawnData");
+                var type = extendedPawnDataType = AccessTools.TypeByName("AvoidFriendlyFire.ExtendedPawnData");
                 MP.RegisterSyncWorker<object>(SyncWorkerFor, type);
 
                 avoidFriendlyFireField = type.GetField("AvoidFriendlyFire");
             }
             {
-                type = AccessTools.TypeByName("AvoidFriendlyFire.Pawn_DraftController_GetGizmos_Patch");
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass0_0", "<Postfix>b__1");
+                MpCompat.RegisterLambdaDelegate("AvoidFriendlyFire.Pawn_DraftController_GetGizmos_Patch", "Postfix", 1);
             }
         }
 
