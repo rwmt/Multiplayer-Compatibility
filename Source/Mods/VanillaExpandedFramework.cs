@@ -46,11 +46,11 @@ namespace Multiplayer.Compat
             {
                 var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
                 // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
-                MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 2, 3, 4, 6, 8, 9, 10);
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3, 4, 6, 8, 9, 10);
 
                 type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
                 MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-                MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 8).ToArray());
+                MpCompat.RegisterLambdaMethod(type, "ProcessInput", Enumerable.Range(0, 8).ToArray());
 
                 type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
                 MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
@@ -62,7 +62,7 @@ namespace Multiplayer.Compat
                     type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
                     MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
                     MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
-                    MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", 0);
+                    MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
                 }
             }
 
@@ -74,37 +74,34 @@ namespace Multiplayer.Compat
 
             // VFE Core
             {
-                var type = AccessTools.TypeByName("VFECore.CompPawnDependsOn");
-                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0).SetDebugOnly();
+                MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
             }
 
             // Vanilla Furniture Expanded
             {
-                var type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompConfigurableSpawner");
-                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0).SetDebugOnly();
+                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
 
-                type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
+                var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
+                MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
+                MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
 
-                type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRockSpawner");
-                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0);
+                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
 
                 type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
                 setStoneBuildingField = AccessTools.Field(type, "building");
-                MpCompat.RegisterSyncMethodByIndex(type, "<ProcessInput>", 0);
+                MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
                 MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass2_0", "<ProcessInput>b__1");
+                MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
 
                 type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
-                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0);
+                MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
             }
 
             // Vanilla Faction Mechanoids
             {
                 var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
-                MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_1", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
-                MP.RegisterSyncDelegate(type, "<>c", "<CompGetGizmosExtra>b__21_6", Array.Empty<string>()).SetContext(SyncContext.MapSelected);
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass21_0", "<CompGetGizmosExtra>b__4");
+                MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 6).SetContext(SyncContext.MapSelected);
+                MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 4);
             }
 
             // AnimalBehaviours
@@ -158,9 +155,9 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(type, "Toggle");
 
                 type = AccessTools.TypeByName("MVCF.Harmony.Gizmos");
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass5_0", "<GetGizmos_Postfix>b__1"); // Fire at will
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass6_0", "<GetAttackGizmos_Postfix>b__4"); // Interrupt Attack
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass7_0", "<Pawn_GetGizmos_Postfix>b__0"); // Also interrupt Attack
+                MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 1); // Fire at will
+                MpCompat.RegisterLambdaDelegate(type, "GetAttackGizmos_Postfix", 4); // Interrupt Attack
+                MpCompat.RegisterLambdaDelegate(type, "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
             }
 
             // Explosive Trails Effect

@@ -1,4 +1,5 @@
 using System;
+using Multiplayer.API;
 
 namespace Multiplayer.Compat
 {
@@ -30,5 +31,21 @@ namespace Multiplayer.Compat
 			}
 			return num;
 		}
+
+        internal static void SetDebugOnly(this ISyncMethod[] syncMethods)
+        {
+            foreach(var method in syncMethods)
+            {
+                method.SetDebugOnly();
+            }
+        }
+
+        internal static void SetContext(this ISyncDelegate[] syncDelegates, SyncContext context)
+        {
+            foreach(var method in syncDelegates)
+            {
+                method.SetContext(context);
+            }
+        }
     }
 }
