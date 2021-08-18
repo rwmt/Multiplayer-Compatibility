@@ -23,22 +23,8 @@ namespace Multiplayer.Compat
 
             // Several Gizmos
             {
-                Type type = AccessTools.TypeByName("RimFridge.CompRefrigerator");
-
-                string[] methods = {
-                    "<CompGetGizmosExtra>b__1",
-                    "<CompGetGizmosExtra>b__2",
-                    "<CompGetGizmosExtra>b__3",
-                    "<CompGetGizmosExtra>b__4",
-                    "<CompGetGizmosExtra>b__5"
-                };
-
-                foreach (string method in methods)
-                {
-                    MP.RegisterSyncDelegate(type, "<>c__DisplayClass10_0", method);
-                }
-
-                MpCompat.RegisterSyncMethodByIndex(AccessTools.TypeByName("RimFridge.CompToggleGlower"), "<CompGetGizmosExtra>", 0);
+                MpCompat.RegisterLambdaDelegate("RimFridge.CompRefrigerator", "CompGetGizmosExtra", 1, 2, 3, 4, 5);
+                MpCompat.RegisterLambdaMethod("RimFridge.CompToggleGlower", "CompGetGizmosExtra", 0);
 
                 dialogType = AccessTools.TypeByName("RimFridge.Dialog_RenameFridge");
                 fridgeField = AccessTools.Field(dialogType, "fridge");
