@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
+using RimWorld;
 using RimWorld.Planet;
 using Verse;
 
@@ -17,6 +18,9 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     class VanillaExpandedFramework
     {
+        // VFECore
+        private static FieldInfo learnedAbilitiesField;
+
         // Vanilla Furniture Expanded
         private static FieldInfo setStoneBuildingField;
 
@@ -75,6 +79,9 @@ namespace Multiplayer.Compat
             // VFE Core
             {
                 MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
+
+                learnedAbilitiesField = AccessTools.Field(AccessTools.TypeByName("VFECore.Abilities.CompAbilities"), "learnedAbilities");
+                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, AccessTools.TypeByName("VFECore.Abilities.Ability"));
             }
 
             // Vanilla Furniture Expanded
@@ -276,6 +283,31 @@ namespace Multiplayer.Compat
                     // Find the ManagedVerb with specific index inside of list of all verbs
                     var managedVerbsList = mvcfVerbsField.GetValue(verbManager) as IList;
                     obj = managedVerbsList[index];
+                }
+            }
+        }
+
+        private static void SyncVEFAbility(SyncWorker sync, ref ITargetingSource source)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(source.Caster);
+                sync.Write(source.GetVerb.GetUniqueLoadID());
+            }
+            else
+            {
+                var caster = sync.Read<Thing>();
+                var uid = sync.Read<string>();
+
+                if (caster is ThingWithComps thing)
+                {
+                    var compAbilities = thing.AllComps.First(c => c.GetType() == learnedAbilitiesField.DeclaringType);
+                    var list = learnedAbilitiesField.GetValue(compAbilities) as List<ITargetingSource>;
+                    source = list.First(s => s.GetVerb.GetUniqueLoadID() == uid);
+                }
+                else
+                {
+                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Caster isn't a ThingWithComps");
                 }
             }
         }
