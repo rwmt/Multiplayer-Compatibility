@@ -81,7 +81,9 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
 
                 learnedAbilitiesField = AccessTools.Field(AccessTools.TypeByName("VFECore.Abilities.CompAbilities"), "learnedAbilities");
-                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, AccessTools.TypeByName("VFECore.Abilities.Ability"));
+                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, AccessTools.TypeByName("VFECore.Abilities.Ability"), true);
+
+                MP.RegisterSyncMethod(AccessTools.TypeByName("VFECore.Abilities.Ability"), "CreateCastJob");
             }
 
             // Vanilla Furniture Expanded
