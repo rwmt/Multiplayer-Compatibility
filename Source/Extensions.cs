@@ -20,17 +20,13 @@ namespace Multiplayer.Compat
         }
 
         internal static int CharacterCount(this string s, char c)
-		{
-			int num = 0;
-			for (int i = 0; i < s.Length; i++)
-			{
-				if (s[i] == c)
-				{
-					num++;
-				}
-			}
-			return num;
-		}
+        {
+            int num = 0;
+            for (int i = 0; i < s.Length; i++)
+                if (s[i] == c)
+                    num++;
+            return num;
+        }
 
         internal static void SetDebugOnly(this ISyncMethod[] syncMethods)
         {
@@ -45,6 +41,29 @@ namespace Multiplayer.Compat
             foreach(var method in syncDelegates)
             {
                 method.SetContext(context);
+            }
+        }
+
+        private const string SteamSuffix = "_steam";
+        private const string CopySuffix = "_copy";
+
+        internal static string NoModIdSuffix(this string modId)
+        {
+            while (true)
+            {
+                if (modId.EndsWith(SteamSuffix))
+                {
+                    modId = modId.Substring(0, modId.Length - SteamSuffix.Length);
+                    continue;
+                }
+
+                if (modId.EndsWith(CopySuffix))
+                {
+                    modId = modId.Substring(0, modId.Length - CopySuffix.Length);
+                    continue;
+                }
+
+                return modId;
             }
         }
     }
