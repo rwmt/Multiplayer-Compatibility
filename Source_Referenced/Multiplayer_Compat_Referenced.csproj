@@ -5,13 +5,15 @@
     <LangVersion>9.0</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
-    <OutputPath>..\Assemblies\</OutputPath>
+    <OutputPath>..\Referenced\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DebugType>None</DebugType>
   </PropertyGroup>
-
   <ItemGroup>
+    <ProjectReference Include="../Source/Multiplayer_Compat.csproj">
+      <Private>false</Private>
+    </ProjectReference>
     <PackageReference Include="Lib.Harmony">
       <Version>2.1.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
@@ -24,5 +26,8 @@
       <Version>1.3.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <Reference Include="..\References\*.dll">
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 </Project>

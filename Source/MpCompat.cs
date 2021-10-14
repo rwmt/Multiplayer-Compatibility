@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
@@ -10,11 +11,17 @@ namespace Multiplayer.Compat
 {
     public class MpCompat : Mod
     {
+        const string REFERENCES_FOLDER = "References";
         internal static readonly Harmony harmony = new Harmony("rimworld.multiplayer.compat");
 
         public MpCompat(ModContentPack content) : base(content)
         {
-            if (!MP.enabled) return;
+            if (!MP.enabled) {
+                Log.Warning($"MPCompat :: Multiplayer is disabled. Running in Reference Building mode.\nPut any reference building requests under {REFERENCES_FOLDER} as {{DLLNAME}}.txt");
+                ReferenceBuilder.Restore(Path.Combine(content.RootDir, REFERENCES_FOLDER));
+                Log.Warning($"MPCompat :: Done Rebuilding. Bailing out...");
+                return;
+            }
 
             MpCompatLoader.Load(content);
             harmony.PatchAll();
