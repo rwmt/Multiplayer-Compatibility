@@ -291,27 +291,54 @@ namespace Multiplayer.Compat
 
         private static void SyncVEFAbility(SyncWorker sync, ref ITargetingSource source)
         {
+            Log.ResetMessageCount();
+            Log.Message("0");
             if (sync.isWriting)
             {
+                Log.Message("0.1");
                 sync.Write(source.Caster);
+                Log.Message(source.CasterPawn.NameFullColored);
+                Log.Message((learnedAbilitiesField.GetValue(source.CasterPawn.AllComps.First(c => c.GetType() == learnedAbilitiesField.DeclaringType)) as IEnumerable)?.EnumerableCount().ToString() ?? "-1");
+                Log.Message("0.2");
                 sync.Write(source.GetVerb.GetUniqueLoadID());
+                Log.Message("0.3");
             }
             else
             {
+                Log.Message("1.1");
                 var caster = sync.Read<Thing>();
                 var uid = sync.Read<string>();
-
+                Log.Message("1.2");
                 if (caster is ThingWithComps thing)
                 {
+                    Log.Message("1.3");
+                    Log.Message((thing as Pawn).NameFullColored);
+                    Log.Message(string.Join(" | ", thing.AllComps.Select(tc => tc.GetType().FullName)));
                     var compAbilities = thing.AllComps.First(c => c.GetType() == learnedAbilitiesField.DeclaringType);
-                    var list = learnedAbilitiesField.GetValue(compAbilities) as List<ITargetingSource>;
-                    source = list.First(s => s.GetVerb.GetUniqueLoadID() == uid);
+                    Log.Message((compAbilities != null).ToString());
+                    Log.Message("1.4");
+                    var list = learnedAbilitiesField.GetValue(compAbilities) as IEnumerable;
+                    Log.Message("1.5");
+                    Log.Message(uid);
+
+                    foreach (object o in list)
+                    {
+                        ITargetingSource its = o as ITargetingSource;
+                        Log.Message(its?.GetVerb?.GetUniqueLoadID() ?? "none");
+                        if (its.GetVerb.GetUniqueLoadID() == uid)
+                        {
+                            source = its;
+                            break;
+                        }
+                    }
+                    Log.Message("1.6");
                 }
                 else
                 {
                     Log.Error("MultiplayerCompat :: SyncVEFAbility : Caster isn't a ThingWithComps");
                 }
             }
+            Log.Message("2");
         }
 
         private static bool GetManagerForPrefix(Pawn pawn, bool createIfMissing, WorldComponent __instance, ref object __result)
