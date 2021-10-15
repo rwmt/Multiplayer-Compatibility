@@ -13,6 +13,8 @@ namespace Multiplayer.Compat
             var methodsForAll = new[]
             {
                 "VEE.HeddifComp_MightJoin:CompPostTick",
+
+                "VEE.HuntingParty:TryExecuteWorker",
                 
                 // These 4 methods initialize System.Random, but don't use them in any way whatsoever.
                 //"VEE.PurpleEvents.GlobalWarming:ChangeBiomes",
@@ -23,7 +25,6 @@ namespace Multiplayer.Compat
 
                 "VEE.RegularEvents.ApparelPod:TryExecuteWorker",
                 "VEE.RegularEvents.CaravanAnimalWI:GenerateGroup",
-                "VEE.RegularEvents.HuntingParty:TryExecuteWorker",
                 "VEE.RegularEvents.MeteoriteShower:TryExecuteWorker",
                 "VEE.RegularEvents.WeaponPod:TryExecuteWorker",
             };
