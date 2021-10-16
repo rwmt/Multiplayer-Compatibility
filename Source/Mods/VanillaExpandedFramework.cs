@@ -81,7 +81,9 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
 
                 learnedAbilitiesField = AccessTools.Field(AccessTools.TypeByName("VFECore.Abilities.CompAbilities"), "learnedAbilities");
-                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, AccessTools.TypeByName("VFECore.Abilities.Ability"));
+                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, AccessTools.TypeByName("VFECore.Abilities.Ability"), true);
+
+                MP.RegisterSyncMethod(AccessTools.TypeByName("VFECore.Abilities.Ability"), "CreateCastJob");
             }
 
             // Vanilla Furniture Expanded
@@ -298,12 +300,20 @@ namespace Multiplayer.Compat
             {
                 var caster = sync.Read<Thing>();
                 var uid = sync.Read<string>();
-
                 if (caster is ThingWithComps thing)
                 {
                     var compAbilities = thing.AllComps.First(c => c.GetType() == learnedAbilitiesField.DeclaringType);
-                    var list = learnedAbilitiesField.GetValue(compAbilities) as List<ITargetingSource>;
-                    source = list.First(s => s.GetVerb.GetUniqueLoadID() == uid);
+                    var list = learnedAbilitiesField.GetValue(compAbilities) as IEnumerable;
+                    
+                    foreach (object o in list)
+                    {
+                        ITargetingSource its = o as ITargetingSource;
+                        if (its.GetVerb.GetUniqueLoadID() == uid)
+                        {
+                            source = its;
+                            break;
+                        }
+                    }
                 }
                 else
                 {
