@@ -21,6 +21,12 @@ namespace Multiplayer.Compat
 
                 PatchingUtilities.PatchPushPopRand(methods);
             }
+
+            // Gizmo fix
+            {
+                // Toggle should scarecrow affect tamed/player animals
+                MpCompat.RegisterLambdaMethod("VFEF.Building_Scarecrow", "GetGizmos", 1);
+            }
         }
     }
 }
