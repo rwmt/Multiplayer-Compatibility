@@ -46,23 +46,33 @@ namespace Multiplayer.Compat
             return RegisterLambdaMethod_Impl(AccessTools.TypeByName(parentType), parentMethod, lambdaOrdinals).ToArray();
         }
 
-        static IEnumerable<ISyncDelegate> RegisterLambdaDelegate_Impl(Type parentType, string parentMethod, params int[] lambdaOrdinals)
+        static IEnumerable<ISyncDelegate> RegisterLambdaDelegate_Impl(Type parentType, string parentMethod, string[] fields, params int[] lambdaOrdinals)
         {
             foreach (int ord in lambdaOrdinals)
             {
                 var method = MpMethodUtil.GetLambda(parentType, parentMethod, MethodType.Normal, null, ord);
-                yield return MP.RegisterSyncDelegate(parentType, method.DeclaringType.Name, method.Name);
+                yield return MP.RegisterSyncDelegate(parentType, method.DeclaringType.Name, method.Name, fields);
             }
         }
 
         public static ISyncDelegate[] RegisterLambdaDelegate(Type parentType, string parentMethod, params int[] lambdaOrdinals)
         {
-            return RegisterLambdaDelegate_Impl(parentType, parentMethod, lambdaOrdinals).ToArray();
+            return RegisterLambdaDelegate_Impl(parentType, parentMethod, null, lambdaOrdinals).ToArray();
+        }
+
+        public static ISyncDelegate[] RegisterLambdaDelegate(Type parentType, string parentMethod, string[] fields, params int[] lambdaOrdinals)
+        {
+            return RegisterLambdaDelegate_Impl(parentType, parentMethod, fields, lambdaOrdinals).ToArray();
         }
 
         public static ISyncDelegate[] RegisterLambdaDelegate(string parentType, string parentMethod, params int[] lambdaOrdinals)
         {
-            return RegisterLambdaDelegate_Impl(AccessTools.TypeByName(parentType), parentMethod, lambdaOrdinals).ToArray();
+            return RegisterLambdaDelegate_Impl(AccessTools.TypeByName(parentType), parentMethod, null, lambdaOrdinals).ToArray();
+        }
+
+        public static ISyncDelegate[] RegisterLambdaDelegate(string parentType, string parentMethod, string[] fields, params int[] lambdaOrdinals)
+        {
+            return RegisterLambdaDelegate_Impl(AccessTools.TypeByName(parentType), parentMethod, fields, lambdaOrdinals).ToArray();
         }
 
         [Obsolete]
