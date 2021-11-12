@@ -7,17 +7,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using Verse;
 
-namespace Multiplayer.API
-{
-    public static class SyncWorkerExtension
-    {
-        public static void Write(this SyncWorker sync, Type type, object obj)
-        => typeof(SyncWorker).GetMethod("Write").MakeGenericMethod(type).Invoke(sync, new object[] { obj });
-        public static object Read(this SyncWorker sync, Type type)
-        => typeof(SyncWorker).GetMethod("Read").MakeGenericMethod(type).Invoke(sync, new object[0]);
-    }
-}
-
 namespace Multiplayer.Compat
 {
     /// <summary>Misc. Robots by HaploX1</summary>
@@ -97,12 +86,12 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                sync.Write(listBuildableInfo, contentsField.GetValue(obj));
+                sync.Write((IList)contentsField.GetValue(obj), listBuildableInfo);
                 sync.Write(((IntVec2)_sizeField.GetValue(obj)).x);
                 sync.Write(((IntVec2)_sizeField.GetValue(obj)).z);
             } else
             {
-                obj = (IExposable)blueprintConstructor.Invoke(new[] { sync.Read(listBuildableInfo), new IntVec2(sync.Read<int>(), sync.Read<int>()), null, true });
+                obj = (IExposable)blueprintConstructor.Invoke(new object[] { sync.Read<IList>(listBuildableInfo), new IntVec2(sync.Read<int>(), sync.Read<int>()), null, true });
             }
         }
 
@@ -115,11 +104,11 @@ namespace Multiplayer.Compat
         private static void SyncDesignator_Blueprint(SyncWorker sync, ref Designator obj)
         {
             if (sync.isWriting)
-                sync.Write(blueprint, blueprintGetter.Invoke(obj, null));
+                sync.Write<IExposable>((IExposable)blueprintGetter.Invoke(obj, null), blueprint);
             else
             {
                 //Designator_Blueprint(Blueprint) constructor
-                obj = (Designator)designator_BlueprintConstructor.Invoke(new[]{ sync.Read(blueprint) });
+                obj = (Designator)designator_BlueprintConstructor.Invoke(new[]{ sync.Read<IExposable>(blueprint) });
             }
         }
 
