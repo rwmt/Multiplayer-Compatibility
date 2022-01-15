@@ -36,7 +36,7 @@ namespace Multiplayer.Compat
                     .FirstOrDefault(a => a.Constructor.DeclaringType.Name == nameof(MpCompatForAttribute));
                 if (attr == null) continue;
 
-                var modId = (string)attr.ConstructorArguments.First().Value;
+                var modId = ((string)attr.ConstructorArguments.First().Value).ToLower();
                 var mod = LoadedModManager.RunningMods.FirstOrDefault(m => m.PackageId.NoModIdSuffix() == modId);
                 if (mod == null)
                     asm.MainModule.Types.Remove(t);
