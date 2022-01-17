@@ -12,7 +12,7 @@ namespace Multiplayer.Compat
     public class MpCompat : Mod
     {
         const string REFERENCES_FOLDER = "References";
-        internal static readonly Harmony harmony = new Harmony("rimworld.multiplayer.compat");
+        public static readonly Harmony harmony = new Harmony("rimworld.multiplayer.compat");
 
         public MpCompat(ModContentPack content) : base(content)
         {
