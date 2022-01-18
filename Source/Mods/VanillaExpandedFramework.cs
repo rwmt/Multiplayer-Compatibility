@@ -12,6 +12,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Expanded Framework and other Vanilla Expanded mods by Oskar Potocki, Sarg Bjornson, Chowder, XeoNovaDan, Orion, Kikohi, erdelf, Taranchuk, and more</summary>
+    /// <see href="https://github.com/AndroidQuazar/VanillaExpandedFramework"/>
     /// <see href="https://github.com/juanosarg/ItemProcessor"/>
     /// <see href="https://github.com/juanosarg/VanillaCookingExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2023507013"/>
@@ -104,6 +105,9 @@ namespace Multiplayer.Compat
 
                 type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
                 MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
+
+                type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+                MP.RegisterSyncMethod(type, "SwitchColor");
             }
 
             // Vanilla Faction Mechanoids
@@ -111,6 +115,9 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
                 MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 6).SetContext(SyncContext.MapSelected);
                 MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 4);
+
+                type = AccessTools.TypeByName("VFEMech.Machine");
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
             }
 
             // AnimalBehaviours
@@ -123,6 +130,7 @@ namespace Multiplayer.Compat
                     "AnimalBehaviours.CompFilthProducer",
                     "AnimalBehaviours.CompGasProducer",
                     "AnimalBehaviours.CompInitialHediff",
+                    "AnimalBehaviours.DamageWorker_ExtraInfecter",
                     "AnimalBehaviours.DeathActionWorker_DropOnDeath",
                 };
                 PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
@@ -131,6 +139,15 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
                 MP.RegisterSyncMethod(type, "SetObjectForDestruction");
                 MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
+
+                type = AccessTools.TypeByName("AnimalBehaviours.CompDieAndChangeIntoOtherDef");
+                MP.RegisterSyncMethod(type, "ChangeDef");
+
+                type = AccessTools.TypeByName("AnimalBehaviours.CompDiseasesAfterPeriod");
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
+
+                type = AccessTools.TypeByName("AnimalBehaviours.Pawn_GetGizmos_Patch");
+                MpCompat.RegisterLambdaDelegate(type, "Postfix", 1);
             }
 
             // MVCF (Multi Verb Combat Framework)
@@ -180,11 +197,23 @@ namespace Multiplayer.Compat
                 // RNG
                 var methods = new[]
                 {
+                    // "SymbolResolver_ScatterStuffAround:Resolve", // This one is seeded right now so it should be fine (using Find.TickManager.TicksGame)
                     "KCSG.SymbolResolver_AddFields:Resolve",
                     "KCSG.SymbolResolver_Settlement:GenerateRooms",
+                    "KCSG.GridUtils:GenerateGrid",
                 };
 
                 PatchingUtilities.PatchSystemRand(methods, false);
+            }
+
+            // Vanilla Apparel Expanded
+            {
+                MpCompat.RegisterLambdaMethod("VanillaApparelExpanded.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
+            }
+
+            // Vanilla Weapons Expanded
+            {
+                MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
             }
         }
 
