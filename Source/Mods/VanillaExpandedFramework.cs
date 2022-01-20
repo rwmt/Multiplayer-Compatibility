@@ -30,6 +30,11 @@ namespace Multiplayer.Compat
         private static FieldInfo abilityHolderField;
         private static FieldInfo abilityPawnField;
         private static ISyncField abilityAutoCastField;
+        // Dialog_Hire
+        private static Type hireDialogType;
+        private static FieldInfo hireDataField;
+        private static ISyncField daysAmountField;
+        private static ISyncField currentFactionDefField;
 
         // Vanilla Furniture Expanded
         private static FieldInfo setStoneBuildingField;
@@ -89,7 +94,7 @@ namespace Multiplayer.Compat
             // VFE Core
             {
                 MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
-
+                
                 // Comp holding ability
                 // CompAbility
                 learnedAbilitiesField = AccessTools.Field(AccessTools.TypeByName("VFECore.Abilities.CompAbilities"), "learnedAbilities");
@@ -111,6 +116,21 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
                     prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                     postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
+
+                // Hireable factions
+                hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
+
+                MP.RegisterSyncMethod(hireDialogType, "OnAcceptKeyPressed");
+                MP.RegisterSyncWorker<Window>(SyncHireDialog, hireDialogType);
+                MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedSetHireData));
+                MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseHireDialog));
+                hireDataField = AccessTools.Field(hireDialogType, "hireData");
+                // I don't think daysAmountBuffer needs to be synced, just daysAmount only
+                daysAmountField = MP.RegisterSyncField(hireDialogType, "daysAmount");
+                currentFactionDefField = MP.RegisterSyncField(hireDialogType, "curFaction");
+                MpCompat.harmony.Patch(AccessTools.Method(hireDialogType, "DoWindowContents"),
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreHireDialogDoWindowContents)),
+                    postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostHireDialogDoWindowContents)));
             }
 
             // Vanilla Furniture Expanded
@@ -490,5 +510,56 @@ namespace Multiplayer.Compat
 
             MP.WatchEnd();
         }
+
+        private static void SyncHireDialog(SyncWorker sync, ref Window dialog)
+        {
+            // The dialog should just be open
+            if (!sync.isWriting) 
+                dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == hireDialogType);
+        }
+
+        private static void PreHireDialogDoWindowContents(Window __instance, Dictionary<PawnKindDef, Pair<int, string>> ___hireData, ref Dictionary<PawnKindDef, Pair<int, string>> __state)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchBegin();
+            daysAmountField.Watch(__instance);
+            currentFactionDefField.Watch(__instance);
+
+            __state = ___hireData.ToDictionary(x => x.Key, x => x.Value);
+        }
+
+        private static void PostHireDialogDoWindowContents(Window __instance, Dictionary<PawnKindDef, Pair<int, string>> ___hireData, Dictionary<PawnKindDef, Pair<int, string>> __state)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchEnd();
+
+            foreach (var (pawn, value) in __state)
+            {
+                if (value.First != ___hireData[pawn].First)
+                {
+                    hireDataField.SetValue(__instance, __state);
+                    SyncedSetHireData(___hireData);
+                    break;
+                }
+            }
+
+            if (!Find.WindowStack.IsOpen(__instance))
+                SyncedCloseHireDialog();
+        }
+
+        private static void SyncedSetHireData(Dictionary<PawnKindDef, Pair<int, string>> hireData)
+        {
+            var dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == hireDialogType);
+
+            if (dialog != null) 
+                hireDataField.SetValue(dialog, hireData);
+        }
+
+        private static void SyncedCloseHireDialog() 
+            => Find.WindowStack.TryRemove(hireDialogType);
     }
 }
