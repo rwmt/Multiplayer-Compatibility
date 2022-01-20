@@ -12,6 +12,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Expanded Framework and other Vanilla Expanded mods by Oskar Potocki, Sarg Bjornson, Chowder, XeoNovaDan, Orion, Kikohi, erdelf, Taranchuk, and more</summary>
+    /// <see href="https://github.com/AndroidQuazar/VanillaExpandedFramework"/>
     /// <see href="https://github.com/juanosarg/ItemProcessor"/>
     /// <see href="https://github.com/juanosarg/VanillaCookingExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2023507013"/>
@@ -19,7 +20,16 @@ namespace Multiplayer.Compat
     class VanillaExpandedFramework
     {
         // VFECore
+        // CompAbility
         private static FieldInfo learnedAbilitiesField;
+        // CompAbilityApparel
+        private static FieldInfo givenAbilitiesField;
+        private static MethodInfo abilityApparelPawnGetter;
+        // Ability
+        private static MethodInfo abilityInitMethod;
+        private static FieldInfo abilityHolderField;
+        private static FieldInfo abilityPawnField;
+        private static ISyncField abilityAutoCastField;
 
         // Vanilla Furniture Expanded
         private static FieldInfo setStoneBuildingField;
@@ -80,10 +90,27 @@ namespace Multiplayer.Compat
             {
                 MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
 
+                // Comp holding ability
+                // CompAbility
                 learnedAbilitiesField = AccessTools.Field(AccessTools.TypeByName("VFECore.Abilities.CompAbilities"), "learnedAbilities");
-                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, AccessTools.TypeByName("VFECore.Abilities.Ability"), true);
+                // CompAbilityApparel
+                var type = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
+                givenAbilitiesField = AccessTools.Field(type, "givenAbilities");
+                abilityApparelPawnGetter = AccessTools.PropertyGetter(type, "Pawn");
+                MP.RegisterSyncMethod(type, "Initialize");
 
-                MP.RegisterSyncMethod(AccessTools.TypeByName("VFECore.Abilities.Ability"), "CreateCastJob");
+                // Ability itself
+                type = AccessTools.TypeByName("VFECore.Abilities.Ability");
+
+                abilityInitMethod = AccessTools.Method(type, "Init");
+                abilityHolderField = AccessTools.Field(type, "holder");
+                abilityPawnField = AccessTools.Field(type, "pawn");
+                MP.RegisterSyncMethod(type, "CreateCastJob");
+                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
+                abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
+                MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
+                    postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
             }
 
             // Vanilla Furniture Expanded
@@ -104,6 +131,9 @@ namespace Multiplayer.Compat
 
                 type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
                 MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
+
+                type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+                MP.RegisterSyncMethod(type, "SwitchColor");
             }
 
             // Vanilla Faction Mechanoids
@@ -111,6 +141,9 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
                 MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 6).SetContext(SyncContext.MapSelected);
                 MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 4);
+
+                type = AccessTools.TypeByName("VFEMech.Machine");
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
             }
 
             // AnimalBehaviours
@@ -123,6 +156,7 @@ namespace Multiplayer.Compat
                     "AnimalBehaviours.CompFilthProducer",
                     "AnimalBehaviours.CompGasProducer",
                     "AnimalBehaviours.CompInitialHediff",
+                    "AnimalBehaviours.DamageWorker_ExtraInfecter",
                     "AnimalBehaviours.DeathActionWorker_DropOnDeath",
                 };
                 PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
@@ -131,6 +165,15 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
                 MP.RegisterSyncMethod(type, "SetObjectForDestruction");
                 MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
+
+                type = AccessTools.TypeByName("AnimalBehaviours.CompDieAndChangeIntoOtherDef");
+                MP.RegisterSyncMethod(type, "ChangeDef");
+
+                type = AccessTools.TypeByName("AnimalBehaviours.CompDiseasesAfterPeriod");
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
+
+                type = AccessTools.TypeByName("AnimalBehaviours.Pawn_GetGizmos_Patch");
+                MpCompat.RegisterLambdaDelegate(type, "Postfix", 1);
             }
 
             // MVCF (Multi Verb Combat Framework)
@@ -180,11 +223,23 @@ namespace Multiplayer.Compat
                 // RNG
                 var methods = new[]
                 {
+                    // "SymbolResolver_ScatterStuffAround:Resolve", // This one is seeded right now so it should be fine (using Find.TickManager.TicksGame)
                     "KCSG.SymbolResolver_AddFields:Resolve",
                     "KCSG.SymbolResolver_Settlement:GenerateRooms",
+                    "KCSG.GridUtils:GenerateGrid",
                 };
 
                 PatchingUtilities.PatchSystemRand(methods, false);
+            }
+
+            // Vanilla Apparel Expanded
+            {
+                MpCompat.RegisterLambdaMethod("VanillaApparelExpanded.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
+            }
+
+            // Vanilla Weapons Expanded
+            {
+                MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
             }
         }
 
@@ -293,31 +348,57 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                sync.Write(source.Caster);
+                sync.Write(abilityHolderField.GetValue(source) as Thing);
                 sync.Write(source.GetVerb.GetUniqueLoadID());
             }
             else
             {
-                var caster = sync.Read<Thing>();
+                var holder = sync.Read<Thing>();
                 var uid = sync.Read<string>();
-                if (caster is ThingWithComps thing)
+                if (holder is ThingWithComps thing)
                 {
-                    var compAbilities = thing.AllComps.First(c => c.GetType() == learnedAbilitiesField.DeclaringType);
-                    var list = learnedAbilitiesField.GetValue(compAbilities) as IEnumerable;
-                    
-                    foreach (object o in list)
+                    IEnumerable list = null;
+
+                    var compAbilities = thing.AllComps.FirstOrDefault(c => c.GetType() == learnedAbilitiesField.DeclaringType);
+                    ThingComp compAbilitiesApparel = null;
+                    if (compAbilities != null)
+                        list = learnedAbilitiesField.GetValue(compAbilities) as IEnumerable;
+
+                    if (list == null)
                     {
-                        ITargetingSource its = o as ITargetingSource;
-                        if (its.GetVerb.GetUniqueLoadID() == uid)
+                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => c.GetType() == givenAbilitiesField.DeclaringType);
+                        if (compAbilitiesApparel != null)
+                            list = givenAbilitiesField.GetValue(compAbilitiesApparel) as IEnumerable;
+                    }
+
+                    if (list != null)
+                    {
+                        foreach (var o in list)
                         {
-                            source = its;
-                            break;
+                            var its = o as ITargetingSource;
+                            if (its?.GetVerb.GetUniqueLoadID() == uid)
+                            {
+                                source = its;
+                                break;
+                            }
                         }
+                        
+                        if (source != null && compAbilitiesApparel != null)
+                        {
+                            // Set the pawn and initialize the Ability, as it might have been skipped
+                            var pawn = abilityApparelPawnGetter.Invoke(compAbilitiesApparel, Array.Empty<object>());
+                            abilityPawnField.SetValue(source, pawn);
+                            abilityInitMethod.Invoke(source, Array.Empty<object>());
+                        }
+                    }
+                    else
+                    {
+                        Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder is missing or of unsupported type");
                     }
                 }
                 else
                 {
-                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Caster isn't a ThingWithComps");
+                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder isn't a ThingWithComps");
                 }
             }
         }
@@ -391,6 +472,23 @@ namespace Multiplayer.Compat
             ((IList)list).Add(weakReferenceCtor.Invoke(new object[] { verbManager }));
 
             return verbManager;
+        }
+
+        private static void PreAbilityDoAction(object __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchBegin();
+            abilityAutoCastField.Watch(__instance);
+        }
+
+        private static void PostAbilityDoAction()
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchEnd();
         }
     }
 }
