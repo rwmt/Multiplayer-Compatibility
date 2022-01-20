@@ -20,7 +20,16 @@ namespace Multiplayer.Compat
     class VanillaExpandedFramework
     {
         // VFECore
+        // CompAbility
         private static FieldInfo learnedAbilitiesField;
+        // CompAbilityApparel
+        private static FieldInfo givenAbilitiesField;
+        private static MethodInfo abilityApparelPawnGetter;
+        // Ability
+        private static MethodInfo abilityInitMethod;
+        private static FieldInfo abilityHolderField;
+        private static FieldInfo abilityPawnField;
+        private static ISyncField abilityAutoCastField;
 
         // Vanilla Furniture Expanded
         private static FieldInfo setStoneBuildingField;
@@ -81,10 +90,27 @@ namespace Multiplayer.Compat
             {
                 MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
 
+                // Comp holding ability
+                // CompAbility
                 learnedAbilitiesField = AccessTools.Field(AccessTools.TypeByName("VFECore.Abilities.CompAbilities"), "learnedAbilities");
-                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, AccessTools.TypeByName("VFECore.Abilities.Ability"), true);
+                // CompAbilityApparel
+                var type = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
+                givenAbilitiesField = AccessTools.Field(type, "givenAbilities");
+                abilityApparelPawnGetter = AccessTools.PropertyGetter(type, "Pawn");
+                MP.RegisterSyncMethod(type, "Initialize");
 
-                MP.RegisterSyncMethod(AccessTools.TypeByName("VFECore.Abilities.Ability"), "CreateCastJob");
+                // Ability itself
+                type = AccessTools.TypeByName("VFECore.Abilities.Ability");
+
+                abilityInitMethod = AccessTools.Method(type, "Init");
+                abilityHolderField = AccessTools.Field(type, "holder");
+                abilityPawnField = AccessTools.Field(type, "pawn");
+                MP.RegisterSyncMethod(type, "CreateCastJob");
+                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
+                abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
+                MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
+                    postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
             }
 
             // Vanilla Furniture Expanded
@@ -322,31 +348,57 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                sync.Write(source.Caster);
+                sync.Write(abilityHolderField.GetValue(source) as Thing);
                 sync.Write(source.GetVerb.GetUniqueLoadID());
             }
             else
             {
-                var caster = sync.Read<Thing>();
+                var holder = sync.Read<Thing>();
                 var uid = sync.Read<string>();
-                if (caster is ThingWithComps thing)
+                if (holder is ThingWithComps thing)
                 {
-                    var compAbilities = thing.AllComps.First(c => c.GetType() == learnedAbilitiesField.DeclaringType);
-                    var list = learnedAbilitiesField.GetValue(compAbilities) as IEnumerable;
-                    
-                    foreach (object o in list)
+                    IEnumerable list = null;
+
+                    var compAbilities = thing.AllComps.FirstOrDefault(c => c.GetType() == learnedAbilitiesField.DeclaringType);
+                    ThingComp compAbilitiesApparel = null;
+                    if (compAbilities != null)
+                        list = learnedAbilitiesField.GetValue(compAbilities) as IEnumerable;
+
+                    if (list == null)
                     {
-                        ITargetingSource its = o as ITargetingSource;
-                        if (its.GetVerb.GetUniqueLoadID() == uid)
+                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => c.GetType() == givenAbilitiesField.DeclaringType);
+                        if (compAbilitiesApparel != null)
+                            list = givenAbilitiesField.GetValue(compAbilitiesApparel) as IEnumerable;
+                    }
+
+                    if (list != null)
+                    {
+                        foreach (var o in list)
                         {
-                            source = its;
-                            break;
+                            var its = o as ITargetingSource;
+                            if (its?.GetVerb.GetUniqueLoadID() == uid)
+                            {
+                                source = its;
+                                break;
+                            }
                         }
+                        
+                        if (source != null && compAbilitiesApparel != null)
+                        {
+                            // Set the pawn and initialize the Ability, as it might have been skipped
+                            var pawn = abilityApparelPawnGetter.Invoke(compAbilitiesApparel, Array.Empty<object>());
+                            abilityPawnField.SetValue(source, pawn);
+                            abilityInitMethod.Invoke(source, Array.Empty<object>());
+                        }
+                    }
+                    else
+                    {
+                        Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder is missing or of unsupported type");
                     }
                 }
                 else
                 {
-                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Caster isn't a ThingWithComps");
+                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder isn't a ThingWithComps");
                 }
             }
         }
@@ -420,6 +472,23 @@ namespace Multiplayer.Compat
             ((IList)list).Add(weakReferenceCtor.Invoke(new object[] { verbManager }));
 
             return verbManager;
+        }
+
+        private static void PreAbilityDoAction(object __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchBegin();
+            abilityAutoCastField.Watch(__instance);
+        }
+
+        private static void PostAbilityDoAction()
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchEnd();
         }
     }
 }
