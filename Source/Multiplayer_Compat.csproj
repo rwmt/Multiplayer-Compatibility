@@ -9,6 +9,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DebugType>None</DebugType>
+    <RootNamespace>Multiplayer.Compat</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
