@@ -5,10 +5,12 @@
     <LangVersion>9.0</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <PublicizeAsReferenceAssemblies>false</PublicizeAsReferenceAssemblies>
     <OutputPath>..\Referenced\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DebugType>None</DebugType>
+    <RootNamespace>Multiplayer.Compat</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Source/Multiplayer_Compat.csproj">
@@ -26,8 +28,16 @@
       <Version>1.3.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <PackageReference Include="Krafs.Publicizer">
+      <Version>1.0.1</Version>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <Reference Include="..\References\*.dll">
       <Private>false</Private>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Publicize Include="Assembly-CSharp" />
   </ItemGroup>
 </Project>
