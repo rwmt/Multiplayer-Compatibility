@@ -16,7 +16,7 @@ namespace Multiplayer.Compat
                 "AOMoreFurniture.JobDriver_PlayComputerModern:WatchTickAction",
             };
 
-            PatchingUtilities.PatchSystemRand(methods);
+            PatchingUtilities.PatchSystemRand(methods, false);
         }
     }
 }
