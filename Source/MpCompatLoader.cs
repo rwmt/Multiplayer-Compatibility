@@ -68,7 +68,7 @@ namespace Multiplayer.Compat
                     Activator.CreateInstance(action.type, action.mod);
                     Log.Message($"MPCompat :: Initialized compatibility for {action.mod.PackageId}");
                 } catch(Exception e) {
-                    Log.Error($"MPCompat :: Exception loading {action.mod.PackageId}: {e.InnerException}");
+                    Log.Error($"MPCompat :: Exception loading {action.mod.PackageId}: {e.InnerException ?? e}");
                 }
             }
         }
