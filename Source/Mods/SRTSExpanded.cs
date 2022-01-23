@@ -30,7 +30,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(type, "TryLaunchBombRun");
             bombTypeSync = MP.RegisterSyncField(type, "bombType");
 
-            foreach (MethodInfo method in MpCompat.MethodsByIndex(type, "<CompGetGizmosExtra>", 1, 2))
+            foreach (MethodInfo method in MpMethodUtil.GetLambda(type, "CompGetGizmosExtra", MethodType.Normal, null, 1, 2))
                 MpCompat.harmony.Patch(method,
                     prefix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PreSyncBombType)),
                     postfix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PostSyncBombType)));

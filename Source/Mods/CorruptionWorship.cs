@@ -137,9 +137,9 @@ namespace Multiplayer.Compat
 
                 var inner = AccessTools.Inner(wonderWorkerTargetableType, "<>c__DisplayClass6_0");
                 winderWorkerTargetableInnerBaseField = AccessTools.Field(inner, "<>4__this");
-                MpCompat.harmony.Patch(MpCompat.MethodByIndex(inner, "<TryExecuteWonderInt>", 0),
+                MpCompat.harmony.Patch(MpMethodUtil.GetLambda(inner, "TryExecuteWonderInt", MethodType.Normal, null, 0),
                     prefix: new HarmonyMethod(typeof(CorruptionWorship), nameof(PreStartTargetting)));
-                MpCompat.harmony.Patch(MpCompat.MethodByIndex(inner, "<TryExecuteWonderInt>", 1),
+                MpCompat.harmony.Patch(MpMethodUtil.GetLambda(inner, "TryExecuteWonderInt", MethodType.Normal, null, 1),
                     prefix: new HarmonyMethod(typeof(CorruptionWorship), nameof(PreCheckCancelled)));
 
                 // WonderDef, all we want is the field storing the WonderWorker for sync worker
@@ -196,11 +196,11 @@ namespace Multiplayer.Compat
             {
                 // Rotating worship statue
                 var type = AccessTools.TypeByName("Corruption.Worship.Building_WorshipStatue");
-                MpCompat.RegisterSyncMethodByIndex(type, "<GetGizmos>", 0);
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0);
 
                 // Debug ring the bell
                 type = AccessTools.TypeByName("Corruption.Worship.CompBellTower");
-                MpCompat.RegisterSyncMethodByIndex(type, "<CompGetGizmosExtra>", 0).SetDebugOnly();
+                MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
 
                 // Drop effigy
                 type = AccessTools.TypeByName("Corruption.Worship.CompShrine");

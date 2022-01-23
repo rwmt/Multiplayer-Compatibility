@@ -21,7 +21,7 @@ namespace Multiplayer.Compat
             buildingField = AccessTools.Field(type, "building");
             // SyncWorker needed as the <ProcessInput> methods require syncing of the `building` field
             MP.RegisterSyncWorker<Command>(SyncSetStoneType, type, shouldConstruct: true);
-            MpCompat.RegisterSyncMethodsByIndex(type, "<ProcessInput>", Enumerable.Range(0, 6).ToArray());
+            MpCompat.RegisterLambdaMethod(type, "ProcessInput", Enumerable.Range(0, 6).ToArray());
 
             var rngFixMethods = new[]
             {

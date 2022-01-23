@@ -21,7 +21,7 @@ namespace Multiplayer.Compat
                 // VFEI.Comps.ItemComps.CompCustomTransporter
 
                 var type = AccessTools.TypeByName("InsectoidBioengineering.Building_BioengineeringIncubator");
-                MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 1, 2, 3);
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 1, 2, 3);
 
                 // Keep an eye on this in the future, seems like something the devs might combine into a single class at some point
                 foreach (var geneNumber in new[] { "First", "Second", "Third" })

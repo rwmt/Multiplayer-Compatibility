@@ -32,10 +32,10 @@ namespace Multiplayer.Compat
                 mapField = AccessTools.Field(commandType, "map");
                 fishingZoneField = AccessTools.Field(commandType, "zone");
 
-                MpCompat.RegisterSyncMethodsByIndex(commandType, "<ProcessInput>", Enumerable.Range(0, 3).ToArray());
+                MpCompat.RegisterLambdaMethod(commandType, "ProcessInput", Enumerable.Range(0, 3).ToArray());
                 MP.RegisterSyncWorker<Command>(SyncFishingZoneChange, commandType, shouldConstruct: false);
 
-                MpCompat.RegisterSyncMethodByIndex(AccessTools.TypeByName("VCE_Fishing.Zone_Fishing"), "<GetGizmos>", 1);
+                MpCompat.RegisterLambdaMethod(AccessTools.TypeByName("VCE_Fishing.Zone_Fishing"), "GetGizmos", 1);
             }
         }
 

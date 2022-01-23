@@ -18,7 +18,7 @@ namespace Multiplayer.Compat
             // Caravan gizmo - turn in wanted criminal to settlement
             MP.RegisterSyncDelegate(type, "<>c__DisplayClass8_0", "<CommandTurnInWanted>b__0");
             // Toggle mode
-            MpCompat.RegisterSyncMethodByIndex(AccessTools.TypeByName("Warmup.CompWarmUpReduction"), "<CompGetGizmosExtra>", 1);
+            MpCompat.RegisterLambdaMethod(AccessTools.TypeByName("Warmup.CompWarmUpReduction"), "CompGetGizmosExtra", 1);
             // Five fingers fillet table
             PatchingUtilities.PatchUnityRand("VFE_Settlers.JobGivers.JobDriver_PlayFiveFingerFillet:WatchTickAction", false);
         }

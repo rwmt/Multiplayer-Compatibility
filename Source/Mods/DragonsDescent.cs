@@ -45,7 +45,7 @@ namespace Multiplayer.Compat
             // Incubator
             {
                 var type = AccessTools.TypeByName("DD.CompEggIncubator");
-                var methods = MpCompat.RegisterSyncMethodsByIndex(type, "<CompGetGizmosExtra>", 1, 2, 3, 4);
+                var methods = MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 1, 2, 3, 4);
                 foreach (var method in methods.Skip(1)) // All but the first one are debug-only gizmos
                     method.SetDebugOnly();
 
@@ -56,7 +56,7 @@ namespace Multiplayer.Compat
             // Abilities
             {
                 var type = AccessTools.TypeByName("DD.AbilityComp_AbilityControl");
-                var gizmoActionMethod = MpCompat.MethodByIndex(type, "<get_Gizmo>", 1);
+                var gizmoActionMethod = MpMethodUtil.GetLambda(type, "get_Gizmo", MethodType.Normal, null, 1);
                 MP.RegisterSyncMethod(gizmoActionMethod); // Toggle active
                 MpCompat.harmony.Patch(gizmoActionMethod,
                     prefix: new HarmonyMethod(typeof(DragonsDescent), nameof(PreGizmoActionCalled)));
@@ -95,7 +95,7 @@ namespace Multiplayer.Compat
                 ritualReferenceDefField = AccessTools.Field(ritualReferenceType, "def");
 
                 var inner = AccessTools.Inner(ritualReferenceType, "<>c__DisplayClass12_0");
-                MpCompat.RegisterSyncMethodsByIndex(inner, "<SetupAction>", 0, 1);
+                MpCompat.RegisterLambdaMethod(inner, "SetupAction", 0, 1);
                 MP.RegisterSyncWorker<object>(SyncRitualReferenceInnerClass, inner, shouldConstruct: true);
                 ritualReferenceInnerRitualField = AccessTools.Field(inner, "ritual");
                 ritualReferenceInnerSelfField = AccessTools.Field(inner, "<>4__this");

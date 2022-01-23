@@ -32,7 +32,7 @@ namespace Multiplayer.Compat
 
             // Debug stuff
             var type = AccessTools.TypeByName("VFEV.Apiary");
-            MpCompat.RegisterSyncMethodsByIndex(type, "<GetGizmos>", 0, 1).Do(m => m.SetDebugOnly());
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 1).Do(m => m.SetDebugOnly());
 
             // This method seems unused... But I guess it's better to be safe than sorry.
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "ResetTend"), false);

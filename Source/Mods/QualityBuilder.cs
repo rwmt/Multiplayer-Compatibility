@@ -20,8 +20,8 @@ namespace Multiplayer.Compat
 
             Type[] argTypes = { typeof(QualityCategory) };
 
-            MethodInfo toggleCommandMethod = MpCompat.GetFirstMethodBySignature(toggleCommandType, argTypes);
-            MethodInfo designatorMethod = MpCompat.GetFirstMethodBySignature(designatorType, argTypes);
+            MethodInfo toggleCommandMethod = MpMethodUtil.GetFirstMethodBySignature(toggleCommandType, argTypes);
+            MethodInfo designatorMethod = MpMethodUtil.GetFirstMethodBySignature(designatorType, argTypes);
 
             //my decompiler shows the method name is <get_RightClickFloatMenuOptions>b__3_0 
             //while harmony saids it is <get_RightClickFloatMenuOptions>b__2_0, weird..."

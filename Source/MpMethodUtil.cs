@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -14,6 +15,14 @@ namespace Multiplayer.Compat
         const string LambdaMethodInfix = "b__";
         const string LocalFunctionInfix = "g__";
         const string EnumerableStateMachineInfix = "d__";
+
+        public static IEnumerable<MethodInfo> GetLambda(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, params int[] lambdaOrdinals)
+        {
+            foreach (int ord in lambdaOrdinals)
+            {
+                yield return MpMethodUtil.GetLambda(parentType, parentMethod, parentMethodType, parentArgs, ord);
+            }
+        }
 
         public static MethodInfo GetLambda(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, int lambdaOrdinal = 0)
         {
@@ -159,6 +168,47 @@ namespace Multiplayer.Compat
                         .FirstOrDefault(c => c.IsStatic);
             }
 
+            return null;
+        }
+
+        /// <summary>Get the first method in the given type that matches the specified signature, return null if failed.</summary>
+        /// <param name="type">The type of the target method</param>
+        /// <param name="paramsType">The list of types of the target method's parameter</param>
+        public static MethodInfo GetFirstMethodBySignature(Type type, Type[] paramsType)
+        {
+            foreach (MethodInfo mi in AccessTools.GetDeclaredMethods(type))
+            {
+                List<Type> foundParamsType = new List<Type>();
+                if (mi.GetParameters().Length != 0)
+                {
+                    foreach (ParameterInfo pi in mi.GetParameters())
+                    {
+                        foundParamsType.Add(pi.ParameterType);
+                    }
+                }
+                if (paramsType.All(foundParamsType.Contains) && paramsType.Count() == foundParamsType.Count) { return mi; }
+            }
+            return null;
+        }
+
+        /// <summary>Get the first method in the given type that matches the specified signature, return null if failed.</summary>
+        /// <param name="type">The type of the target method</param>
+        /// <param name="paramsType">The list of types of the target method's parameter</param>
+        /// <param name="returnType">The return type of the target method</param>
+        public static MethodInfo GetFirstMethodBySignature(Type type, Type[] paramsType, Type returnType)
+        {
+            foreach (MethodInfo mi in AccessTools.GetDeclaredMethods(type))
+            {
+                List<Type> foundParamsType = new List<Type>();
+                if (mi.GetParameters().Length != 0)
+                {
+                    foreach (ParameterInfo pi in mi.GetParameters())
+                    {
+                        foundParamsType.Add(pi.ParameterType);
+                    }
+                }
+                if (paramsType.All(foundParamsType.Contains) && paramsType.Count() == foundParamsType.Count && returnType == mi.ReturnType) { return mi; }
+            }
             return null;
         }
     }
