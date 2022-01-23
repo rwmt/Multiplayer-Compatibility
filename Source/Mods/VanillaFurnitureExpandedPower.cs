@@ -26,11 +26,11 @@ namespace Multiplayer.Compat
                 type = AccessTools.TypeByName("GasNetwork.CompGasStorage");
                 // Both these methods are calling (basically) the same method,
                 // but that method also has other callers that don't need syncing
-                MpCompat.RegisterSyncMethodsByIndex(type, "<CompGetGizmosExtra>", 0, 1).Do(m => m.SetDebugOnly());
+                MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0, 1).SetDebugOnly();
             }
+
             // Order to or cancel plugging the hole (method names shared by both types)
             {
-
                 var types = new[]
                 {
                     "VanillaPowerExpanded.Building_ChemfuelPond",
@@ -41,6 +41,12 @@ namespace Multiplayer.Compat
                     MP.RegisterSyncMethod(type, "SetHoleForPlugging");
                     MP.RegisterSyncMethod(type, "CancelHoleForPlugging");
                 }
+            }
+            
+            // Violence generator
+            {
+                type = AccessTools.TypeByName("VanillaPowerExpanded.CompSoulsPowerPlant");
+                MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 1); // Toggle on/off
             }
 
             // RNG Fix
@@ -78,6 +84,10 @@ namespace Multiplayer.Compat
                 PatchingUtilities.PatchUnityRand("GasNetwork.MapComponent_WindDirection:MapGenerated");
                 MpCompat.harmony.Patch(AccessTools.Method("GasNetwork.MapComponent_WindDirection:MapComponentTick"),
                     prefix: new HarmonyMethod(typeof(VanillaPowerExpanded), nameof(ReplaceWindMapComponentTick)));
+
+                // GasNet utilities
+                MpCompat.harmony.Patch(AccessTools.Method("GasNetwork.Utilities:HashOffsetTicks"),
+                    prefix: new HarmonyMethod(typeof(VanillaPowerExpanded), nameof(ReplaceHashOffsetTicks)));
             }
         }
 
@@ -96,6 +106,22 @@ namespace Multiplayer.Compat
                 // Use Verse rand instead of Unity
                 windDirectionField.SetValue(__instance, ((float)windDirectionField.GetValue(__instance) + Rand.Range(-0.3f, 0.3f)) % twoPI);
             }
+
+            return false;
+        }
+
+        private static bool ReplaceHashOffsetTicks(ref int __result)
+        {
+            if (!MP.IsInMultiplayer) return true;
+
+            // Look: ReplaceWindMapComponentTick
+            // The same issue - using the default GetHashCode
+            // The GasNet class (that this method uses hash from)
+            // stores reference to the Map it's used on - maybe 
+            // map ID could be used for calling HashOffset on?
+            // I'm leaving it as is as it doesn't make a big
+            // difference overall.
+            __result = Find.TickManager.TicksGame;
 
             return false;
         }
