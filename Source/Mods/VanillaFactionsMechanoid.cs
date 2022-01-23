@@ -16,6 +16,7 @@ namespace Multiplayer.Compat
 
         private static void LatePatch()
         {
+            // Missile silo
             var type = AccessTools.TypeByName("VFEMech.MissileSilo");
             MP.RegisterSyncMethod(type, "StartFire");
             var configureNewTargetMethod = AccessTools.Method(type, "ConfigureNewTarget");
@@ -25,11 +26,26 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(configureNewTargetMethod,
                 postfix: new HarmonyMethod(typeof(VanillaFactionsMechanoid), nameof(CloseWorldTargetter)));
 
+            // Auto plant machines (planter/harvester)
             type = AccessTools.TypeByName("VFE.Mechanoids.Buildings.Building_AutoPlant");
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3);
 
             MpCompat.harmony.Patch(AccessTools.Method("VFE.Mechanoids.PlaceWorkers.PlaceWorker_AutoPlant:DrawGhost"),
                 prefix: new HarmonyMethod(typeof(VanillaFactionsMechanoid), nameof(PreDrawGhost)));
+
+            // Indoctrination Pod
+            type = AccessTools.TypeByName("VFEMech.Building_IndoctrinationPod");
+            MP.RegisterSyncMethod(type, nameof(Building_Casket.EjectContents)); // Overrides the method from vanilla
+            MpCompat.RegisterLambdaDelegate(type, "GetGizmos", 1, 3); // Set target ideo (both of them are identical)
+            // TODO: Test float menus
+
+            // Industrial apiary
+            type = AccessTools.TypeByName("VFEMech.Building_IndustrialApiary");
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 1).SetDebugOnly(); // Finish/add progress
+
+            // Propaganda comp
+            type = AccessTools.TypeByName("VFEMech.CompPropaganda");
+            MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 3); // Set propaganda mode/set target ideo
         }
 
         private static void CloseWorldTargetter(bool __result)
