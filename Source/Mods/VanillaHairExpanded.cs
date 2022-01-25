@@ -1,9 +1,10 @@
 ﻿using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -17,21 +18,21 @@ namespace Multiplayer.Compat
         private static bool isSyncedCall = false;
 
         private static Type changeHairstyleDialogType;
-        private static FieldInfo orderedHairstyleDefsField;
+        private static List<HairDef> orderedHairstyleDefs;
+        private static List<BeardDef> orderedBeardDefs;
         private static ISyncField newHairstyleComboSync;
 
         private static FieldInfo hairDefField;
         private static FieldInfo beardDefField;
         private static FieldInfo hairColourField;
-        private static FieldInfo beardColourField;
 
         public VanillaHairExpanded(ModContentPack mod) => LongEventHandler.ExecuteWhenFinished(LatePatch);
 
         public void LatePatch()
         {
             changeHairstyleDialogType = AccessTools.TypeByName("VanillaHairExpanded.Dialog_ChangeHairstyle");
-            //newHairstyleComboField = AccessTools.Field(changeHairstyleDialogType, "newHairBeardCombo");
-            orderedHairstyleDefsField = AccessTools.Field(changeHairstyleDialogType, "orderedHairDefs");
+            orderedHairstyleDefs = (List<HairDef>)AccessTools.Field(changeHairstyleDialogType, "orderedHairDefs").GetValue(null);
+            orderedBeardDefs = (List<BeardDef>)AccessTools.Field(changeHairstyleDialogType, "orderedBeardDefs").GetValue(null);
 
             newHairstyleComboSync = MP.RegisterSyncField(AccessTools.Field(changeHairstyleDialogType, "newHairBeardCombo"));
             MP.RegisterSyncMethod(changeHairstyleDialogType, "SetHairstyle");
@@ -49,7 +50,6 @@ namespace Multiplayer.Compat
             hairDefField = AccessTools.Field(type, "hairDef");
             beardDefField = AccessTools.Field(type, "beardDef");
             hairColourField = AccessTools.Field(type, "hairColour");
-            beardColourField = AccessTools.Field(type, "beardColour");
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(WindowStack), nameof(WindowStack.TryRemove), new[] { typeof(Window), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(VanillaHairExpanded), nameof(PreTryRemoveWindow)));
@@ -93,25 +93,21 @@ namespace Multiplayer.Compat
 
         private static void SyncHairstyleCombination(SyncWorker sync, ref object obj)
         {
-            var defs = (IList)orderedHairstyleDefsField.GetValue(null);
-            
             if (sync.isWriting)
             {
-                sync.Write((Color)hairColourField.GetValue(obj));
-                sync.Write((Color)beardColourField.GetValue(obj));
-                sync.Write(defs.IndexOf(hairDefField.GetValue(obj)));
-                sync.Write(defs.IndexOf(beardDefField.GetValue(obj)));
+                sync.Write((Color?)hairColourField?.GetValue(obj) ?? Color.black);
+                sync.Write(orderedHairstyleDefs?.IndexOf(hairDefField.GetValue(obj) as HairDef) ?? -1);
+                sync.Write(orderedBeardDefs?.IndexOf(beardDefField.GetValue(obj) as BeardDef) ?? -1);
             }
             else
             {
                 hairColourField.SetValue(obj, sync.Read<Color>());
-                beardColourField.SetValue(obj, sync.Read<Color>());
-                int index = sync.Read<int>();
+                var index = sync.Read<int>();
                 if (index >= 0)
-                    hairDefField.SetValue(obj, defs[index]);
+                    hairDefField.SetValue(obj, orderedHairstyleDefs[index]);
                 index = sync.Read<int>();
                 if (index >= 0)
-                    beardDefField.SetValue(obj, defs[index]);
+                    beardDefField.SetValue(obj, orderedBeardDefs[index]);
             }
         }
 
