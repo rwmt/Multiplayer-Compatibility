@@ -5,6 +5,7 @@
     <LangVersion>9.0</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <PublicizeAsReferenceAssemblies>false</PublicizeAsReferenceAssemblies>
     <OutputPath>..\Assemblies\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
@@ -14,7 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="Lib.Harmony">
-      <Version>2.1.*</Version>
+      <Version>2.2.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="RimWorld.MultiplayerAPI">
@@ -25,5 +26,13 @@
       <Version>1.3.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <PackageReference Include="Krafs.Publicizer">
+      <Version>1.0.*</Version>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
+
+	<ItemGroup>
+		<Publicize Include="Assembly-CSharp" />
+	</ItemGroup>
 </Project>
