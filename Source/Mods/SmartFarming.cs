@@ -1,5 +1,4 @@
 ﻿using System.Collections;
-using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -13,7 +12,7 @@ namespace Multiplayer.Compat
     internal class SmartFarming
     {
         private static IDictionary compCache;
-        private static FieldInfo growZoneRegistryField;
+        private static AccessTools.FieldRef<object, IDictionary> growZoneRegistryField;
 
         public SmartFarming(ModContentPack mod)
         {
@@ -21,7 +20,7 @@ namespace Multiplayer.Compat
             compCache = AccessTools.StaticFieldRefAccess<IDictionary>(type, "compCache");
 
             type = AccessTools.TypeByName("SmartFarming.MapComponent_SmartFarming");
-            growZoneRegistryField = AccessTools.Field(type, "growZoneRegistry");
+            growZoneRegistryField = AccessTools.FieldRefAccess<IDictionary>(type, "growZoneRegistry");
 
             type = AccessTools.TypeByName("SmartFarming.ZoneData");
             MpCompat.RegisterLambdaDelegate(type, "Init", 3, 4).SetContext(SyncContext.CurrentMap); // Toggle no petty jobs, force harvest now
@@ -36,7 +35,7 @@ namespace Multiplayer.Compat
             {
                 int? id = null;
                 var comp = compCache[Find.CurrentMap];
-                var zoneRegistry = (IDictionary)growZoneRegistryField.GetValue(comp);
+                var zoneRegistry = growZoneRegistryField(comp);
 
                 foreach (DictionaryEntry entry in zoneRegistry)
                 {
@@ -55,7 +54,7 @@ namespace Multiplayer.Compat
                 if (id != null)
                 {
                     var comp = compCache[Find.CurrentMap];
-                    var zoneRegistry = (IDictionary)growZoneRegistryField.GetValue(comp);
+                    var zoneRegistry = growZoneRegistryField(comp);
                     zoneData = zoneRegistry[id.Value];
                 }
             }

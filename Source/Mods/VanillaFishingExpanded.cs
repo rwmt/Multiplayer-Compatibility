@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.Serialization;
 using HarmonyLib;
 using Multiplayer.API;
@@ -10,13 +9,14 @@ namespace Multiplayer.Compat
 {
     /// <summary>VanillaCuisineExpanded-Fishing by juanosarg</summary>
     /// <see href="https://github.com/juanosarg/VanillaCuisineExpanded-Fishing"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1914064942"/>
     /// contribution to Multiplayer Compatibility by Cody Spring
     [MpCompatFor("VanillaExpanded.VCEF")]
     class VanillaFishingExpanded
     {
         private static Type commandType;
-        private static FieldInfo mapField;
-        private static FieldInfo fishingZoneField;
+        private static AccessTools.FieldRef<object, Map> mapField;
+        private static AccessTools.FieldRef<object, Zone> fishingZoneField;
 
         public VanillaFishingExpanded(ModContentPack mod)
         {
@@ -29,8 +29,8 @@ namespace Multiplayer.Compat
             // Gizmo (select fish size to catch)
             {
                 commandType = AccessTools.TypeByName("VCE_Fishing.Command_SetFishList");
-                mapField = AccessTools.Field(commandType, "map");
-                fishingZoneField = AccessTools.Field(commandType, "zone");
+                mapField = AccessTools.FieldRefAccess<Map>(commandType, "map");
+                fishingZoneField = AccessTools.FieldRefAccess<Zone>(commandType, "zone");
 
                 MpCompat.RegisterLambdaMethod(commandType, "ProcessInput", Enumerable.Range(0, 3).ToArray());
                 MP.RegisterSyncWorker<Command>(SyncFishingZoneChange, commandType, shouldConstruct: false);
@@ -43,14 +43,14 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                sync.Write(((Map)mapField.GetValue(command)).Index);
-                sync.Write((Zone)fishingZoneField.GetValue(command));
+                sync.Write(mapField(command));
+                sync.Write(fishingZoneField(command));
             }
             else
             {
                 command = (Command)FormatterServices.GetUninitializedObject(commandType);
-                mapField.SetValue(command, Find.Maps[sync.Read<int>()]);
-                fishingZoneField.SetValue(command, sync.Read<Zone>());
+                mapField(command) = sync.Read<Map>();
+                fishingZoneField(command) = sync.Read<Zone>();
             }
         }
     }

@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.Linq;
-using System.Reflection;
 
 using HarmonyLib;
 using Multiplayer.API;
@@ -17,16 +15,12 @@ namespace Multiplayer.Compat
     public class AvoidFriendlyFire
     {
         static IDictionary extendedPawnDataDictionary;
-        static Type extendedPawnDataType;
-        static FieldInfo avoidFriendlyFireField;
 
         public AvoidFriendlyFire(ModContentPack mod)
         {
             {
-                var type = extendedPawnDataType = AccessTools.TypeByName("AvoidFriendlyFire.ExtendedPawnData");
+                var type = AccessTools.TypeByName("AvoidFriendlyFire.ExtendedPawnData");
                 MP.RegisterSyncWorker<object>(SyncWorkerFor, type);
-
-                avoidFriendlyFireField = type.GetField("AvoidFriendlyFire");
             }
             {
                 MpCompat.RegisterLambdaDelegate("AvoidFriendlyFire.Pawn_DraftController_GetGizmos_Patch", "Postfix", 1);

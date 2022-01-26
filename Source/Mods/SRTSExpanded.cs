@@ -14,7 +14,7 @@ namespace Multiplayer.Compat
     {
         private static bool isSyncing = false;
         private static MethodInfo tryLaunchMethod;
-        private static FieldInfo caravanField;
+        private static AccessTools.FieldRef<object, Caravan> caravanField;
         private static ISyncField bombTypeSync;
 
         public SRTSExpanded(ModContentPack mod)
@@ -40,7 +40,7 @@ namespace Multiplayer.Compat
         {
             // Launching the shuttle
             var type = AccessTools.TypeByName("SRTS.CompLaunchableSRTS");
-            caravanField = AccessTools.Field(type, "carr");
+            caravanField = AccessTools.FieldRefAccess<Caravan>(type, "carr");
             tryLaunchMethod = AccessTools.Method(type, "TryLaunch");
 
             MpCompat.harmony.Patch(tryLaunchMethod, prefix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PreTryLaunch)));
@@ -72,7 +72,7 @@ namespace Multiplayer.Compat
 
             isSyncing = true;
 
-            var caravanFieldValue = caravanField.GetValue(__instance) as Caravan;
+            var caravanFieldValue = caravanField(__instance);
             SyncedLaunch(__instance, destinationTile, arrivalAction, cafr, caravanFieldValue);
 
             return false;
@@ -81,7 +81,7 @@ namespace Multiplayer.Compat
         private static void SyncedLaunch(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
         {
             isSyncing = true;
-            caravanField.SetValue(compLaunchableSrts, caravanFieldValue);
+            caravanField(compLaunchableSrts) = caravanFieldValue;
             tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, caravanMethodParameter });
         }
 
