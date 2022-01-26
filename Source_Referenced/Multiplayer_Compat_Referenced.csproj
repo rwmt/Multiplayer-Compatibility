@@ -17,7 +17,7 @@
       <Private>false</Private>
     </ProjectReference>
     <PackageReference Include="Lib.Harmony">
-      <Version>2.1.*</Version>
+      <Version>2.2.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="RimWorld.MultiplayerAPI">
@@ -29,7 +29,7 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Krafs.Publicizer">
-      <Version>1.0.1</Version>
+      <Version>1.0.*</Version>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <Reference Include="..\References\*.dll">
