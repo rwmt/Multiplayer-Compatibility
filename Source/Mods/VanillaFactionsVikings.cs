@@ -15,8 +15,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VFE.Vikings")]
     class VanillaFactionsVikings
     {
-        private static bool isSyncedCall = false;
-
         private static Type changeFacepaintDialogType;
         private static IList orderedFacepaintDefs;
         private static ISyncField newFacepaintComboSync;
@@ -88,14 +86,10 @@ namespace Multiplayer.Compat
 
         private static bool PreTryRemoveWindow(Window window)
         {
-            // We used isSyncedCall to check if it's our "captured" method call, which we stop, or the synced, which we let run as intended
-            if (!MP.IsInMultiplayer || isSyncedCall || window.GetType() != changeFacepaintDialogType)
-            {
-                isSyncedCall = false;
+            // Let the method run only if it's synced call
+            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand || window.GetType() != changeFacepaintDialogType)
                 return true;
-            }
 
-            isSyncedCall = true;
             SyncedTryRemoveWindow();
             return false;
         }
