@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -20,22 +19,11 @@ namespace Multiplayer.Compat
     class VFESecurity
     {
         private static PropertyInfo selectedCompsProperty;
-        private static PropertyInfo turretProperty;
-        private static FieldInfo targetedTileField;
+        private static AccessTools.FieldRef<object, GlobalTargetInfo> targetedTileField;
         private static MethodInfo resetWarmupTicksMethod;
-
-        private static MethodInfo resetCurrentTargetMethod;
-        private static MethodInfo resetForcedTargetMethod;
 
         public VFESecurity(ModContentPack mod)
         {
-            // Artillery fix
-            {
-                var type = AccessTools.TypeByName("RimWorld.Building_TurretGun");
-                resetCurrentTargetMethod = AccessTools.Method(type, "ResetCurrentTarget");
-                resetForcedTargetMethod = AccessTools.Method(type, "ResetForcedTarget");
-            }
-
             // RNG fix
             {
                 var methodNames = new[]
@@ -64,15 +52,14 @@ namespace Multiplayer.Compat
             }
         }
 
-        static void LateSyncMethods()
+        private static void LateSyncMethods()
         {
             // Artillery fix
             {
                 var type = AccessTools.TypeByName("VFESecurity.CompLongRangeArtillery");
 
                 selectedCompsProperty = AccessTools.Property(type, "SelectedComps");
-                turretProperty = AccessTools.Property(type, "Turret");
-                targetedTileField = AccessTools.Field(type, "targetedTile");
+                targetedTileField = AccessTools.FieldRefAccess<GlobalTargetInfo>(type, "targetedTile");
                 resetWarmupTicksMethod = AccessTools.DeclaredMethod(type, "ResetWarmupTicks");
 
                 MP.RegisterSyncMethod(type, "ResetForcedTarget");
@@ -93,7 +80,7 @@ namespace Multiplayer.Compat
                     "VFESecurity.CompLongRangeArtillery:CompTick",
                 };
 
-                PatchingUtilities.PatchPushPopRand(AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new Type[] { typeof(float), typeof(DamageDef), typeof(float) }));
+                PatchingUtilities.PatchPushPopRand(AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new[] { typeof(float), typeof(DamageDef), typeof(float) }));
                 PatchingUtilities.PatchPushPopRand(methods);
             }
         }
@@ -104,7 +91,7 @@ namespace Multiplayer.Compat
                 return true;
 
             CameraJumper.TryHideWorld();
-            var selected = (selectedCompsProperty.GetValue(null) as IEnumerable).Cast<ThingComp>().ToList();
+            var selected = ((IEnumerable)selectedCompsProperty.GetValue(null)).Cast<ThingComp>().ToList();
             SetTargetedTile(t.WorldObject, selected);
             return false;
         }
@@ -113,10 +100,10 @@ namespace Multiplayer.Compat
         {
             foreach (var artillery in elements)
             {
-                var turret = turretProperty.GetValue(artillery) as Building_TurretGun;
-                resetForcedTargetMethod.Invoke(turret, null);
-                resetCurrentTargetMethod.Invoke(turret, null);
-                targetedTileField.SetValue(artillery, new GlobalTargetInfo(worldObject));
+                var turret = (Building_TurretGun)artillery.parent;
+                turret.ResetForcedTarget();
+                turret.ResetCurrentTarget();
+                targetedTileField(artillery) = new GlobalTargetInfo(worldObject);
                 SoundDefOf.TurretAcquireTarget.PlayOneShot(new TargetInfo(artillery.parent.Position, artillery.parent.Map, false));
                 resetWarmupTicksMethod.Invoke(artillery, null);
             }

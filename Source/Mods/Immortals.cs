@@ -1,6 +1,5 @@
 ﻿using HarmonyLib;
 using System;
-using System.Reflection;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -12,13 +11,11 @@ namespace Multiplayer.Compat
     class Immortals
     {
         private static Type immortalComponent;
-        private static MethodInfo immortalsUpdate;
         private static bool shouldCall = false;
 
         public Immortals(ModContentPack mod)
         {
             immortalComponent = AccessTools.TypeByName("Immortals.Immortal_Component");
-            immortalsUpdate = AccessTools.Method(immortalComponent, "GameComponentUpdate");
             MpCompat.harmony.Patch(AccessTools.Method("Immortals.Immortal_Component:GameComponentUpdate"), prefix: new HarmonyMethod(typeof(Immortals), nameof(GameComponentUpdatePrefix)));
             MpCompat.harmony.Patch(AccessTools.Method("Verse.GameComponent:GameComponentTick"), prefix: new HarmonyMethod(typeof(Immortals), nameof(GameComponentTickPrefix)));
         }
@@ -30,7 +27,7 @@ namespace Multiplayer.Compat
             if (__instance.GetType() == immortalComponent)
             {
                 shouldCall = true;
-                immortalsUpdate.Invoke(__instance, Array.Empty<object>());
+                __instance.GameComponentUpdate();
                 shouldCall = false;
             }
         }

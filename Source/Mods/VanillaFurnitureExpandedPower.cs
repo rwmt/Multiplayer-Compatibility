@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using UnityEngine;
@@ -14,7 +13,7 @@ namespace Multiplayer.Compat
     [MpCompatFor("VanillaExpanded.VFEPower")]
     class VanillaPowerExpanded
     {
-        private static FieldInfo windDirectionField;
+        private static AccessTools.FieldRef<object, float> windDirectionField;
 
         public VanillaPowerExpanded(ModContentPack mod)
         {
@@ -79,7 +78,7 @@ namespace Multiplayer.Compat
                 LongEventHandler.ExecuteWhenFinished(() => PatchingUtilities.PatchPushPopRand(methodsForLater));
 
                 // Wind map comp
-                windDirectionField = AccessTools.Field(AccessTools.TypeByName("GasNetwork.MapComponent_WindDirection"), "windDirection");
+                windDirectionField = AccessTools.FieldRefAccess<float>(AccessTools.TypeByName("GasNetwork.MapComponent_WindDirection"), "windDirection");
                 
                 PatchingUtilities.PatchUnityRand("GasNetwork.MapComponent_WindDirection:MapGenerated");
                 MpCompat.harmony.Patch(AccessTools.Method("GasNetwork.MapComponent_WindDirection:MapComponentTick"),
@@ -104,7 +103,7 @@ namespace Multiplayer.Compat
             {
                 const float twoPI = Mathf.PI * 2;
                 // Use Verse rand instead of Unity
-                windDirectionField.SetValue(__instance, ((float)windDirectionField.GetValue(__instance) + Rand.Range(-0.3f, 0.3f)) % twoPI);
+                windDirectionField(__instance) = (windDirectionField(__instance) + Rand.Range(-0.3f, 0.3f)) % twoPI;
             }
 
             return false;

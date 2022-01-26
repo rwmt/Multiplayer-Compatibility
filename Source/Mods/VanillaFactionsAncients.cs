@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -12,7 +11,7 @@ namespace Multiplayer.Compat
     [MpCompatFor("VanillaExpanded.VFEA")]
     internal class VanillaFactionsAncients
     {
-        private static FieldInfo operationPodField;
+        private static AccessTools.FieldRef<object, ThingComp> operationPodField;
 
         public VanillaFactionsAncients(ModContentPack mod)
         {
@@ -22,7 +21,7 @@ namespace Multiplayer.Compat
             // VFEAncients.CompGeneTailoringPod:StartOperation requires SyncWorker for Operation
             // (Method inside of LatePatch)
             var type = AccessTools.TypeByName("VFEAncients.Operation");
-            operationPodField = AccessTools.Field(type, "Pod");
+            operationPodField = AccessTools.FieldRefAccess<ThingComp>(type, "Pod");
             MP.RegisterSyncWorker<object>(SyncOperation, type, true);
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
@@ -50,7 +49,7 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                sync.Write((ThingComp)operationPodField.GetValue(operation));
+                sync.Write(operationPodField(operation));
                 // Right now we have 2 types it could be, but there could be more in the future
                 sync.Write(operation.GetType());
             }

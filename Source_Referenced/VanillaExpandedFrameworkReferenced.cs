@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using Outposts;
@@ -18,8 +17,8 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     internal class VanillaExpandedFrameworkReferenced
     {
-        private static FieldInfo outpostsInnerClassThisField;
-        private static FieldInfo outpostsInnerClassPawnField;
+        private static AccessTools.FieldRef<object, Outpost> outpostsInnerClassThisField;
+        private static AccessTools.FieldRef<object, Pawn> outpostsInnerClassPawnField;
 
         public VanillaExpandedFrameworkReferenced(ModContentPack mod)
         {
@@ -45,8 +44,8 @@ namespace Multiplayer.Compat
                 // Remove pawn from outpost/create caravan (delegate, 4)
                 // We need a slight workaround, as the gizmo itself won't work - the pawn is inaccessible for syncing
                 var innerType = AccessTools.Inner(typeof(Outpost), "<>c__DisplayClass67_0");
-                outpostsInnerClassThisField = AccessTools.Field(innerType, "<>4__this");
-                outpostsInnerClassPawnField = AccessTools.Field(innerType, "p");
+                outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(innerType, "<>4__this");
+                outpostsInnerClassPawnField = AccessTools.FieldRefAccess<Pawn>(innerType, "p");
                 MpCompat.harmony.Patch(AccessTools.Method(innerType, "<GetGizmos>b__4"),
                     prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreRemoveFromOutpost)));
                 MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedRemoveFromOutpost));
@@ -199,8 +198,8 @@ namespace Multiplayer.Compat
 
         private static bool PreRemoveFromOutpost(object __instance)
         {
-            var outpost = (Outpost) outpostsInnerClassThisField.GetValue(__instance);
-            var pawn = (Pawn) outpostsInnerClassPawnField.GetValue(__instance);
+            var outpost = outpostsInnerClassThisField(__instance);
+            var pawn = outpostsInnerClassPawnField(__instance);
 
             // The pawn is normally inaccessible while in outpost (can't sync them),
             // so we use a workaround to get them

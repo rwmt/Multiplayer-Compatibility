@@ -1,5 +1,4 @@
 ﻿using System.Linq;
-using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -12,13 +11,13 @@ namespace Multiplayer.Compat
     [MpCompatFor("sarg.alphabiomes")]
     class AlphaBiomes
     {
-        private static FieldInfo buildingField;
+        private static AccessTools.FieldRef<object, Building> buildingField;
 
         public AlphaBiomes(ModContentPack mod)
         {
             var type = AccessTools.TypeByName("AlphaBiomes.Command_SetStoneType");
 
-            buildingField = AccessTools.Field(type, "building");
+            buildingField = AccessTools.FieldRefAccess<Building>(type, "building");
             // SyncWorker needed as the <ProcessInput> methods require syncing of the `building` field
             MP.RegisterSyncWorker<Command>(SyncSetStoneType, type, shouldConstruct: true);
             MpCompat.RegisterLambdaMethod(type, "ProcessInput", Enumerable.Range(0, 6).ToArray());
@@ -37,9 +36,9 @@ namespace Multiplayer.Compat
         private static void SyncSetStoneType(SyncWorker sync, ref Command command)
         {
             if (sync.isWriting)
-                sync.Write(buildingField.GetValue(command) as Thing);
+                sync.Write(buildingField(command));
             else
-                buildingField.SetValue(command, sync.Read<Thing>());
+                buildingField(command) = sync.Read<Building>();
         }
     }
 }

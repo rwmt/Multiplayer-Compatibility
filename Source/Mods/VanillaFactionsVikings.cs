@@ -11,13 +11,14 @@ namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Vikings by Oskar Potocki, Erin, Sarg Bjornson, erdelf, Kikohi, Taranchuk, Helixien, Chowder</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2231295285"/>
+    /// <see href="https://github.com/AndroidQuazar/Vanilla-Factions-Expanded-Vikings"/>
     [MpCompatFor("OskarPotocki.VFE.Vikings")]
     class VanillaFactionsVikings
     {
         private static bool isSyncedCall = false;
 
         private static Type changeFacepaintDialogType;
-        private static FieldInfo orderedFacepaintDefsField;
+        private static IList orderedFacepaintDefs;
         private static ISyncField newFacepaintComboSync;
         private static ISyncField coloursTiedSync;
 
@@ -29,10 +30,10 @@ namespace Multiplayer.Compat
         public VanillaFactionsVikings(ModContentPack mod)
         {
             LongEventHandler.ExecuteWhenFinished(LatePatch);
-
+            
             // Debug stuff
             var type = AccessTools.TypeByName("VFEV.Apiary");
-            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 1).Do(m => m.SetDebugOnly());
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 1).SetDebugOnly();
 
             // This method seems unused... But I guess it's better to be safe than sorry.
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "ResetTend"), false);
@@ -42,8 +43,7 @@ namespace Multiplayer.Compat
         {
             // Facepaint
             changeFacepaintDialogType = AccessTools.TypeByName("VFEV.Facepaint.Dialog_ChangeFacepaint");
-            //setFacepaintMethod = AccessTools.Method(changeFacepaintDialogType, "SetHairstyle");
-            orderedFacepaintDefsField = AccessTools.Field(changeFacepaintDialogType, "orderedFacepaintDefs");
+            orderedFacepaintDefs = (IList)AccessTools.Field(changeFacepaintDialogType, "orderedFacepaintDefs").GetValue(null);
 
             newFacepaintComboSync = MP.RegisterSyncField(AccessTools.Field(changeFacepaintDialogType, "newFacepaintCombo"));
             coloursTiedSync = MP.RegisterSyncField(AccessTools.Field(changeFacepaintDialogType, "coloursTied"));
@@ -107,25 +107,23 @@ namespace Multiplayer.Compat
 
         private static void SyncFacepaintCombination(SyncWorker sync, ref object obj)
         {
-            var defs = (IList)orderedFacepaintDefsField.GetValue(null);
-
             if (sync.isWriting)
             {
                 sync.Write((Color)facepaintColourOneField.GetValue(obj));
                 sync.Write((Color)facepaintColourTwoField.GetValue(obj));
-                sync.Write(defs.IndexOf(facepaintDefOneField.GetValue(obj)));
-                sync.Write(defs.IndexOf(facepaintDefTwoField.GetValue(obj)));
+                sync.Write(orderedFacepaintDefs.IndexOf(facepaintDefOneField.GetValue(obj)));
+                sync.Write(orderedFacepaintDefs.IndexOf(facepaintDefTwoField.GetValue(obj)));
             }
             else
             {
                 facepaintColourOneField.SetValue(obj, sync.Read<Color>());
                 facepaintColourTwoField.SetValue(obj, sync.Read<Color>());
-                int index = sync.Read<int>();
+                var index = sync.Read<int>();
                 if (index >= 0)
-                    facepaintDefOneField.SetValue(obj, defs[index]);
+                    facepaintDefOneField.SetValue(obj, (Def)orderedFacepaintDefs[index]);
                 index = sync.Read<int>();
                 if (index >= 0)
-                    facepaintDefTwoField.SetValue(obj, defs[index]);
+                    facepaintDefTwoField.SetValue(obj, (Def)orderedFacepaintDefs[index]);
             }
         }
 

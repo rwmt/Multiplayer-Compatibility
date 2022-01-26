@@ -21,16 +21,16 @@ namespace Multiplayer.Compat
         // Dialog_WarcasketCustomization
         private static Type warcasketDialogType;
         private static MethodInfo notifySettingsChangedMethod;
-        private static FieldInfo warcasketProjectField;
+        private static AccessTools.FieldRef<object, object> warcasketProjectField;
         // WarcasketProject
-        private static FieldInfo helmetColorField;
-        private static FieldInfo shoulderPadsColorField;
-        private static FieldInfo armorColorField;
+        private static AccessTools.FieldRef<object, Color> helmetColorField;
+        private static AccessTools.FieldRef<object, Color> shoulderPadsColorField;
+        private static AccessTools.FieldRef<object, Color> armorColorField;
 
         // Curses
         // GameComponent_CurseManager
-        private static FieldInfo curseManagerInstanceField;
-        private static FieldInfo activeCurseDefsField;
+        private static AccessTools.FieldRef<GameComponent> curseManagerInstanceField;
+        private static AccessTools.FieldRef<object, IEnumerable> activeCurseDefsField;
         private static MethodInfo removeCurseMethod;
         private static MethodInfo addCurseMethod;
         // CurseDef
@@ -54,7 +54,7 @@ namespace Multiplayer.Compat
                 // Dialog_WarcasketCustomization
                 warcasketDialogType = AccessTools.TypeByName("VFEPirates.Buildings.Dialog_WarcasketCustomization");
                 notifySettingsChangedMethod = AccessTools.Method(warcasketDialogType, "Notify_SettingsChanged");
-                warcasketProjectField = AccessTools.Field(warcasketDialogType, "project");
+                warcasketProjectField = AccessTools.FieldRefAccess<object>(warcasketDialogType, "project");
 
                 MP.RegisterSyncWorker<Window>(SyncWarcasketCustomizationDialog, warcasketDialogType);
 
@@ -70,9 +70,9 @@ namespace Multiplayer.Compat
                 // WarcasketProject
                 var type = AccessTools.TypeByName("VFEPirates.WarcasketProject");
 
-                helmetColorField = AccessTools.Field(type, "colorHelmet");
-                shoulderPadsColorField = AccessTools.Field(type, "colorShoulderPads");
-                armorColorField = AccessTools.Field(type, "colorArmor");
+                helmetColorField = AccessTools.FieldRefAccess<Color>(type, "colorHelmet");
+                shoulderPadsColorField = AccessTools.FieldRefAccess<Color>(type, "colorShoulderPads");
+                armorColorField = AccessTools.FieldRefAccess<Color>(type, "colorArmor");
 
                 MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedSetColors));
             }
@@ -87,8 +87,8 @@ namespace Multiplayer.Compat
                 // GameComponent_CurseManager
                 var type = AccessTools.TypeByName("VFEPirates.GameComponent_CurseManager");
 
-                curseManagerInstanceField = AccessTools.Field(type, "Instance");
-                activeCurseDefsField = AccessTools.Field(type, "activeCurseDefs");
+                curseManagerInstanceField = AccessTools.StaticFieldRefAccess<GameComponent>(AccessTools.Field(type, "Instance"));
+                activeCurseDefsField = AccessTools.FieldRefAccess<IEnumerable>(type, "activeCurseDefs");
                 removeCurseMethod = AccessTools.Method(type, "Remove");
                 addCurseMethod = AccessTools.Method(type, "Add");
 
@@ -108,12 +108,12 @@ namespace Multiplayer.Compat
             if (!MP.IsInMultiplayer)
                 return;
 
-            var project = warcasketProjectField.GetValue(__instance);
+            var project = warcasketProjectField(__instance);
             __state = new[]
             {
-                (Color)helmetColorField.GetValue(project),
-                (Color)shoulderPadsColorField.GetValue(project),
-                (Color)armorColorField.GetValue(project),
+                helmetColorField(project),
+                shoulderPadsColorField(project),
+                armorColorField(project),
             };
         }
 
@@ -122,17 +122,17 @@ namespace Multiplayer.Compat
             if (!MP.IsInMultiplayer)
                 return;
 
-            var project = warcasketProjectField.GetValue(__instance);
+            var project = warcasketProjectField(__instance);
 
-            var helmetColor = (Color)helmetColorField.GetValue(project);
-            var shoulderPadsColor = (Color)shoulderPadsColorField.GetValue(project);
-            var armorColor = (Color)armorColorField.GetValue(project);
+            var helmetColor = helmetColorField(project);
+            var shoulderPadsColor = shoulderPadsColorField(project);
+            var armorColor = armorColorField(project);
 
             if (__state[0] != helmetColor || __state[1] != shoulderPadsColor || __state[2] != armorColor)
             {
-                helmetColorField.SetValue(project, __state[0]);
-                shoulderPadsColorField.SetValue(project, __state[1]);
-                armorColorField.SetValue(project, __state[2]);
+                helmetColorField(project) = __state[0];
+                shoulderPadsColorField(project) = __state[1];
+                armorColorField(project) = __state[2];
 
                 SyncedSetColors(helmetColor, shoulderPadsColor, armorColor);
             }
@@ -148,11 +148,11 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            var project = warcasketProjectField.GetValue(window);
+            var project = warcasketProjectField(window);
 
-            helmetColorField.SetValue(project, helmetColor);
-            shoulderPadsColorField.SetValue(project, shoulderPadsColor);
-            armorColorField.SetValue(project, armorColor);
+            helmetColorField(project) = helmetColor;
+            shoulderPadsColorField(project) = shoulderPadsColor;
+            armorColorField(project) = armorColor;
 
             notifySettingsChangedMethod.Invoke(window, Array.Empty<object>());
         }
@@ -165,8 +165,8 @@ namespace Multiplayer.Compat
 
         private static void SyncedSetCurse(Def curseDef)
         {
-            var curseManager = curseManagerInstanceField.GetValue(null);
-            var set = activeCurseDefsField.GetValue(curseManager) as IEnumerable;
+            var curseManager = curseManagerInstanceField();
+            var set = activeCurseDefsField(curseManager);
             var curseWorker = curseDefWorkerGetter.Invoke(curseDef, Array.Empty<object>());
 
             var found = false;
@@ -199,7 +199,7 @@ namespace Multiplayer.Compat
                 if (MP.IsInMultiplayer)
                     SyncedSetCurse(curseDef);
                 // Not in MP - return true as the button was clicked
-                else 
+                else
                     return true;
             }
 
