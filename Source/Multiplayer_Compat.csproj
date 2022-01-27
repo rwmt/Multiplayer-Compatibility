@@ -19,7 +19,7 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="RimWorld.MultiplayerAPI">
-      <Version>0.3.0</Version>
+      <Version>0.4.0</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Krafs.Rimworld.Ref">
