@@ -12,7 +12,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("smashphil.neceros.srtsexpanded")]
     class SRTSExpanded
     {
-        private static bool isSyncing = false;
         private static MethodInfo tryLaunchMethod;
         private static AccessTools.FieldRef<object, Caravan> caravanField;
         private static ISyncField bombTypeSync;
@@ -64,13 +63,9 @@ namespace Multiplayer.Compat
 
         private static bool PreTryLaunch(ThingComp __instance, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan cafr = null)
         {
-            if (!MP.IsInMultiplayer || isSyncing)
-            {
-                isSyncing = false;
+            // Let the method run only if it's synced call
+            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand)
                 return true;
-            }
-
-            isSyncing = true;
 
             var caravanFieldValue = caravanField(__instance);
             SyncedLaunch(__instance, destinationTile, arrivalAction, cafr, caravanFieldValue);
@@ -80,7 +75,6 @@ namespace Multiplayer.Compat
 
         private static void SyncedLaunch(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
         {
-            isSyncing = true;
             caravanField(compLaunchableSrts) = caravanFieldValue;
             tryLaunchMethod.Invoke(compLaunchableSrts, new object[] { destinationTile, arrivalAction, caravanMethodParameter });
         }
