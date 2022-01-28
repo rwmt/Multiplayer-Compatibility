@@ -75,6 +75,7 @@ namespace Multiplayer.Compat
                 armorColorField = AccessTools.FieldRefAccess<Color>(type, "colorArmor");
 
                 MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedSetColors));
+                MP.RegisterPauseLock(PauseIfDialogOpen);
             }
 
             // Curse window
@@ -223,5 +224,10 @@ namespace Multiplayer.Compat
                 yield return ci;
             }
         }
+
+        // Once we add non-blocking dialogs to the API
+        // we should apply this only to the map it's used on
+        private static bool PauseIfDialogOpen(Map map)
+            => Find.WindowStack.IsOpen(warcasketDialogType);
     }
 }
