@@ -11,8 +11,6 @@ namespace Multiplayer.Compat
     {
         public ClutterStructures(ModContentPack mod)
         {
-            StuffedFloorsCompat.Init();
-
             MpCompat.harmony.Patch(
                 AccessTools.Method("Clutter_StructureWall.StructureDefGenerator:StuffGeneratrs"),
                 postfix: new HarmonyMethod(typeof(ClutterStructures), nameof(GetClutterStructureDefPostfix))
@@ -21,7 +19,7 @@ namespace Multiplayer.Compat
 
         static void GetClutterStructureDefPostfix(ThingDef Wallzie)
         {
-            StuffedFloorsCompat.defDatabaseAddMethod.Invoke(null, new object[] { Wallzie });
+            DefDatabase<BuildableDef>.Add(Wallzie);
         }
     }
 }
