@@ -3,7 +3,7 @@ using Multiplayer.API;
 
 namespace Multiplayer.Compat
 {
-    internal static class Extensions
+    public static class Extensions
     {
         internal static string After(this string s, char c)
         {
@@ -28,17 +28,33 @@ namespace Multiplayer.Compat
             return num;
         }
 
-        internal static void SetDebugOnly(this ISyncMethod[] syncMethods)
+        public static void SetDebugOnly(this ISyncMethod[] syncMethods)
         {
-            foreach(var method in syncMethods)
+            foreach (var method in syncMethods)
             {
                 method.SetDebugOnly();
             }
         }
 
-        internal static void SetContext(this ISyncDelegate[] syncDelegates, SyncContext context)
+        public static void SetDebugOnly(this ISyncDelegate[] syncMethods)
         {
-            foreach(var method in syncDelegates)
+            foreach (var method in syncMethods)
+            {
+                method.SetDebugOnly();
+            }
+        }
+
+        public static void SetContext(this ISyncMethod[] syncDelegates, SyncContext context)
+        {
+            foreach (var method in syncDelegates)
+            {
+                method.SetContext(context);
+            }
+        }
+
+        public static void SetContext(this ISyncDelegate[] syncDelegates, SyncContext context)
+        {
+            foreach (var method in syncDelegates)
             {
                 method.SetContext(context);
             }
