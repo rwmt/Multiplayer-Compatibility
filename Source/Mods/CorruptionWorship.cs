@@ -6,56 +6,58 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
-using RimWorld.Planet;
 using Verse;
 using Verse.AI.Group;
 
 namespace Multiplayer.Compat
 {
+    /// <summary>Corruption: Worship by Cpt. Ohu, Updated by Ogliss</summary>
+    /// <see href="https://github.com/Ogliss/Corruption.Worship"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2555397551"/>
     [MpCompatFor("CptVHOhu970.CorruptionWorship")]
     public class CorruptionWorship
     {
         // DefDatabase<WonderDef>
-        private static MethodInfo getDefByShortHash;
+        private static FastInvokeHandler getDefByShortHash;
 
         // BuildingAltar
         public static ISyncField altarNameSyncField; // Used by Dialog_RenameTemple
-        public static FieldInfo altarSermonTemplatesField; // Used for finding/syncing sermon using a BuildingAltar
-        public static MethodInfo altarEndSermonMethod;
-        public static MethodInfo altarTryStartSermonMethod;
+        public static AccessTools.FieldRef<object, IList> altarSermonTemplatesField; // Used for finding/syncing sermon using a BuildingAltar
+        public static FastInvokeHandler altarEndSermonMethod;
+        public static FastInvokeHandler altarTryStartSermonMethod;
 
         // SermonTemplate
-        private static FieldInfo sermonTemplateNameField;
-        private static FieldInfo sermonTemplatePreferredStartTimeField;
-        private static FieldInfo sermonTemplateSermonDurationHoursField;
-        private static FieldInfo sermonTemplateActiveField;
+        private static AccessTools.FieldRef<object, string> sermonTemplateNameField;
+        private static AccessTools.FieldRef<object, int> sermonTemplatePreferredStartTimeField;
+        private static AccessTools.FieldRef<object, float> sermonTemplateSermonDurationHoursField;
+        private static AccessTools.FieldRef<object, bool> sermonTemplateActiveField;
 
         // Dialog_AssignPreacher
         private static Type assignPreacherType;
-        private static FieldInfo assignPreacherSermonField;
-        private static FieldInfo assignPreacherAltarField;
+        private static AccessTools.FieldRef<object, object> assignPreacherSermonField;
+        private static AccessTools.FieldRef<object, Building> assignPreacherAltarField;
 
         // Dialog_AssignAssistant
         private static Type assignAssistantType;
 
         // Inner class inside of TempleCardUtility
-        private static FieldInfo templeCardUtilityInnerAltarField;
-        private static FieldInfo templeCardUtilityInnerSermonField;
+        private static AccessTools.FieldRef<object, Building> templeCardUtilityInnerAltarField;
+        private static AccessTools.FieldRef<object, object> templeCardUtilityInnerSermonField;
 
         // MainTabWindow_Worship
         // WonderWorker
-        private static FieldInfo wonderWorkerDefField;
+        private static AccessTools.FieldRef<object, Def> wonderWorkerDefField;
 
         // WonderWorker_Targetable
-        private static FieldInfo wonderWorkerTargetableTargetField;
-        private static FieldInfo wonderWorkerTargetableCanceledField;
+        private static AccessTools.FieldRef<object, TargetInfo> wonderWorkerTargetableTargetField;
+        private static AccessTools.FieldRef<object, bool> wonderWorkerTargetableCanceledField;
 
         // WonderWorker_Targetable inner class
-        private static FieldInfo winderWorkerTargetableInnerBaseField;
+        private static AccessTools.FieldRef<object, object> wonderWorkerTargetableInnerBaseField;
         private static bool shouldCallCheckCancelled = true;
 
         // WonderDef
-        private static FieldInfo wonderDefWorkerIntField; // Not actually an int, it's just named like that
+        private static AccessTools.FieldRef<object, object> wonderDefWorkerIntField; // Not actually an int, it's just named like that
 
         // Dialog_ReligiousRiot
         private static Type religiousRiotType;
@@ -69,16 +71,16 @@ namespace Multiplayer.Compat
             {
                 var type = AccessTools.TypeByName("Corruption.Worship.BuildingAltar");
                 altarNameSyncField = MP.RegisterSyncField(type, "RoomName");
-                altarSermonTemplatesField = AccessTools.Field(type, "Templates");
-                altarEndSermonMethod = AccessTools.Method(type, "EndSermon");
-                altarTryStartSermonMethod = AccessTools.Method(type, "TryStartSermon");
+                altarSermonTemplatesField = AccessTools.FieldRefAccess<IList>(type, "Templates");
+                altarEndSermonMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "EndSermon"));
+                altarTryStartSermonMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "TryStartSermon"));
 
                 // The class representing a sermon, with all the required data
                 type = AccessTools.TypeByName("Corruption.Worship.SermonTemplate");
-                sermonTemplateNameField = AccessTools.Field(type, "Name");
-                sermonTemplatePreferredStartTimeField = AccessTools.Field(type, "preferredStartTime");
-                sermonTemplateSermonDurationHoursField = AccessTools.Field(type, "SermonDurationHours");
-                sermonTemplateActiveField = AccessTools.Field(type, "Active");
+                sermonTemplateNameField = AccessTools.FieldRefAccess<string>(type, "Name");
+                sermonTemplatePreferredStartTimeField = AccessTools.FieldRefAccess<int>(type, "preferredStartTime");
+                sermonTemplateSermonDurationHoursField = AccessTools.FieldRefAccess<float>(type, "SermonDurationHours");
+                sermonTemplateActiveField = AccessTools.FieldRefAccess<bool>(type, "Active");
 
                 // Dialog for renaming the altar, created from TempleCardUtility
                 type = AccessTools.TypeByName("Corruption.Worship.Dialog_RenameTemple");
@@ -95,8 +97,8 @@ namespace Multiplayer.Compat
 
                 // Dialog used for assigning a preacher, created from TempleCardUtility
                 assignPreacherType = AccessTools.TypeByName("Corruption.Worship.Dialog_AssignPreacher");
-                assignPreacherAltarField = AccessTools.Field(assignPreacherType, "altar");
-                assignPreacherSermonField = AccessTools.Field(assignPreacherType, "sermon");
+                assignPreacherAltarField = AccessTools.FieldRefAccess<Building>(assignPreacherType, "altar");
+                assignPreacherSermonField = AccessTools.FieldRefAccess<object>(assignPreacherType, "sermon");
                 MP.RegisterSyncMethod(assignPreacherType, "AssignPawn");
                 MP.RegisterSyncMethod(assignPreacherType, "UnassignPawn");
                 MP.RegisterSyncWorker<Window>(SyncDialogAssignPreacher, assignPreacherType);
@@ -114,9 +116,9 @@ namespace Multiplayer.Compat
                 // WonderWorker, does the work to execute the wonder defined in the MainTabWindow_Worship
                 var wonderWorkerType = AccessTools.TypeByName("Corruption.Worship.Wonders.WonderWorker");
                 var wonderWorkerTargetableType = AccessTools.TypeByName("Corruption.Worship.Wonders.WonderWorker_Targetable");
-                wonderWorkerDefField = AccessTools.Field(wonderWorkerType, "Def");
-                wonderWorkerTargetableTargetField = AccessTools.Field(wonderWorkerTargetableType, "target");
-                wonderWorkerTargetableCanceledField = AccessTools.Field(wonderWorkerTargetableType, "cancelled");
+                wonderWorkerDefField = AccessTools.FieldRefAccess<Def>(wonderWorkerType, "Def");
+                wonderWorkerTargetableTargetField = AccessTools.FieldRefAccess<TargetInfo>(wonderWorkerTargetableType, "target");
+                wonderWorkerTargetableCanceledField = AccessTools.FieldRefAccess<bool>(wonderWorkerTargetableType, "cancelled");
                 MP.RegisterSyncWorker<object>(SyncWonderWorker, wonderWorkerType, isImplicit: true);
                 MP.RegisterSyncWorker<object>(SyncWonderTargetableWorker, wonderWorkerTargetableType, isImplicit: true);
                 MP.RegisterSyncMethod(wonderWorkerTargetableType, "StartTargeting");
@@ -135,19 +137,19 @@ namespace Multiplayer.Compat
                         MP.RegisterSyncMethod(method);
                 }
 
-                var inner = AccessTools.Inner(wonderWorkerTargetableType, "<>c__DisplayClass6_0");
-                winderWorkerTargetableInnerBaseField = AccessTools.Field(inner, "<>4__this");
-                MpCompat.harmony.Patch(MpMethodUtil.GetLambda(inner, "TryExecuteWonderInt", MethodType.Normal, null, 0),
+                var methods = MpMethodUtil.GetLambda(wonderWorkerTargetableType, "TryExecuteWonderInt", lambdaOrdinals: new[] { 0, 1 }).ToArray();
+                wonderWorkerTargetableInnerBaseField = AccessTools.FieldRefAccess<object>(methods[0].DeclaringType, "<>4__this");
+                MpCompat.harmony.Patch(methods[0],
                     prefix: new HarmonyMethod(typeof(CorruptionWorship), nameof(PreStartTargetting)));
-                MpCompat.harmony.Patch(MpMethodUtil.GetLambda(inner, "TryExecuteWonderInt", MethodType.Normal, null, 1),
+                MpCompat.harmony.Patch(methods[1],
                     prefix: new HarmonyMethod(typeof(CorruptionWorship), nameof(PreCheckCancelled)));
 
                 // WonderDef, all we want is the field storing the WonderWorker for sync worker
                 var type = AccessTools.TypeByName("Corruption.Worship.Wonders.WonderDef");
-                wonderDefWorkerIntField = AccessTools.Field(type, "workerInt");
+                wonderDefWorkerIntField = AccessTools.FieldRefAccess<object>(type, "workerInt");
 
                 var database = typeof(DefDatabase<>).MakeGenericType(new Type[] { type });
-                getDefByShortHash = AccessTools.Method(database, "GetByShortHash");
+                getDefByShortHash = MethodInvoker.GetHandler(AccessTools.Method(database, "GetByShortHash"));
 
                 // GlobalWorshipTracker, we sync favor usage when the user decides to purchase a wonder
                 type = AccessTools.TypeByName("Corruption.Worship.GlobalWorshipTracker");
@@ -174,8 +176,8 @@ namespace Multiplayer.Compat
                 // The previous inner class (<>c__DisplayClass4_1) needs the following one to be synced too, but this one uses sermon
                 // which requires a bit more data to sync, so we make SyncWorker manually instead of using RegisterSyncDelegate
                 var inner = AccessTools.Inner(type, "<>c__DisplayClass4_0");
-                templeCardUtilityInnerAltarField = AccessTools.Field(inner, "altar");
-                templeCardUtilityInnerSermonField = AccessTools.Field(inner, "template");
+                templeCardUtilityInnerAltarField = AccessTools.FieldRefAccess<Building>(inner, "altar");
+                templeCardUtilityInnerSermonField = AccessTools.FieldRefAccess<object>(inner, "template");
 
                 MP.RegisterSyncMethod(typeof(CorruptionWorship), nameof(SyncedInterceptedReceiveMemo));
                 MP.RegisterSyncMethod(typeof(CorruptionWorship), nameof(SyncedInterceptedEndSermon));
@@ -227,7 +229,7 @@ namespace Multiplayer.Compat
         // Helper method for finding the sermon index inside of the altar
         private static bool TryGetDataForSermon(object sermon, Building altar, out int index)
         {
-            var list = (IList)altarSermonTemplatesField.GetValue(altar);
+            var list = altarSermonTemplatesField(altar);
             index = list.IndexOf(sermon);
             return index >= 0;
         }
@@ -235,7 +237,7 @@ namespace Multiplayer.Compat
         // Helper method for getting the sermon out of an altar with specific index
         private static object GetSermon(Building altar, int index)
         {
-            var list = (IList)altarSermonTemplatesField.GetValue(altar);
+            var list = altarSermonTemplatesField(altar);
             return list[index];
         }
 
@@ -262,9 +264,9 @@ namespace Multiplayer.Compat
 
             __state = new object[]
             {
-                sermonTemplatePreferredStartTimeField.GetValue(sermon),
-                sermonTemplateSermonDurationHoursField.GetValue(sermon),
-                sermonTemplateActiveField.GetValue(sermon),
+                sermonTemplatePreferredStartTimeField(sermon),
+                sermonTemplateSermonDurationHoursField(sermon),
+                sermonTemplateActiveField(sermon),
             };
         }
 
@@ -274,16 +276,16 @@ namespace Multiplayer.Compat
 
             if (TryGetDataForSermon(sermon, altar, out var index))
             {
-                var startTime = (int)sermonTemplatePreferredStartTimeField.GetValue(sermon);
-                var duration = (float)sermonTemplateSermonDurationHoursField.GetValue(sermon);
-                var active = (bool)sermonTemplateActiveField.GetValue(sermon);
+                var startTime = sermonTemplatePreferredStartTimeField(sermon);
+                var duration = sermonTemplateSermonDurationHoursField(sermon);
+                var active = sermonTemplateActiveField(sermon);
 
                 // Check if there were changes, revert them if they were and then change them in the synced method
                 if (startTime != (int)__state[0] || duration != (float)__state[1] || active != (bool)__state[2])
                 {
-                    sermonTemplatePreferredStartTimeField.SetValue(sermon, __state[0]);
-                    sermonTemplateSermonDurationHoursField.SetValue(sermon, __state[1]);
-                    sermonTemplateActiveField.SetValue(sermon, __state[2]);
+                    sermonTemplatePreferredStartTimeField(sermon) = (int)__state[0];
+                    sermonTemplateSermonDurationHoursField(sermon) = (float)__state[1];
+                    sermonTemplateActiveField(sermon) = (bool)__state[2];
 
                     // There shouldn't be more than a single change per call, so this method shouldn't be called more than once
                     SyncSimpleSermonData(altar, index, startTime, duration, active);
@@ -295,9 +297,9 @@ namespace Multiplayer.Compat
         {
             var sermon = GetSermon(altar, index);
 
-            sermonTemplatePreferredStartTimeField.SetValue(sermon, startTime);
-            sermonTemplateSermonDurationHoursField.SetValue(sermon, duration);
-            sermonTemplateActiveField.SetValue(sermon, active);
+            sermonTemplatePreferredStartTimeField(sermon) = startTime;
+            sermonTemplateSermonDurationHoursField(sermon) = duration;
+            sermonTemplateActiveField(sermon) = active;
         }
 
         // Used to watch for changes to the name of a specific sermon
@@ -305,32 +307,32 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsInMultiplayer) return;
 
-            __state = (string)sermonTemplateNameField.GetValue(___Sermon);
+            __state = sermonTemplateNameField(___Sermon);
         }
 
         private static void RenameSermonPostfix(object ___Sermon, string __state)
         {
             if (!MP.IsInMultiplayer) return;
 
-            var name = (string)sermonTemplateNameField.GetValue(___Sermon);
+            var name = sermonTemplateNameField(___Sermon);
 
             if (name != __state && TryGetDataForSermon(___Sermon, out var altar, out var index))
             {
-                sermonTemplateNameField.SetValue(___Sermon, __state);
+                sermonTemplateNameField(___Sermon) = __state;
                 SyncSermonName(altar, index, name);
             }
         }
 
         // Used to sync the sermon name to all clients
-        private static void SyncSermonName(Building altar, int sermonIndex, string newSermonName) => sermonTemplateNameField.SetValue(GetSermon(altar, sermonIndex), newSermonName);
+        private static void SyncSermonName(Building altar, int sermonIndex, string newSermonName) => sermonTemplateNameField(GetSermon(altar, sermonIndex)) = newSermonName;
 
         // Sync worker for the Dialog_AssignPreacher (and Dialog_AssignAssistant, as it's implicit worker)
         private static void SyncDialogAssignPreacher(SyncWorker sync, ref Window obj)
         {
             if (sync.isWriting)
             {
-                var sermon = assignPreacherSermonField.GetValue(obj);
-                var altar = assignPreacherAltarField.GetValue(obj) as Building;
+                var sermon = assignPreacherSermonField(obj);
+                var altar = assignPreacherAltarField(obj) as Building;
 
                 if (TryGetDataForSermon(sermon, altar, out var index))
                 {
@@ -360,8 +362,8 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                var altar = templeCardUtilityInnerAltarField.GetValue(obj) as Building;
-                var sermon = templeCardUtilityInnerSermonField.GetValue(obj);
+                var altar = templeCardUtilityInnerAltarField(obj) as Building;
+                var sermon = templeCardUtilityInnerSermonField(obj);
 
                 if (TryGetDataForSermon(sermon, altar, out var index))
                 {
@@ -377,8 +379,8 @@ namespace Multiplayer.Compat
                 if (index >= 0)
                 {
                     var altar = sync.Read<Building>();
-                    templeCardUtilityInnerAltarField.SetValue(obj, altar);
-                    templeCardUtilityInnerSermonField.SetValue(obj, GetSermon(altar, index));
+                    templeCardUtilityInnerAltarField(obj) = altar;
+                    templeCardUtilityInnerSermonField(obj) = GetSermon(altar, index);
                 }
             }
         }
@@ -388,9 +390,9 @@ namespace Multiplayer.Compat
         private static void SyncWonderWorker(SyncWorker sync, ref object obj)
         {
             if (sync.isWriting)
-                sync.Write(((Def)wonderWorkerDefField.GetValue(obj)).shortHash);
+                sync.Write(wonderWorkerDefField(obj).shortHash);
             else
-                obj = wonderDefWorkerIntField.GetValue(getDefByShortHash.Invoke(null, new object[] { sync.Read<ushort>() }));
+                obj = wonderDefWorkerIntField(getDefByShortHash.Invoke(null, sync.Read<ushort>()));
         }
 
         // Besides syncing a normal WonderWorker, we also need the info for target and if it was cancelled
@@ -400,13 +402,13 @@ namespace Multiplayer.Compat
 
             if (sync.isWriting)
             {
-                sync.Write((bool)wonderWorkerTargetableCanceledField.GetValue(obj));
-                sync.Write((TargetInfo)wonderWorkerTargetableTargetField.GetValue(obj));
+                sync.Write(wonderWorkerTargetableCanceledField(obj));
+                sync.Write(wonderWorkerTargetableTargetField(obj));
             }
             else
             {
-                wonderWorkerTargetableCanceledField.SetValue(obj, sync.Read<bool>());
-                wonderWorkerTargetableTargetField.SetValue(obj, sync.Read<TargetInfo>());
+                wonderWorkerTargetableCanceledField(obj) = sync.Read<bool>();
+                wonderWorkerTargetableTargetField(obj) = sync.Read<TargetInfo>();
             }
         }
 
@@ -421,6 +423,9 @@ namespace Multiplayer.Compat
         // Patch out methods used by mod to our own, which will be synced
         private static IEnumerable<CodeInstruction> PatchDrawSermonTemplate(IEnumerable<CodeInstruction> instr)
         {
+            var type = AccessTools.TypeByName("Corruption.Worship.BuildingAltar");
+            var endSermonMethod = AccessTools.Method(type, "EndSermon");
+            var tryStartSermonMethod = AccessTools.Method(type, "TryStartSermon");
             var receiveMemo = AccessTools.Method(typeof(Lord), nameof(Lord.ReceiveMemo));
 
             foreach (var ci in instr)
@@ -436,12 +441,12 @@ namespace Multiplayer.Compat
                         ci.opcode = OpCodes.Call;
                         ci.operand = AccessTools.Method(typeof(CorruptionWorship), nameof(SyncedInterceptedReceiveMemo));
                     }
-                    else if (operand == altarEndSermonMethod)
+                    else if (operand == endSermonMethod)
                     {
                         ci.opcode = OpCodes.Call;
                         ci.operand = AccessTools.Method(typeof(CorruptionWorship), nameof(SyncedInterceptedEndSermon));
                     }
-                    else if (operand == altarTryStartSermonMethod)
+                    else if (operand == tryStartSermonMethod)
                     {
                         ci.opcode = OpCodes.Call;
                         ci.operand = AccessTools.Method(typeof(CorruptionWorship), nameof(InterceptedTryStartSermon));
@@ -485,8 +490,8 @@ namespace Multiplayer.Compat
             // Check if the targetting was cancelled
             // Due to using synced methods the value will be set with delay, so this prevents
             // the value from being unsynced
-            var targetableWorker = winderWorkerTargetableInnerBaseField.GetValue(__instance);
-            wonderWorkerTargetableCanceledField.SetValue(targetableWorker, false);
+            var targetableWorker = wonderWorkerTargetableInnerBaseField(__instance);
+            wonderWorkerTargetableCanceledField(targetableWorker) = false;
             shouldCallCheckCancelled = false;
         }
 
