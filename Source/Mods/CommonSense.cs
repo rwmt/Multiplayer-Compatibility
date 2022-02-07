@@ -11,8 +11,10 @@ namespace Multiplayer.Compat
     [MpCompatFor("avilmask.CommonSense")]
     class CommonSense
     {
+        private delegate ThingComp GetChecker(Thing thing, bool initShouldUnload, bool initWasInInventory);
+
         private static ISyncField shouldUnloadSyncField;
-        private static MethodInfo getCompUnlockerCheckerMethod;
+        private static GetChecker getCompUnlockerCheckerMethod;
 
         public CommonSense(ModContentPack mod)
         {
@@ -21,7 +23,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncWorker<ThingComp>(SyncComp, type);
             shouldUnloadSyncField = MP.RegisterSyncField(AccessTools.Field(type, "ShouldUnload"));
             // The GetChecker method either gets an existing, or creates a new comp
-            getCompUnlockerCheckerMethod = AccessTools.Method(type, "GetChecker");
+            getCompUnlockerCheckerMethod = AccessTools.MethodDelegate<GetChecker>(AccessTools.Method(type, "GetChecker"));
 
             // Watch unload bool changes
             MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
@@ -30,6 +32,9 @@ namespace Multiplayer.Compat
 
             // RNG Patch
             PatchingUtilities.PatchUnityRand("CommonSense.JobGiver_Wander_TryGiveJob_CommonSensePatch:Postfix", false);
+
+            // Gizmo patch
+            MpCompat.RegisterLambdaMethod("CommonSense.DoCleanComp", "CompGetGizmosExtra", 1);
         }
 
         private static void CommonSensePatchPrefix(Thing thing)
@@ -37,7 +42,7 @@ namespace Multiplayer.Compat
             if (MP.IsInMultiplayer)
             {
                 MP.WatchBegin();
-                var comp = getCompUnlockerCheckerMethod.Invoke(null, new object[] { thing, false, false });
+                var comp = getCompUnlockerCheckerMethod(thing, false, false);
                 shouldUnloadSyncField.Watch(comp);
             }
         }
@@ -54,7 +59,7 @@ namespace Multiplayer.Compat
                 sync.Write<Thing>(thing.parent);
             else
                 // Get existing or create a new comp
-                thing = (ThingComp)getCompUnlockerCheckerMethod.Invoke(null, new object[] { sync.Read<Thing>(), false, false });
+                thing = getCompUnlockerCheckerMethod(sync.Read<Thing>(), false, false);
         }
     }
 }
