@@ -15,8 +15,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("roolo.whatthehack")]
     class WhatTheHack
     {
-        private static Dictionary<int, Thing> thingsById;
-
         private static object extendedDataStorageInstance; // WorldComponent
         private static AccessTools.FieldRef<object, IDictionary> pawnStorageDictionary;
         private static MethodInfo getExtendedDataForPawnMethod;
@@ -26,8 +24,6 @@ namespace Multiplayer.Compat
 
         public WhatTheHack(ModContentPack mod)
         {
-            thingsById = (Dictionary<int, Thing>)AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.ThingsById"), "thingsById").GetValue(null);
-
             // Setup
             {
                 // Base mod class
@@ -147,7 +143,7 @@ namespace Multiplayer.Compat
             {
                 var id = sync.Read<int>();
 
-                if (id != int.MaxValue && thingsById.TryGetValue(id, out var thing) && thing is Pawn)
+                if (id != int.MaxValue && MP.TryGetThingById(id, out var thing) && thing is Pawn)
                     data = getExtendedDataForPawnMethod.Invoke(extendedDataStorageInstance, new object[] { thing });
             }
         }
