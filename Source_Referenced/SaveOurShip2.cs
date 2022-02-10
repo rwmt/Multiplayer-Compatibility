@@ -14,14 +14,10 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, Building_ShipBridge> toggleShieldParentClassField;
         private static object bridgeInnerClassStaticField;
 
-        private static Dictionary<int, Thing> thingsById;
-
         public SaveOurShip2(ModContentPack mod) => LongEventHandler.ExecuteWhenFinished(LatePatch);
 
         private static void LatePatch()
         {
-            thingsById = (Dictionary<int, Thing>)AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.ThingsById"), "thingsById").GetValue(null);
-
             // Ship bridge
             {
                 // Launching ship
@@ -322,8 +318,8 @@ namespace Multiplayer.Compat
         {
             LocalTargetInfo target;
 
-            if (id >= 0)
-                target = new LocalTargetInfo(thingsById.GetValueSafe(id));
+            if (id >= 0 && MP.TryGetThingById(id, out var thing))
+                target = new LocalTargetInfo(thing);
             else target = new LocalTargetInfo(cell);
 
             foreach (var turret in turrets) turret.SetTarget(target);
