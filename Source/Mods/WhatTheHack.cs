@@ -19,7 +19,7 @@ namespace Multiplayer.Compat
 
         private static object extendedDataStorageInstance; // WorldComponent
         private static AccessTools.FieldRef<object, IDictionary> pawnStorageDictionary;
-        private static MethodInfo getExtendedDataForPawnMethod;
+        private static FastInvokeHandler getExtendedDataForPawnMethod;
 
         private static AccessTools.FieldRef<object, Need> maintenanceNeedField;
         private static AccessTools.FieldRef<object, Need> powerNeedField;
@@ -37,7 +37,7 @@ namespace Multiplayer.Compat
                 // ExtendedDataStorage class
                 type = AccessTools.TypeByName("WhatTheHack.Storage.ExtendedDataStorage");
                 pawnStorageDictionary = AccessTools.FieldRefAccess<IDictionary>(type, "_store");
-                getExtendedDataForPawnMethod = AccessTools.Method(type, "GetExtendedDataFor", new[] { typeof(Pawn) });
+                getExtendedDataForPawnMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "GetExtendedDataFor", new[] { typeof(Pawn) }));
                 // ExtendedPawnData class, needs to be synced for some sync methods
                 type = AccessTools.TypeByName("WhatTheHack.Storage.ExtendedPawnData");
                 MP.RegisterSyncWorker<object>(SyncExtendedPawnData, type);
@@ -49,7 +49,7 @@ namespace Multiplayer.Compat
                 {
                     AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Harmony.IncidentWorker_Raid_TryExecuteWorker"), "SpawnHackedMechanoids"),
                     AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Harmony.Pawn_JobTracker_DetermineNextJob"), "HackedPoorlyEvent"),
-                    AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Harmony.Thing_ButcherProducts"), "GenerateExtraButcherProducts"),
+                    AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Harmony.Thing_ButcherProducts+<GenerateExtraButcherProducts>d__1"), "MoveNext"),
                     AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Needs.Need_Maintenance"), "MaybeUnhackMechanoid"),
                     AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Recipes.Recipe_Hacking"), "CheckHackingFail"),
                 };
