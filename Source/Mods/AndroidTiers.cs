@@ -12,6 +12,8 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Android tiers by Atlas, aRandomKiwi</summary>
+    /// <see href="https://github.com/Atla55/Android-Tiers-Core"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1386412863"/>
     [MpCompatFor("Atlas.AndroidTiers")]
     internal class AndroidTiers
     {
