@@ -7,7 +7,10 @@ using RimWorld;
 namespace Multiplayer.Compat
 {
     /// <summary>RPG Style Inventory by Sandy</summary>
+    /// <see href="https://github.com/SandyTheGreat/RPG-Style-Inventory"/>
+    /// <see href="https://github.com/catgirlfighter/-1.0-RPG-Style-Inventory-V3.0-"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1561221991"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2478833213"/>
     [MpCompatFor("Sandy.RPGStyleInventory")]
     [MpCompatFor("Nykot.RPGStyleInventory")]
     [MpCompatFor("Sandy.RPGStyleInventory.avilmask.Revamped")]

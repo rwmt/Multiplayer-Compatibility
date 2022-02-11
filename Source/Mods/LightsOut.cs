@@ -7,6 +7,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>LightsOut by juanlopez2008</summary>
+    /// <see href="https://github.com/NathanIkola/LightsOut"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2584269293"/>
     [MpCompatFor("juanlopez2008.LightsOut")]
     internal class LightsOut
