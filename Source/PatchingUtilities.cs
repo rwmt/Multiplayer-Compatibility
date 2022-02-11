@@ -139,15 +139,22 @@ namespace Multiplayer.Compat
 
         #region System RNG transpiler
         private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Array.Empty<Type>());
+        private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(System.Random).GetConstructor(new[] { typeof(int) });
         private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Array.Empty<Type>());
+        private static readonly ConstructorInfo RandRedirectorSeededConstructor = typeof(RandRedirector).GetConstructor(new[] { typeof(int) });
 
         /// <summary>Transpiler that replaces all calls to <see cref="System.Random"/> constructor with calls to <see cref="RandRedirector"/> constructor</summary>
         internal static IEnumerable<CodeInstruction> FixRNG(IEnumerable<CodeInstruction> instr)
         {
             foreach (var ci in instr)
             {
-                if (ci.opcode == OpCodes.Newobj && ci.operand is ConstructorInfo constructorInfo && constructorInfo == SystemRandConstructor)
-                    ci.operand = RandRedirectorConstructor;
+                if (ci.opcode == OpCodes.Newobj && ci.operand is ConstructorInfo constructorInfo)
+                {
+                    if (constructorInfo == SystemRandConstructor)
+                        ci.operand = RandRedirectorConstructor;
+                    else if (constructorInfo == SystemRandSeededConstructor)
+                        ci.operand = RandRedirectorSeededConstructor;
+                }
 
                 yield return ci;
             }
@@ -156,6 +163,12 @@ namespace Multiplayer.Compat
         /// <summary>This class allows replacing any <see cref="System.Random"/> calls with <see cref="Verse.Rand"/> calls</summary>
         public class RandRedirector : Random
         {
+            public RandRedirector()
+            { }
+
+            public RandRedirector(int seed) : base(seed)
+            { }
+
             public override int Next() => Rand.Range(0, int.MaxValue);
 
             public override int Next(int maxValue) => Rand.Range(0, maxValue);
