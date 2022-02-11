@@ -6,8 +6,9 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Simply More Bridges</summary>
+    /// <summary>Simply More Bridges by Lanilor</summary>
     /// <see href="https://github.com/emipa606/SimplyMoreBridges"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2012484790"/>
     [MpCompatFor("Mlie.SimplyMoreBridges")]
     class SimplyMoreBridgesCompat
     {
