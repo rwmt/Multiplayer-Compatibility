@@ -22,6 +22,17 @@ namespace Multiplayer.Compat
         {
             thingsById = (Dictionary<int, Thing>)AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.ThingsById"), "thingsById").GetValue(null);
 
+            // Map rendering fix
+            {
+                var type = AccessTools.TypeByName("Multiplayer.Client.MapDrawerRegenPatch");
+                MpCompat.harmony.Patch(AccessTools.Method(type, "Prefix"),
+                    prefix: new HarmonyMethod(typeof(SaveOurShip2), nameof(CancelMapDrawerRegenPatch)));
+
+                MpCompat.harmony.Patch(AccessTools.Method(typeof(MapDrawer), nameof(MapDrawer.RegenerateEverythingNow)),
+                    prefix: new HarmonyMethod(typeof(SaveOurShip2), nameof(PreRegenerateEverythingNow)),
+                    postfix: new HarmonyMethod(typeof(SaveOurShip2), nameof(PostRegenerateEverythingNow)));
+            }
+
             // Ship bridge
             {
                 // Launching ship
@@ -332,6 +343,27 @@ namespace Multiplayer.Compat
         private static void SyncShipBridgeInnerClass(SyncWorker sync, ref object obj)
         {
             if (!sync.isWriting) obj = bridgeInnerClassStaticField;
+        }
+
+        // Fix planet rendering in space
+        private static bool isSpace = false;
+
+        private static void PreRegenerateEverythingNow(MapDrawer __instance)
+        {
+            if (MP.IsInMultiplayer && __instance.map.Biome == ShipInteriorMod2.OuterSpaceBiome) 
+                isSpace = true;
+        }
+
+        private static void PostRegenerateEverythingNow() => isSpace = false;
+
+        // Stop MP from caching/restoring the map, as SoS2 does its own thing with it
+        private static bool CancelMapDrawerRegenPatch(ref bool __result)
+        {
+            if (!isSpace)
+                return true;
+
+            __result = true;
+            return false;
         }
     }
 }
