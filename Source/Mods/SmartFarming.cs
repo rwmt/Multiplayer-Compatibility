@@ -47,13 +47,15 @@ namespace Multiplayer.Compat
                 }
 
                 sync.Write(id);
+                if (id != null)
+                    sync.Write(Find.CurrentMap);
             }
             else
             {
                 var id = sync.Read<int?>();
                 if (id != null)
                 {
-                    var comp = compCache[Find.CurrentMap];
+                    var comp = compCache[sync.Read<Map>()];
                     var zoneRegistry = growZoneRegistryField(comp);
                     zoneData = zoneRegistry[id.Value];
                 }
