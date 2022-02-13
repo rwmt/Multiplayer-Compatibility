@@ -80,10 +80,6 @@ namespace Multiplayer.Compat
                 };
 
                 PatchingUtilities.PatchSystemRand(methods, false);
-
-                MpCompat.harmony.Patch(AccessTools.Method("MOARANDROIDS.PawnGroupMakerUtility_Patch+GeneratePawns_Patch:Listener"),
-                    prefix: new HarmonyMethod(typeof(AndroidTiers), nameof(PreRng)),
-                    postfix: new HarmonyMethod(typeof(AndroidTiers), nameof(PostRng)));
             }
 
             // Gizmos
@@ -508,18 +504,6 @@ namespace Multiplayer.Compat
 
                 yield return ci;
             }
-        }
-
-        private static void PreRng()
-        {
-            if (MP.IsInMultiplayer)
-                Rand.PushState(Find.TickManager.TicksGame);
-        }
-
-        private static void PostRng()
-        {
-            if (MP.IsInMultiplayer)
-                Rand.PopState();
         }
     }
 }
