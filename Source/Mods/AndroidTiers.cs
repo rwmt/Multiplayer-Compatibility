@@ -76,10 +76,14 @@ namespace Multiplayer.Compat
                     "MOARANDROIDS.Recipe_AndroidRewireSurgery:RandomCorruption",
                     "MOARANDROIDS.Recipe_RemoveSentience:RandomCorruption",
                     "MOARANDROIDS.Recipe_RerollTraits:RandomCorruption",
-                    "MOARANDROIDS.StockGenerator_SlaveAndroids:GenerateThings",
+                    "MOARANDROIDS.StockGenerator_SlaveAndroids+<GenerateThings>d__0:MoveNext",
                 };
 
                 PatchingUtilities.PatchSystemRand(methods, false);
+
+                MpCompat.harmony.Patch(AccessTools.Method("MOARANDROIDS.PawnGroupMakerUtility_Patch+GeneratePawns_Patch:Listener"),
+                    prefix: new HarmonyMethod(typeof(AndroidTiers), nameof(PreRng)),
+                    postfix: new HarmonyMethod(typeof(AndroidTiers), nameof(PostRng)));
             }
 
             // Gizmos
@@ -504,6 +508,18 @@ namespace Multiplayer.Compat
 
                 yield return ci;
             }
+        }
+
+        private static void PreRng()
+        {
+            if (MP.IsInMultiplayer)
+                Rand.PushState(Find.TickManager.TicksGame);
+        }
+
+        private static void PostRng()
+        {
+            if (MP.IsInMultiplayer)
+                Rand.PopState();
         }
     }
 }
