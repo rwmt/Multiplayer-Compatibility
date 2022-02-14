@@ -76,7 +76,7 @@ namespace Multiplayer.Compat
                     "MOARANDROIDS.Recipe_AndroidRewireSurgery:RandomCorruption",
                     "MOARANDROIDS.Recipe_RemoveSentience:RandomCorruption",
                     "MOARANDROIDS.Recipe_RerollTraits:RandomCorruption",
-                    "MOARANDROIDS.StockGenerator_SlaveAndroids:GenerateThings",
+                    "MOARANDROIDS.StockGenerator_SlaveAndroids+<GenerateThings>d__0:MoveNext",
                 };
 
                 PatchingUtilities.PatchSystemRand(methods, false);
