@@ -3,6 +3,7 @@ using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using SaveOurShip2;
+using UnityEngine;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -27,16 +28,14 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("Multiplayer.Client.MapDrawerRegenPatch");
                 MpCompat.harmony.Patch(AccessTools.Method(type, "Prefix"),
                     prefix: new HarmonyMethod(typeof(SaveOurShip2), nameof(CancelMapDrawerRegenPatch)));
-
-                MpCompat.harmony.Patch(AccessTools.Method(typeof(MapDrawer), nameof(MapDrawer.RegenerateEverythingNow)),
-                    prefix: new HarmonyMethod(typeof(SaveOurShip2), nameof(PreRegenerateEverythingNow)),
-                    postfix: new HarmonyMethod(typeof(SaveOurShip2), nameof(PostRegenerateEverythingNow)));
             }
 
             // Ship bridge
             {
                 // Launching ship
                 MP.RegisterSyncMethod(typeof(Building_ShipBridge), nameof(Building_ShipBridge.TryLaunch));
+                MpCompat.harmony.Patch(AccessTools.Method(typeof(Building_ShipBridge), nameof(Building_ShipBridge.TryLaunch)),
+                    postfix: new HarmonyMethod(typeof(SaveOurShip2), nameof(PostTryLaunch)));
 
                 // Capturing ship
                 MP.RegisterSyncMethod(typeof(Building_ShipBridge), nameof(Building_ShipBridge.CaptureShip));
@@ -345,25 +344,21 @@ namespace Multiplayer.Compat
             if (!sync.isWriting) obj = bridgeInnerClassStaticField;
         }
 
-        // Fix planet rendering in space
-        private static bool isSpace = false;
-
-        private static void PreRegenerateEverythingNow(MapDrawer __instance)
-        {
-            if (MP.IsInMultiplayer && __instance.map.Biome == ShipInteriorMod2.OuterSpaceBiome) 
-                isSpace = true;
-        }
-
-        private static void PostRegenerateEverythingNow() => isSpace = false;
-
         // Stop MP from caching/restoring the map, as SoS2 does its own thing with it
-        private static bool CancelMapDrawerRegenPatch(ref bool __result)
-        {
-            if (!isSpace)
-                return true;
+        private static bool CancelMapDrawerRegenPatch(ref bool __result, [HarmonyArgument("instance")] MapDrawer instance) 
+            => !(MP.IsInMultiplayer && instance.map.Biome == ShipInteriorMod2.OuterSpaceBiome);
 
-            __result = true;
-            return false;
+        private static void PostTryLaunch()
+        {
+            if (!ShipCountdown.CountingDown)
+                return;
+            // I think MP does something which messes with stuff,
+            // so we stop manually instead of calling the countdown stop method.
+            
+            ShipCountdown.timeLeft = -1000f;
+            ScreenFader.SetColor(Color.clear);
+            // TODO: Find a way to do it non-instantly that would work in a synced way
+            SaveShip.SaveShipAndRemoveItemStacks();
         }
     }
 }
