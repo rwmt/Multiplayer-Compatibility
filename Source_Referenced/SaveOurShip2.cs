@@ -345,7 +345,7 @@ namespace Multiplayer.Compat
         }
 
         // Stop MP from caching/restoring the map, as SoS2 does its own thing with it
-        private static bool CancelMapDrawerRegenPatch(ref bool __result, [HarmonyArgument("instance")] MapDrawer instance) 
+        private static bool CancelMapDrawerRegenPatch(ref bool __result, [HarmonyArgument("__instance")] MapDrawer instance) 
             => !(MP.IsInMultiplayer && instance.map.Biome == ShipInteriorMod2.OuterSpaceBiome);
 
         private static void PostTryLaunch()
