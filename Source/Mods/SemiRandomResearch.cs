@@ -41,9 +41,10 @@ namespace Multiplayer.Compat
                     postfix: new HarmonyMethod(typeof(SemiRandomResearch), nameof(WatchStopPostfix)));
 
                 nextResearchType = AccessTools.TypeByName("CM_Semi_Random_Research.MainTabWindow_NextResearch");
-                MpCompat.harmony.Patch(AccessTools.Method(nextResearchType, "DoWindowContents"),
+                // These methods are loading resources in their .ctor, must be patched later
+                LongEventHandler.ExecuteWhenFinished(() => MpCompat.harmony.Patch(AccessTools.Method(nextResearchType, "DoWindowContents"),
                     prefix: new HarmonyMethod(typeof(SemiRandomResearch), nameof(DoWindowContentsPrefix)),
-                    postfix: new HarmonyMethod(typeof(SemiRandomResearch), nameof(WatchStopPostfix)));
+                    postfix: new HarmonyMethod(typeof(SemiRandomResearch), nameof(WatchStopPostfix))));
             }
         }
 
