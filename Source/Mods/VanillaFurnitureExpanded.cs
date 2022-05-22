@@ -14,6 +14,8 @@ namespace Multiplayer.Compat
             {
                 "AOMoreFurniture.JobDriver_PlayComputerIndustrial:WatchTickAction",
                 "AOMoreFurniture.JobDriver_PlayComputerModern:WatchTickAction",
+                "AOMoreFurniture.JobDriver_PlayArcadeSounds:WatchTickAction",
+                "AOMoreFurniture.JobDriver_PlayPunchingBag:WatchTickAction",
             };
 
             PatchingUtilities.PatchSystemRand(methods, false);

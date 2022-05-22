@@ -165,7 +165,7 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 6).SetContext(SyncContext.MapSelected);
                 MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 4);
 
-                type = AccessTools.TypeByName("VFEMech.Machine");
+                type = AccessTools.TypeByName("VFE.Mechanoids.CompMachine");
                 MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
             }
 
