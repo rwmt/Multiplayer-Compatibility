@@ -30,9 +30,6 @@ namespace Multiplayer.Compat
             type = AccessTools.TypeByName("VFE.Mechanoids.Buildings.Building_AutoPlant");
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3);
 
-            MpCompat.harmony.Patch(AccessTools.Method("VFE.Mechanoids.PlaceWorkers.PlaceWorker_AutoPlant:DrawGhost"),
-                prefix: new HarmonyMethod(typeof(VanillaFactionsMechanoid), nameof(PreDrawGhost)));
-
             // Indoctrination Pod
             type = AccessTools.TypeByName("VFEMech.Building_IndoctrinationPod");
             MP.RegisterSyncMethod(type, nameof(Building_Casket.EjectContents)); // Overrides the method from vanilla
@@ -45,7 +42,7 @@ namespace Multiplayer.Compat
 
             // Propaganda comp
             type = AccessTools.TypeByName("VFEMech.CompPropaganda");
-            MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 3); // Set propaganda mode/set target ideo
+            MpCompat.RegisterLambdaDelegate(type, "GetGizmos", 1, 3); // Set propaganda mode/set target ideo
         }
 
         private static void CloseWorldTargetter(bool __result)
@@ -54,26 +51,6 @@ namespace Multiplayer.Compat
             // Otherwise, it would successfully mark the target but not give any indication
             if (MP.IsInMultiplayer && __result && Find.WorldTargeter.IsTargeting && Find.WorldTargeter.closeWorldTabWhenFinished)
                 Find.WorldTargeter.StopTargeting();
-        }
-
-        private static void PreDrawGhost(ref Thing thing)
-        {
-            // Fix the bug (which causes error spam) in the original mod if the building is a blueprint or a building frame
-            // This error spam seems capable of causing desyncs
-            switch (thing)
-            {
-                case Blueprint_Build or Frame when thing.def.entityDefToBuild is ThingDef def:
-                    thing = (Thing)Activator.CreateInstance(def.thingClass);
-                    thing.def = def;
-                    break;
-                case Blueprint_Build or Frame:
-                    thing = null;
-                    break;
-                // Handle the case of (re)installing in case another mods lets this be reinstalled
-                case Blueprint_Install install:
-                    thing = install.ThingToInstall;
-                    break;
-            }
         }
     }
 }
