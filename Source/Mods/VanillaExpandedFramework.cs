@@ -162,11 +162,11 @@ namespace Multiplayer.Compat
             // Vanilla Faction Mechanoids
             {
                 var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
-                MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 6).SetContext(SyncContext.MapSelected);
-                MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 4);
+                MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 3).SetContext(SyncContext.MapSelected);
 
+                // Dev recharge fully (0), attach turret (3)
                 type = AccessTools.TypeByName("VFE.Mechanoids.CompMachine");
-                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 3)[0].SetDebugOnly();
             }
 
             // AnimalBehaviours
