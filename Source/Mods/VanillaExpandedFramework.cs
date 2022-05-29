@@ -264,6 +264,20 @@ namespace Multiplayer.Compat
             {
                 MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
             }
+            
+            // PipeSystem
+            {
+                // Increase/decrease by 1/10
+                MpCompat.RegisterLambdaMethod("PipeSystem.CompConvertToThing", "PostSpawnSetup", 0, 1, 2, 3);
+                // (Dev) trigger countdown
+                MpCompat.RegisterLambdaMethod("PipeSystem.CompExplosiveContent", "CompGetGizmosExtra", 0).SetDebugOnly();
+                // Choose output
+                MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceProcessor", "PostSpawnSetup", 1);
+                // Transfer/extract
+                MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "PostSpawnSetup", 0, 1);
+                // (Dev) fill/empty
+                MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "CompGetGizmosExtra", 0, 1);
+            }
         }
 
         private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
