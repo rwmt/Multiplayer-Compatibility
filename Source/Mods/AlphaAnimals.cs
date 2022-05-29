@@ -1,4 +1,5 @@
-﻿using Verse;
+﻿using HarmonyLib;
+using Verse;
 
 namespace Multiplayer.Compat
 {
@@ -30,10 +31,13 @@ namespace Multiplayer.Compat
                     "AlphaBehavioursAndEvents.Hediff_Crushing:RandomFilthGenerator",
 
                     // Ocular plant conversion
-                    "AlphaBehavioursAndEvents.CompAbilityOcularConversion:Apply",
                     "AlphaBehavioursAndEvents.Gas_Ocular:Tick",
                 };
                 PatchingUtilities.PatchPushPopRand(rngFixMethods);
+
+                // Patch separately to avoid "Ambiguous match in Harmony patch"
+                var compAbilityOcularConversionApply = AccessTools.Method("AlphaBehavioursAndEvents.CompAbilityOcularConversion:Apply", new System.Type[] { typeof(LocalTargetInfo), typeof(LocalTargetInfo) });
+                PatchingUtilities.PatchPushPopRand(compAbilityOcularConversionApply);
             }
         }
     }
