@@ -345,12 +345,19 @@ namespace Multiplayer.Compat
         }
 
         // Stop MP from caching/restoring the map, as SoS2 does its own thing with it
-        private static bool CancelMapDrawerRegenPatch(ref bool __result, [HarmonyArgument("__instance")] MapDrawer instance) 
-            => !(MP.IsInMultiplayer && instance.map.Biome == ShipInteriorMod2.OuterSpaceBiome);
+        private static bool CancelMapDrawerRegenPatch(ref bool __result, [HarmonyArgument("__instance")] MapDrawer instance)
+        {
+            if (!MP.IsInMultiplayer || instance.map.Biome != ShipInteriorMod2.OuterSpaceBiome) 
+                return true;
+            
+            __result = true;
+            return false;
+
+        }
 
         private static void PostTryLaunch()
         {
-            if (!ShipCountdown.CountingDown)
+            if (!ShipCountdown.CountingDown || !MP.IsInMultiplayer)
                 return;
             // I think MP does something which messes with stuff,
             // so we stop manually instead of calling the countdown stop method.
