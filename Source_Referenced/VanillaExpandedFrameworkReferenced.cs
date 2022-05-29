@@ -40,10 +40,10 @@ namespace Multiplayer.Compat
 
                 // Generic outpost
                 // Stop packing (0), pack (1), and (dev) produce now (5)
-                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 5).Last().SetDebugOnly();
+                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 5, 6, 7, 8).Skip(2).SetDebugOnly();
                 // Remove pawn from outpost/create caravan (delegate, 4)
                 // We need a slight workaround, as the gizmo itself won't work - the pawn is inaccessible for syncing
-                var innerType = AccessTools.Inner(typeof(Outpost), "<>c__DisplayClass67_0");
+                var innerType = AccessTools.Inner(typeof(Outpost), "<>c__DisplayClass58_0");
                 outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(innerType, "<>4__this");
                 outpostsInnerClassPawnField = AccessTools.FieldRefAccess<Pawn>(innerType, "p");
                 MpCompat.harmony.Patch(AccessTools.Method(innerType, "<GetGizmos>b__4"),
