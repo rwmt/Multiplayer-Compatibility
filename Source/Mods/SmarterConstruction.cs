@@ -14,7 +14,7 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("SmarterConstruction.Patches.Patch_WorkGiver_Scanner_GetPriority");
             var field = AccessTools.Field(type, "random");
 
-            field.SetValue(null, new PatchingUtilities.RandRedirector());
+            field.SetValue(null, PatchingUtilities.RandRedirector.Instance);
         }
     }
 }
