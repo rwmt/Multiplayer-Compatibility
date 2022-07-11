@@ -163,6 +163,9 @@ namespace Multiplayer.Compat
         /// <summary>This class allows replacing any <see cref="System.Random"/> calls with <see cref="Verse.Rand"/> calls</summary>
         public class RandRedirector : Random
         {
+            private static RandRedirector instance;
+            public static RandRedirector Instance => instance ??= new RandRedirector();
+            
             public RandRedirector()
             { }
 
