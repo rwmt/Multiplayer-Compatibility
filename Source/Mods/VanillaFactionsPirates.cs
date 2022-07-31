@@ -102,6 +102,12 @@ namespace Multiplayer.Compat
                 curseWorkerDisactivateMethod = AccessTools.Method(type, "Disactivate");
                 curseWorkerStartMethod = AccessTools.Method(type, "Start");
             }
+            
+            // Flecks
+            {
+                // Uses GenView.ShouldSpawnMotesAt, which is based on camera position
+                PatchingUtilities.PatchPushPopRand("VFEPirates.IncomingSmoker:ThrowBlackSmoke");
+            }
         }
 
         private static void PreDoWindowContents(Window __instance, ref Color[] __state)
