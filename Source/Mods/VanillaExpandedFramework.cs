@@ -76,7 +76,7 @@ namespace Multiplayer.Compat
             (Action patchMethod, string componentName, bool latePatch)[] patches =
             {
                 (PatchItemProcessor, "Item Processor", false),
-                (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", false),
+                (PatchOtherRng, "Other RNG", false),
                 (PatchVFECoreDebug, "Debug Gizmos", false),
                 (PatchAbilities, "Abilities", false),
                 (PatchHireableFactions, "Hireable Factions", false),
@@ -133,10 +133,19 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static void PatchVanillaCookingExpanded()
+        private static void PatchOtherRng()
         {
-            // AddHediff desyncs with Arbiter, but seems fine without it
-            PatchingUtilities.PatchPushPopRand("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
+            PatchingUtilities.PatchPushPopRand(new[]
+            {
+                // AddHediff desyncs with Arbiter, but seems fine without it
+                "VanillaCookingExpanded.Thought_Hediff:MoodOffset",
+                // Uses GenView.ShouldSpawnMotesAt and uses RNG if it returns true,
+                // and it's based on player camera position. Need to push/pop or it'll desync
+                // unless all players looking when it's called
+                "VFECore.HediffComp_Spreadable:ThrowFleck",
+                // GenView.ShouldSpawnMotesAt again
+                "VFECore.TerrainComp_MoteSpawner:ThrowMote",
+            });
         }
 
         private static void PatchVFECoreDebug()
