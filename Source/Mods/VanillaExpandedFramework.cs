@@ -159,6 +159,8 @@ namespace Multiplayer.Compat
             // CompAbility
             compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
             learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
+            // Unlock ability, user-input use by Vanilla Psycasts Expanded
+            MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
             // CompAbilityApparel
             compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
             givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
