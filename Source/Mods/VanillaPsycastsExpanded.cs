@@ -30,7 +30,7 @@ namespace Multiplayer.Compat
         private static Type psysetType;
         private static AccessTools.FieldRef<object, IEnumerable> psysetAbilitiesField;
         private static AccessTools.FieldRef<object, string> psysetNameField;
-        
+
         // Dialog_Psyset
         private static AccessTools.FieldRef<object, object> dialogPsysetPsysetField;
         private static AccessTools.FieldRef<object, Hediff> dialogPsysetHediffField;
@@ -58,7 +58,7 @@ namespace Multiplayer.Compat
             // Psyset dialog
             {
                 var type = AccessTools.TypeByName("VanillaPsycastsExpanded.UI.Dialog_Psyset");
-                
+
                 dialogPsysetPsysetField = AccessTools.FieldRefAccess<object>(type, "psyset");
                 dialogPsysetHediffField = AccessTools.FieldRefAccess<Hediff>(type, "hediff");
 
@@ -90,6 +90,12 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRemovePsyset));
                 MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncEnsurePsysetExists));
                 MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRenamePsyset));
+            }
+
+            // Motes/Flecks
+            {
+                // Uses RNG after GenView.ShouldSpawnMotesAt, gonna cause desyncs
+                PatchingUtilities.PatchPushPopRand("VanillaPsycastsExpanded.FixedTemperatureZone:ThrowFleck");
             }
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
@@ -129,6 +135,12 @@ namespace Multiplayer.Compat
             {
                 MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.ITab_Pawn_Psycasts:DoPsysets"),
                     transpiler: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(Transpiler)));
+            }
+
+            // Motes/Flecks
+            {
+                // Uses RNG after GenView.ShouldSpawnMotesAt, gonna cause desyncs
+                PatchingUtilities.PatchPushPopRand("VanillaPsycastsExpanded.Conflagrator.FireTornado:ThrowPuff");
             }
         }
 
@@ -256,7 +268,7 @@ namespace Multiplayer.Compat
             var psyset = hediffPsysetsList(hediff)[psysetIndex];
 
             var set = Activator.CreateInstance(abilityDefHashSetType);
-            foreach (var def in defs) 
+            foreach (var def in defs)
                 abilityDefHashSetAddMethod(set, def);
             psysetAbilitiesField(psyset) = (IEnumerable)set;
         }
