@@ -1,4 +1,6 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Serialization;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -133,6 +135,9 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(
                     MpMethodUtil.GetLambda(typeof(Command_VerbTargetShip), nameof(Command_VerbTargetShip.ProcessInput), lambdaOrdinal: 0),
                     prefix: new HarmonyMethod(typeof(SaveOurShip2), nameof(PreProcessInput)));
+                
+                // Sync CompChangeableProjectilePlural so that changing allowed torpedo works
+                MP.RegisterSyncWorker<CompChangeableProjectilePlural>(SyncChangeableProjectile);
             }
 
             // Other buildings
@@ -366,6 +371,35 @@ namespace Multiplayer.Compat
             ScreenFader.SetColor(Color.clear);
             // TODO: Find a way to do it non-instantly that would work in a synced way
             SaveShip.SaveShipAndRemoveItemStacks();
+        }
+
+        private static void SyncChangeableProjectile(SyncWorker sync, ref CompChangeableProjectilePlural comp)
+        {
+            if (sync.isWriting)
+            {
+                if (comp == null)
+                {
+                    sync.Write<Thing>(null);
+                    return;
+                }
+
+                var compEquippable = comp.parent.TryGetComp<CompEquippable>();
+
+                if (compEquippable.AllVerbs.Any())
+                {
+                    var turretGun = compEquippable.AllVerbs.Select(v => v.caster).OfType<Building_ShipTurret>().FirstOrDefault(x => x.Map != null);
+                    if (turretGun != null)
+                    {
+                        sync.Write(turretGun);
+                        return;
+                    }
+                }
+
+                throw new SerializationException("Couldn't save CompChangeableProjectile for thing " + comp.parent);
+            }
+            
+            var parent = sync.Read<Building_ShipTurret>();
+            comp = (parent.gun as ThingWithComps).TryGetComp<CompChangeableProjectilePlural>();
         }
     }
 }
