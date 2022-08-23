@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
@@ -22,7 +23,7 @@ namespace Multiplayer.Compat
         {
             // RNG
             {
-                PatchingUtilities.PatchSystemRandCtor("VSEWW.Window_ChooseReward", false);
+                PatchingUtilities.PatchSystemRand("VSEWW.Window_ChooseReward:DoWindowContents", false);
             }
 
             // Dialogs

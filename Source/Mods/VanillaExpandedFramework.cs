@@ -71,8 +71,6 @@ namespace Multiplayer.Compat
 
         public VanillaExpandedFramework(ModContentPack mod)
         {
-            // KCSG (custom structure generation) was changed a bit. Right now it seems to use seeded RNG,
-            // so it should work as-is, but if map generation will cause issues then it'll need patching.
             (Action patchMethod, string componentName, bool latePatch)[] patches =
             {
                 (PatchItemProcessor, "Item Processor", false),
@@ -88,6 +86,7 @@ namespace Multiplayer.Compat
                 (PatchVanillaApparelExpanded, "Vanilla Apparel Expanded", false),
                 (PatchVanillaWeaponsExpanded, "Vanilla Weapons Expanded", false),
                 (PatchPipeSystem, "Pipe System", true),
+                (PatchKCSG, "KCSG (custom structure generation)", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -145,6 +144,10 @@ namespace Multiplayer.Compat
                 "VFECore.HediffComp_Spreadable:ThrowFleck",
                 // GenView.ShouldSpawnMotesAt again
                 "VFECore.TerrainComp_MoteSpawner:ThrowMote",
+                // Musket guns, etc
+                "SmokingGun.Verb_ShootWithSmoke:TryCastShot",
+                "VWEMakeshift.SmokeMaker:ThrowMoteDef",
+                "VWEMakeshift.SmokeMaker:ThrowFleckDef",
             });
         }
 
@@ -241,7 +244,6 @@ namespace Multiplayer.Compat
                 "AnimalBehaviours.CompFilthProducer",
                 "AnimalBehaviours.CompGasProducer",
                 "AnimalBehaviours.CompInitialHediff",
-                "AnimalBehaviours.DamageWorker_ExtraInfecter",
                 "AnimalBehaviours.DeathActionWorker_DropOnDeath",
             };
             PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
@@ -325,6 +327,17 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "PostSpawnSetup", 0, 1);
             // (Dev) fill/empty
             MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "CompGetGizmosExtra", 0, 1);
+        }
+
+        private static void PatchKCSG()
+        {
+            var type = AccessTools.TypeByName("KCSG.SettlementGenUtils");
+            type = AccessTools.Inner(type, "Sampling");
+            
+            PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Sample"));
+            
+            // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
+            // If not, will need patching
         }
 
         #endregion
