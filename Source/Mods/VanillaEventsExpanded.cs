@@ -14,15 +14,6 @@ namespace Multiplayer.Compat
             {
                 "VEE.HeddifComp_MightJoin:CompPostTick",
 
-                "VEE.HuntingParty:TryExecuteWorker",
-                
-                // These 4 methods initialize System.Random, but don't use them in any way whatsoever.
-                //"VEE.PurpleEvents.GlobalWarming:ChangeBiomes",
-                //"VEE.PurpleEvents.GlobalWarming:ChangeTileTemp",
-                //"VEE.PurpleEvents.IceAge:ChangeBiomes",
-                //"VEE.PurpleEvents.IceAge:ChangeTileTemp",
-                "VEE.PurpleEvents.PsychicBloom:Init",
-
                 "VEE.RegularEvents.ApparelPod:TryExecuteWorker",
                 "VEE.RegularEvents.CaravanAnimalWI:GenerateGroup",
                 "VEE.RegularEvents.MeteoriteShower:TryExecuteWorker",

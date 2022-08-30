@@ -19,6 +19,8 @@ namespace Multiplayer.Compat
             };
 
             PatchingUtilities.PatchSystemRand(methods, false);
+            // Uses ShouldSpawnMotesAt, so could potentially cause issues somewhere. Seems like no RNG though... Let's better be safe here.
+            PatchingUtilities.PatchPushPopRand("AOMoreFurniture.JobDriver_PlayDarts:ThrowDart");
         }
     }
 }
