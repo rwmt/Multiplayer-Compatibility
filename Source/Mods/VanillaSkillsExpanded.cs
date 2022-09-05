@@ -35,10 +35,11 @@ namespace Multiplayer.Compat
 
                     sync.Write(((Pawn_SkillTracker)entry.Key).pawn);
                     found = true;
+                    break;
                 }
 
                 if (!found)
-                    sync.Write<Pawn_SkillTracker>(null);
+                    sync.Write<Pawn>(null);
             }
             else expertiseTracker = expertiseTrackers[sync.Read<Pawn>().skills];
         }
