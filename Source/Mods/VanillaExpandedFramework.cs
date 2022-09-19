@@ -19,19 +19,22 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     class VanillaExpandedFramework
     {
-        // VFECore
+        //// VFECore ////
         // CompAbility
         private static Type compAbilitiesType;
         private static AccessTools.FieldRef<object, IEnumerable> learnedAbilitiesField;
+
         // CompAbilityApparel
         private static Type compAbilitiesApparelType;
         private static AccessTools.FieldRef<object, IEnumerable> givenAbilitiesField;
         private static MethodInfo abilityApparelPawnGetter;
+
         // Ability
         private static MethodInfo abilityInitMethod;
         private static AccessTools.FieldRef<object, Thing> abilityHolderField;
         private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
         private static ISyncField abilityAutoCastField;
+
         // Dialog_Hire
         private static Type hireDialogType;
         private static AccessTools.FieldRef<object, Dictionary<PawnKindDef, Pair<int, string>>> hireDataField;
@@ -45,246 +48,305 @@ namespace Multiplayer.Compat
         // Vanilla Furniture Expanded
         private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
 
-        // MVCF
+
+        //// MVCF ////
         // VerbManager
         private static ConstructorInfo mvcfVerbManagerCtor;
         private static MethodInfo mvcfInitializeManagerMethod;
         private static MethodInfo mvcfPawnGetter;
         private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
+
         // WorldComponent_MVCF
         private static MethodInfo mvcfGetWorldCompMethod;
         private static AccessTools.FieldRef<object, object> mvcfAllManagersListField;
         private static AccessTools.FieldRef<object, object> mvcfManagersTableField;
+
         // ManagedVerb
         private static AccessTools.FieldRef<object, object> mvcfManagerVerbManagerField;
 
-        // System
+
+        //// System ////
         // WeakReference
         private static ConstructorInfo weakReferenceCtor;
+
         // ConditionalWeakTable
         private static MethodInfo conditionalWeakTableAddMethod;
         private static MethodInfo conditionalWeakTableTryGetValueMethod;
 
         public VanillaExpandedFramework(ModContentPack mod)
         {
-            // ItemProcessor
+            (Action patchMethod, string componentName, bool latePatch)[] patches =
             {
-                var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
-                // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
-                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3, 4, 6, 8, 9, 10);
+                (PatchItemProcessor, "Item Processor", false),
+                (PatchOtherRng, "Other RNG", false),
+                (PatchVFECoreDebug, "Debug Gizmos", false),
+                (PatchAbilities, "Abilities", false),
+                (PatchHireableFactions, "Hireable Factions", false),
+                (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", false),
+                (PatchVanillaFactionMechanoids, "Vanilla Faction Mechanoids", false),
+                (PatchAnimalBehaviour, "Animal Behaviour", false),
+                (PatchExplosiveTrialsEffect, "Explosive Trials Effect", false),
+                (PatchMVCF, "Multi-Verb Combat Framework", false),
+                (PatchVanillaApparelExpanded, "Vanilla Apparel Expanded", false),
+                (PatchVanillaWeaponsExpanded, "Vanilla Weapons Expanded", false),
+                (PatchPipeSystem, "Pipe System", true),
+                (PatchKCSG, "KCSG (custom structure generation)", false),
+            };
 
-                type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
-                MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-                MpCompat.RegisterLambdaMethod(type, "ProcessInput", Enumerable.Range(0, 8).ToArray());
-
-                type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
-                MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-                MP.RegisterSyncMethod(type, "TryConfigureIngredientsByOutput");
-
-                // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
-                foreach (var ingredientNumber in new[] { "First", "Second", "Third", "Fourth" })
+            foreach (var (patchMethod, componentName, latePatch) in patches)
+            {
+                try
                 {
-                    type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
-                    MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
-                    MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
-                    MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
+                    if (latePatch)
+                        LongEventHandler.ExecuteWhenFinished(patchMethod);
+                    else
+                        patchMethod();
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
+                    Log.Error(e.ToString());
                 }
             }
+        }
 
-            // Vanilla Cooking Expanded
+        #region Main patches
+
+        private static void PatchItemProcessor()
+        {
+            var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
+            // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3, 4, 6, 8, 9, 10);
+
+            type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
+            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+            MpCompat.RegisterLambdaMethod(type, "ProcessInput", Enumerable.Range(0, 8).ToArray());
+
+            type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
+            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+            MP.RegisterSyncMethod(type, "TryConfigureIngredientsByOutput");
+
+            // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
+            foreach (var ingredientNumber in new[] { "First", "Second", "Third", "Fourth" })
             {
-                // AddHediff desyncs with Arbiter, but seems fine without it
-                PatchingUtilities.PatchPushPopRand("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
-            }
-
-            // VFE Core
-            {
-                MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
-
-                // Comp holding ability
-                // CompAbility
-                compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
-                learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
-                // CompAbilityApparel
-                compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
-                givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
-                abilityApparelPawnGetter = AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn");
-                //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
-
-                // Ability itself
-                var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
-
-                abilityInitMethod = AccessTools.Method(type, "Init");
-                abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
-                abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
-                MP.RegisterSyncMethod(type, "CreateCastJob");
-                MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
-                abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
-                MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
-                    prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
-                    postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
-
-                hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
-
-                MP.RegisterSyncMethod(hireDialogType, nameof(Window.OnAcceptKeyPressed));
-                MP.RegisterSyncWorker<Window>(SyncHireDialog, hireDialogType);
-                MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedSetHireData));
-                MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseHireDialog));
-                hireDataField = AccessTools.FieldRefAccess<Dictionary<PawnKindDef, Pair<int, string>>>(hireDialogType, "hireData");
-                // I don't think daysAmountBuffer needs to be synced, just daysAmount only
-                daysAmountField = MP.RegisterSyncField(hireDialogType, "daysAmount");
-                currentFactionDefField = MP.RegisterSyncField(hireDialogType, "curFaction");
-                MpCompat.harmony.Patch(AccessTools.Method(hireDialogType, nameof(Window.DoWindowContents)),
-                    prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreHireDialogDoWindowContents)),
-                    postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostHireDialogDoWindowContents)));
-
-                // There seems to be a 50/50 chance trying to open hiring window will fail and cause an error
-                // this is here to fix that issue
-                type = AccessTools.TypeByName("VFECore.Misc.Hireable");
-                MP.RegisterSyncWorker<object>(SyncHireable, type);
-                MpCompat.RegisterLambdaDelegate(type, "CommFloatMenuOption", 0);
-
-                hireablesList = AccessTools.StaticFieldRefAccess<IList>(AccessTools.Field(AccessTools.TypeByName("VFECore.Misc.HireableSystemStaticInitialization"), "Hireables"));
-
-                contractInfoDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_ContractInfo");
-                MP.RegisterSyncWorker<Window>(SyncContractInfoDialog, contractInfoDialogType);
-                MpCompat.RegisterLambdaMethod(contractInfoDialogType, "DoWindowContents", 0);
-                MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseContractInfoDialog));
-                MpCompat.harmony.Patch(AccessTools.Method(contractInfoDialogType, nameof(Window.DoWindowContents)),
-                    postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostContractInfoDialogWindowContents)));
-
-                MpCompat.RegisterLambdaDelegate("VFECore.HiringContractTracker", "CommFloatMenuOption", 0);
-            }
-
-            // Vanilla Furniture Expanded
-            {
-                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
-
-                var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
-                MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
-                MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-
-                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
-
-                type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
-                setStoneBuildingField = AccessTools.FieldRefAccess<ThingComp>(type, "building");
+                type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
+                MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
+                MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
                 MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
-                MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
-                MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
-
-                type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
-                MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
-
-                type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
-                MP.RegisterSyncMethod(type, "SwitchColor");
-            }
-
-            // Vanilla Faction Mechanoids
-            {
-                var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
-                MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 6).SetContext(SyncContext.MapSelected);
-                MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 4);
-
-                type = AccessTools.TypeByName("VFEMech.Machine");
-                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
-            }
-
-            // AnimalBehaviours
-            {
-                // RNG
-                PatchingUtilities.PatchSystemRand("AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart", false);
-                var rngFixConstructors = new[]
-                {
-                    "AnimalBehaviours.CompAnimalProduct",
-                    "AnimalBehaviours.CompFilthProducer",
-                    "AnimalBehaviours.CompGasProducer",
-                    "AnimalBehaviours.CompInitialHediff",
-                    "AnimalBehaviours.DamageWorker_ExtraInfecter",
-                    "AnimalBehaviours.DeathActionWorker_DropOnDeath",
-                };
-                PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
-
-                // Gizmos
-                var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
-                MP.RegisterSyncMethod(type, "SetObjectForDestruction");
-                MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
-
-                type = AccessTools.TypeByName("AnimalBehaviours.CompDieAndChangeIntoOtherDef");
-                MP.RegisterSyncMethod(type, "ChangeDef");
-
-                type = AccessTools.TypeByName("AnimalBehaviours.CompDiseasesAfterPeriod");
-                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
-
-                type = AccessTools.TypeByName("AnimalBehaviours.Pawn_GetGizmos_Patch");
-                MpCompat.RegisterLambdaDelegate(type, "Postfix", 1);
-            }
-
-            // MVCF (Multi Verb Combat Framework)
-            {
-                var type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
-                mvcfGetWorldCompMethod = AccessTools.Method(type, "GetComp");
-                mvcfAllManagersListField = AccessTools.FieldRefAccess<object>(type, "allManagers");
-                mvcfManagersTableField = AccessTools.FieldRefAccess<object>(type, "managers");
-                MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedInitVerbManager));
-                MpCompat.harmony.Patch(AccessTools.Method(type, "GetManagerFor"),
-                    prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(GetManagerForPrefix)));
-
-                type = AccessTools.TypeByName("MVCF.VerbManager");
-                MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
-                mvcfVerbManagerCtor = AccessTools.Constructor(type);
-                mvcfInitializeManagerMethod = AccessTools.Method(type, "Initialize");
-                mvcfPawnGetter = AccessTools.PropertyGetter(type, "Pawn");
-                mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
-
-                var weakReferenceType = typeof(System.WeakReference<>).MakeGenericType(type);
-                weakReferenceCtor = AccessTools.FirstConstructor(weakReferenceType, ctor => ctor.GetParameters().Count() == 1);
-
-                var conditionalWeakTableType = typeof(System.Runtime.CompilerServices.ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), type);
-                conditionalWeakTableAddMethod = AccessTools.Method(conditionalWeakTableType, "Add");
-                conditionalWeakTableTryGetValueMethod = AccessTools.Method(conditionalWeakTableType, "TryGetValue");
-
-                type = AccessTools.TypeByName("MVCF.ManagedVerb");
-                mvcfManagerVerbManagerField = AccessTools.FieldRefAccess<object>(type, "man");
-                MP.RegisterSyncWorker<object>(SyncManagedVerb, type, isImplicit: true);
-                // Seems like selecting the Thing that holds the verb inits some stuff, so we need to set the context
-                MP.RegisterSyncMethod(type, "Toggle");
-
-                type = AccessTools.TypeByName("MVCF.Harmony.Gizmos");
-                MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 1); // Fire at will
-                MpCompat.RegisterLambdaDelegate(type, "GetAttackGizmos_Postfix", 4); // Interrupt Attack
-                MpCompat.RegisterLambdaDelegate(type, "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
-            }
-
-            // Explosive Trails Effect
-            {
-                // RNG
-                PatchingUtilities.PatchPushPopRand("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail");
-            }
-
-            // KCSG (Custom Structure Generation)
-            {
-                // RNG
-                var methods = new[]
-                {
-                    // "SymbolResolver_ScatterStuffAround:Resolve", // This one is seeded right now so it should be fine (using Find.TickManager.TicksGame)
-                    "KCSG.SymbolResolver_AddFields:Resolve",
-                    "KCSG.SymbolResolver_Settlement:GenerateRooms",
-                    "KCSG.GridUtils:GenerateGrid",
-                };
-
-                PatchingUtilities.PatchSystemRand(methods, false);
-            }
-
-            // Vanilla Apparel Expanded
-            {
-                MpCompat.RegisterLambdaMethod("VanillaApparelExpanded.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
-            }
-
-            // Vanilla Weapons Expanded
-            {
-                MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
             }
         }
+
+        private static void PatchOtherRng()
+        {
+            PatchingUtilities.PatchPushPopRand(new[]
+            {
+                // AddHediff desyncs with Arbiter, but seems fine without it
+                "VanillaCookingExpanded.Thought_Hediff:MoodOffset",
+                // Uses GenView.ShouldSpawnMotesAt and uses RNG if it returns true,
+                // and it's based on player camera position. Need to push/pop or it'll desync
+                // unless all players looking when it's called
+                "VFECore.HediffComp_Spreadable:ThrowFleck",
+                // GenView.ShouldSpawnMotesAt again
+                "VFECore.TerrainComp_MoteSpawner:ThrowMote",
+                // Musket guns, etc
+                "SmokingGun.Verb_ShootWithSmoke:TryCastShot",
+                "VWEMakeshift.SmokeMaker:ThrowMoteDef",
+                "VWEMakeshift.SmokeMaker:ThrowFleckDef",
+            });
+        }
+
+        private static void PatchVFECoreDebug()
+        {
+            MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
+        }
+
+        private static void PatchAbilities()
+        {
+            // Comp holding ability
+            // CompAbility
+            compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
+            learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
+            // Unlock ability, user-input use by Vanilla Psycasts Expanded
+            MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
+            // CompAbilityApparel
+            compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
+            givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
+            abilityApparelPawnGetter = AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn");
+            //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
+
+            // Ability itself
+            var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
+
+            abilityInitMethod = AccessTools.Method(type, "Init");
+            abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
+            abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
+            MP.RegisterSyncMethod(type, "CreateCastJob");
+            MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
+            abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
+            MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
+        }
+
+        private static void PatchHireableFactions()
+        {
+            hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
+
+            MP.RegisterSyncMethod(hireDialogType, "OnAcceptKeyPressed");
+            MP.RegisterSyncWorker<Window>(SyncHireDialog, hireDialogType);
+            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedSetHireData));
+            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseHireDialog));
+            hireDataField = AccessTools.FieldRefAccess<Dictionary<PawnKindDef, Pair<int, string>>>(hireDialogType, "hireData");
+            // I don't think daysAmountBuffer needs to be synced, just daysAmount only
+            daysAmountField = MP.RegisterSyncField(hireDialogType, "daysAmount");
+            currentFactionDefField = MP.RegisterSyncField(hireDialogType, "curFaction");
+            MpCompat.harmony.Patch(AccessTools.Method(hireDialogType, "DoWindowContents"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreHireDialogDoWindowContents)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostHireDialogDoWindowContents)));
+        }
+
+        private static void PatchVanillaFurnitureExpanded()
+        {
+            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
+
+            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
+            MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
+            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+
+            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
+
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
+            setStoneBuildingField = AccessTools.FieldRefAccess<ThingComp>(type, "building");
+            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
+            MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
+            MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
+
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
+            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
+
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+            MP.RegisterSyncMethod(type, "SwitchColor");
+        }
+
+        private static void PatchVanillaFactionMechanoids()
+        {
+            var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
+            MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 3).SetContext(SyncContext.MapSelected);
+
+            // Dev recharge fully (0), attach turret (3)
+            type = AccessTools.TypeByName("VFE.Mechanoids.CompMachine");
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 3)[0].SetDebugOnly();
+        }
+
+        private static void PatchAnimalBehaviour()
+        {
+            // RNG
+            PatchingUtilities.PatchSystemRand("AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart", false);
+            var rngFixConstructors = new[]
+            {
+                "AnimalBehaviours.CompAnimalProduct",
+                "AnimalBehaviours.CompFilthProducer",
+                "AnimalBehaviours.CompGasProducer",
+                "AnimalBehaviours.CompInitialHediff",
+                "AnimalBehaviours.DeathActionWorker_DropOnDeath",
+            };
+            PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
+
+            // Gizmos
+            var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
+            MP.RegisterSyncMethod(type, "SetObjectForDestruction");
+            MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
+
+            type = AccessTools.TypeByName("AnimalBehaviours.CompDieAndChangeIntoOtherDef");
+            MP.RegisterSyncMethod(type, "ChangeDef");
+
+            type = AccessTools.TypeByName("AnimalBehaviours.CompDiseasesAfterPeriod");
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
+
+            type = AccessTools.TypeByName("AnimalBehaviours.Pawn_GetGizmos_Patch");
+            MpCompat.RegisterLambdaDelegate(type, "Postfix", 1);
+        }
+
+        private static void PatchMVCF()
+        {
+            var type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
+            mvcfGetWorldCompMethod = AccessTools.Method(type, "GetComp");
+            mvcfAllManagersListField = AccessTools.FieldRefAccess<object>(type, "allManagers");
+            mvcfManagersTableField = AccessTools.FieldRefAccess<object>(type, "managers");
+            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedInitVerbManager));
+            MpCompat.harmony.Patch(AccessTools.Method(type, "GetManagerFor"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(GetManagerForPrefix)));
+
+            type = AccessTools.TypeByName("MVCF.VerbManager");
+            MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
+            mvcfVerbManagerCtor = AccessTools.Constructor(type);
+            mvcfInitializeManagerMethod = AccessTools.Method(type, "Initialize");
+            mvcfPawnGetter = AccessTools.PropertyGetter(type, "Pawn");
+            mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
+
+            var weakReferenceType = typeof(System.WeakReference<>).MakeGenericType(type);
+            weakReferenceCtor = AccessTools.FirstConstructor(weakReferenceType, ctor => ctor.GetParameters().Count() == 1);
+
+            var conditionalWeakTableType = typeof(System.Runtime.CompilerServices.ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), type);
+            conditionalWeakTableAddMethod = AccessTools.Method(conditionalWeakTableType, "Add");
+            conditionalWeakTableTryGetValueMethod = AccessTools.Method(conditionalWeakTableType, "TryGetValue");
+
+            type = AccessTools.TypeByName("MVCF.ManagedVerb");
+            mvcfManagerVerbManagerField = AccessTools.FieldRefAccess<object>(type, "man");
+            MP.RegisterSyncWorker<object>(SyncManagedVerb, type, isImplicit: true);
+            // Seems like selecting the Thing that holds the verb inits some stuff, so we need to set the context
+            MP.RegisterSyncMethod(type, "Toggle");
+
+            type = AccessTools.TypeByName("MVCF.Harmony.Gizmos");
+            MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 1); // Fire at will
+            MpCompat.RegisterLambdaDelegate(type, "GetAttackGizmos_Postfix", 4); // Interrupt Attack
+            MpCompat.RegisterLambdaDelegate(type, "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
+        }
+
+        private static void PatchExplosiveTrialsEffect()
+        {
+            // RNG
+            PatchingUtilities.PatchPushPopRand("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail");
+        }
+
+        private static void PatchVanillaApparelExpanded()
+        {
+            MpCompat.RegisterLambdaMethod("VanillaApparelExpanded.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
+        }
+
+        private static void PatchVanillaWeaponsExpanded()
+        {
+            MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
+        }
+
+        private static void PatchPipeSystem()
+        {
+            // Increase/decrease by 1/10
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompConvertToThing", "PostSpawnSetup", 0, 1, 2, 3);
+            // (Dev) trigger countdown
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompExplosiveContent", "CompGetGizmosExtra", 0).SetDebugOnly();
+            // Choose output
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceProcessor", "PostSpawnSetup", 1);
+            // Transfer/extract
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "PostSpawnSetup", 0, 1);
+            // (Dev) fill/empty
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "CompGetGizmosExtra", 0, 1);
+        }
+
+        private static void PatchKCSG()
+        {
+            var type = AccessTools.TypeByName("KCSG.SettlementGenUtils");
+            type = AccessTools.Inner(type, "Sampling");
+            
+            PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Sample"));
+            
+            // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
+            // If not, will need patching
+        }
+
+        #endregion
+
+        #region SyncWorkers and other sync stuff
 
         private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
         {
@@ -607,5 +669,7 @@ namespace Multiplayer.Compat
             else
                 obj = hireablesList()[sync.Read<int>()];
         }
+
+        #endregion
     }
 }

@@ -10,30 +10,32 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
+    /// <summary>Corruption: Psykers by Cpt. Ohu, Updated by Ogliss</summary>
+    /// <see href="https://github.com/Ogliss/Corruption.Psykers"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2547886449"/>
     [MpCompatFor("CptOhu.CorruptionPsyker")]
     public class CorruptionPsykers
     {
         // DefDatabase<PsykerDisciplineDef>
-        private static MethodInfo getDefByShortHash;
+        private static FastInvokeHandler getDefByShortHash;
 
         // Window_Psyker
         private static Type psykerWindowType;
-        private static FieldInfo psykerWindowCompField;
+        private static AccessTools.FieldRef<object, ThingComp> psykerWindowCompField;
 
         // CompPsyker
-        private static MethodInfo compPsykerTryLearnPowerMethod;
-        private static MethodInfo compPsykerAddXpMethod;
-        private static FieldInfo compPsykerMainDisciplineField;
-        private static FieldInfo compPsykerMinorDisciplinesField;
+        private static FastInvokeHandler compPsykerTryLearnAbilityMethod;
+        private static AccessTools.FieldRef<object, Def> compPsykerMainDisciplineField;
+        private static AccessTools.FieldRef<object, IList> compPsykerMinorDisciplinesField;
         private static ISyncField compPsykerXpSyncField;
 
         // PsykerDisciplineDef
-        private static FieldInfo psykerDisciplineDefAbilitiesField;
+        private static AccessTools.FieldRef<object, IList> psykerDisciplineDefAbilitiesField;
 
         // Window_PsykerDiscipline
         private static Type psykerDisciplineWindowType;
-        private static FieldInfo psykerDisciplineWindowCompField;
-        private static FieldInfo psykerDisciplineWindowSelectedDefField;
+        private static AccessTools.FieldRef<object, ThingComp> psykerDisciplineWindowCompField;
+        private static AccessTools.FieldRef<object, Def> psykerDisciplineWindowSelectedDefField;
 
         // Window_PsykerDisciplineMinor
         private static Type psykerDisciplineMinorWindowType;
@@ -42,8 +44,8 @@ namespace Multiplayer.Compat
         {
             // Window_PsykerDiscipline
             psykerDisciplineWindowType = AccessTools.TypeByName("Corruption.Psykers.Window_PsykerDiscipline");
-            psykerDisciplineWindowCompField = AccessTools.Field(psykerDisciplineWindowType, "comp");
-            psykerDisciplineWindowSelectedDefField = AccessTools.Field(psykerDisciplineWindowType, "selectedDef");
+            psykerDisciplineWindowCompField = AccessTools.FieldRefAccess<ThingComp>(psykerDisciplineWindowType, "comp");
+            psykerDisciplineWindowSelectedDefField = AccessTools.FieldRefAccess<Def>(psykerDisciplineWindowType, "selectedDef");
             MP.RegisterSyncMethod(psykerDisciplineWindowType, "ChoosePower");
             MP.RegisterSyncWorker<object>(SyncPsykerDisciplineWindow, psykerDisciplineWindowType);
 
@@ -60,7 +62,7 @@ namespace Multiplayer.Compat
         {
             // Window_Psyker
             psykerWindowType = AccessTools.TypeByName("Corruption.Psykers.Window_Psyker");
-            psykerWindowCompField = AccessTools.Field(psykerWindowType, "comp");
+            psykerWindowCompField = AccessTools.FieldRefAccess<ThingComp>(psykerWindowType, "comp");
             MP.RegisterSyncMethod(typeof(CorruptionPsykers), nameof(SyncedAddMinorDiscipline));
 
             MpCompat.harmony.Patch(AccessTools.Method(psykerWindowType, nameof(Window.DoWindowContents)),
@@ -69,20 +71,19 @@ namespace Multiplayer.Compat
 
             MP.RegisterSyncMethod(typeof(CorruptionPsykers), nameof(SyncedTryLearnPower));
 
-            var psykerLearnablePowerType = AccessTools.TypeByName("Corruption.Psykers.PsykerLearnablePower");
+            var psykerLearnablePowerType = AccessTools.TypeByName("Corruption.Core.Abilities.LearnableAbility");
 
             var type = AccessTools.TypeByName("Corruption.Psykers.CompPsyker");
-            compPsykerTryLearnPowerMethod = AccessTools.Method(type, "TryLearnPower", new Type[] { psykerLearnablePowerType });
-            compPsykerAddXpMethod = AccessTools.Method(type, "AddXP");
-            compPsykerMainDisciplineField = AccessTools.Field(type, "MainDiscipline");
-            compPsykerMinorDisciplinesField = AccessTools.Field(type, "minorDisciplines");
+            compPsykerTryLearnAbilityMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "TryLearnAbility", new[] { psykerLearnablePowerType }));
+            compPsykerMainDisciplineField = AccessTools.FieldRefAccess<Def>(type, "MainDiscipline");
+            compPsykerMinorDisciplinesField = AccessTools.FieldRefAccess<IList>(type, "minorDisciplines");
             compPsykerXpSyncField = MP.RegisterSyncField(type, "PsykerXP");
 
             type = AccessTools.TypeByName("Corruption.Psykers.PsykerDisciplineDef");
-            psykerDisciplineDefAbilitiesField = AccessTools.Field(type, "abilities");
+            psykerDisciplineDefAbilitiesField = AccessTools.FieldRefAccess<IList>(type, "abilities");
 
-            var database = typeof(DefDatabase<>).MakeGenericType(new Type[] { type });
-            getDefByShortHash = AccessTools.Method(database, "GetByShortHash");
+            var database = typeof(DefDatabase<>).MakeGenericType(type);
+            getDefByShortHash = MethodInvoker.GetHandler(AccessTools.Method(database, "GetByShortHash"));
 
             MpCompat.harmony.Patch(AccessTools.Method(psykerWindowType, "DrawSelectedPower"),
                 transpiler: new HarmonyMethod(typeof(CorruptionPsykers), nameof(Transpiler)));
@@ -92,13 +93,13 @@ namespace Multiplayer.Compat
         {
             if (MP.IsInMultiplayer)
             {
-                var comp = psykerWindowCompField.GetValue(__instance);
+                var comp = psykerWindowCompField(__instance);
                 // SyncField
                 MP.WatchBegin();
                 compPsykerXpSyncField.Watch(comp);
 
                 // Copy all the currently learned minor disciplines, we'll check later if there were any changes
-                var list = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
+                var list = compPsykerMinorDisciplinesField(comp);
                 __state = new object[list.Count];
                 list.CopyTo(__state, 0);
             }
@@ -110,8 +111,8 @@ namespace Multiplayer.Compat
             {
                 MP.WatchEnd();
 
-                var comp = psykerWindowCompField.GetValue(__instance);
-                var list = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
+                var comp = psykerWindowCompField(__instance);
+                var list = compPsykerMinorDisciplinesField(comp);
 
                 // Check through all learned minor disciplines, look for any changes
                 if (__state.Length != list.Count)
@@ -120,7 +121,7 @@ namespace Multiplayer.Compat
                     {
                         if (!__state.Contains(item))
                         {
-                            SyncedAddMinorDiscipline((ThingComp)comp, ((Def)item).shortHash);
+                            SyncedAddMinorDiscipline(comp, ((Def)item).shortHash);
                             break;
                         }
                     }
@@ -129,7 +130,7 @@ namespace Multiplayer.Compat
         }
 
         private static void SyncedAddMinorDiscipline(ThingComp comp, ushort hash)
-            => ((IList)compPsykerMinorDisciplinesField.GetValue(comp)).Add(getDefByShortHash.Invoke(null, new object[] { hash }));
+            => compPsykerMinorDisciplinesField(comp).Add(getDefByShortHash.Invoke(null, new object[] { hash }));
 
         private static void SyncPsykerDisciplineWindow(SyncWorker sync, ref object obj) => SyncPsykerDisciplineWindowAny(sync, ref obj, psykerDisciplineWindowType);
 
@@ -139,8 +140,8 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                sync.Write((ThingComp)psykerDisciplineWindowCompField.GetValue(obj));
-                sync.Write(((Def)psykerDisciplineWindowSelectedDefField.GetValue(obj)).shortHash);
+                sync.Write(psykerDisciplineWindowCompField(obj));
+                sync.Write(psykerDisciplineWindowSelectedDefField(obj).shortHash);
             }
             else
             {
@@ -149,7 +150,7 @@ namespace Multiplayer.Compat
                 var def = getDefByShortHash.Invoke(null, new object[] { hash });
 
                 // If the window exists, we try to find a window for the discipline field for that pawn
-                obj = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == windowType && (ThingComp)psykerDisciplineWindowCompField.GetValue(x) == comp);
+                obj = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == windowType && psykerDisciplineWindowCompField(x) == comp);
 
                 // If a specific player doesn't have the psyker menu open we'll have null here, we need to create it for our synced method
                 if (obj == null)
@@ -161,15 +162,19 @@ namespace Multiplayer.Compat
                 }
 
                 // Set the def to the correct one (someone might have another one selected, so make sure the same one is picked for everyone)
-                psykerDisciplineWindowSelectedDefField.SetValue(obj, def);
+                psykerDisciplineWindowSelectedDefField(obj) = (Def)def;
             }
         }
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instr)
         {
+            var argumentType = AccessTools.TypeByName("Corruption.Psykers.PsykerLearnablePower");
+            var type = AccessTools.TypeByName("Corruption.Psykers.CompPsyker");
+            var tryLearnAbilityMethod = AccessTools.Method(type, "TryLearnAbility", new[] { argumentType });
+
             foreach (var ci in instr)
             {
-                if (ci.opcode == OpCodes.Callvirt && ci.operand is MethodInfo method && method == compPsykerTryLearnPowerMethod)
+                if (ci.opcode == OpCodes.Callvirt && ci.operand is MethodInfo method && method == tryLearnAbilityMethod)
                 {
                     // Try replacing TryLearnPower from the mod with the one we have here
                     // Our method is synced (we shouldn't really sync the original method, as it's called from other places)
@@ -183,8 +188,8 @@ namespace Multiplayer.Compat
 
         private static bool InjectedTryLearnPower(ThingComp comp, object selectedPower)
         {
-            var disciplineDef = compPsykerMainDisciplineField.GetValue(comp);
-            var list = (IList)psykerDisciplineDefAbilitiesField.GetValue(disciplineDef);
+            var disciplineDef = compPsykerMainDisciplineField(comp);
+            var list = psykerDisciplineDefAbilitiesField(disciplineDef);
             var index = list.IndexOf(selectedPower);
 
             // Main discipline, we have an index to it in the list
@@ -195,10 +200,10 @@ namespace Multiplayer.Compat
             // We don't have a discipline index, so it's a minor discipline - find which one and sync it
             else
             {
-                var defsList = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
+                var defsList = compPsykerMinorDisciplinesField(comp);
                 for (int i = 0; i < defsList.Count; i++)
                 {
-                    list = (IList)psykerDisciplineDefAbilitiesField.GetValue(defsList[i]);
+                    list = psykerDisciplineDefAbilitiesField(defsList[i]);
                     index = list.IndexOf(selectedPower);
 
                     if (index >= 0)
@@ -219,17 +224,17 @@ namespace Multiplayer.Compat
             // Minor discipline
             if (disciplineIndex >= 0)
             {
-                var defsList = (IList)compPsykerMinorDisciplinesField.GetValue(comp);
-                abilityList = (IList)psykerDisciplineDefAbilitiesField.GetValue(defsList[disciplineIndex]);
+                var defsList = compPsykerMinorDisciplinesField(comp);
+                abilityList = psykerDisciplineDefAbilitiesField(defsList[disciplineIndex]);
             }
             // Main discipline
             else
             {
-                var disciplineDef = compPsykerMainDisciplineField.GetValue(comp);
-                abilityList = (IList)psykerDisciplineDefAbilitiesField.GetValue(disciplineDef);
+                var disciplineDef = compPsykerMainDisciplineField(comp);
+                abilityList = psykerDisciplineDefAbilitiesField(disciplineDef);
             }
 
-            compPsykerTryLearnPowerMethod.Invoke(comp, new object[] { abilityList[abilityIndex] });
+            compPsykerTryLearnAbilityMethod.Invoke(comp, abilityList[abilityIndex]);
         }
     }
 }

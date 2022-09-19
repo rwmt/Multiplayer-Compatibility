@@ -45,8 +45,6 @@ namespace Multiplayer.Compat
             {
                 // Enable/disable siege mode
                 MpCompat.RegisterLambdaMethod("VFEPirates.Ability_SiegeMode", "GetGizmo", 0, 2);
-                // Trigger flight towards tile (right now, the TransportPodsArrivalAction parameter is always null)
-                MP.RegisterSyncMethod(AccessTools.TypeByName("VFEPirates.Ability_BlastOff"), "TryLaunch").ExposeParameter(1);
             }
 
             // Warcasket dialog
@@ -75,6 +73,7 @@ namespace Multiplayer.Compat
                 armorColorField = AccessTools.FieldRefAccess<Color>(type, "colorArmor");
 
                 MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedSetColors));
+                MP.RegisterPauseLock(PauseIfDialogOpen);
             }
 
             // Curse window
@@ -100,6 +99,12 @@ namespace Multiplayer.Compat
 
                 curseWorkerDisactivateMethod = AccessTools.Method(type, "Disactivate");
                 curseWorkerStartMethod = AccessTools.Method(type, "Start");
+            }
+            
+            // Flecks
+            {
+                // Uses GenView.ShouldSpawnMotesAt, which is based on camera position
+                PatchingUtilities.PatchPushPopRand("VFEPirates.IncomingSmoker:ThrowBlackSmoke");
             }
         }
 
@@ -223,5 +228,10 @@ namespace Multiplayer.Compat
                 yield return ci;
             }
         }
+
+        // Once we add non-blocking dialogs to the API
+        // we should apply this only to the map it's used on
+        private static bool PauseIfDialogOpen(Map map)
+            => Find.WindowStack.IsOpen(warcasketDialogType);
     }
 }

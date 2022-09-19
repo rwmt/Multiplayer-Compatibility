@@ -50,6 +50,9 @@ namespace Multiplayer.Compat
 
             // RNG Fix
             {
+                // Patch GasNetwork.MapComponent_WindDirection ctor
+                PatchingUtilities.PatchSystemRand(AccessTools.Constructor(AccessTools.TypeByName("GasNetwork.MapComponent_WindDirection"), new Type[]{typeof(Map)}), false);
+
                 var methods = new[]
                 {
                     "VanillaPowerExpanded.Building_SmallBattery:Tick",
@@ -63,9 +66,10 @@ namespace Multiplayer.Compat
                     // IntermittentGasSprayer - NewBaseAirPuff is only called by ThrowAirPuffUp which is called by SteamSprayerTick, no need for patching
                     // Building_GasGeyser:StartSpray is assigned to IntermittentGasSprayer:startSprayCallback, which is called from SteamSprayerTick
                     "GasNetwork.GasNet:GasNetTick",
+                    "GasNetwork.MapComponent_WindDirection:MapGenerated",
                     // PipeNetGrid pushes and pops all Rand calls, no need to patch
                     // CompPowerAdvancedWater:RebuildCache is only calling a seeded random
-                };
+            };
 
                 // These methods are loading resources in their .ctor, must be patched later
                 var methodsForLater = new[]
@@ -79,8 +83,6 @@ namespace Multiplayer.Compat
 
                 // Wind map comp
                 windDirectionField = AccessTools.FieldRefAccess<float>(AccessTools.TypeByName("GasNetwork.MapComponent_WindDirection"), "windDirection");
-                
-                PatchingUtilities.PatchUnityRand("GasNetwork.MapComponent_WindDirection:MapGenerated");
                 MpCompat.harmony.Patch(AccessTools.Method("GasNetwork.MapComponent_WindDirection:MapComponentTick"),
                     prefix: new HarmonyMethod(typeof(VanillaPowerExpanded), nameof(ReplaceWindMapComponentTick)));
 

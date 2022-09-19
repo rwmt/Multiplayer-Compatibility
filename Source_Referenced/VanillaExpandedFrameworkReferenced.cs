@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using Multiplayer.API;
@@ -39,14 +40,41 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedTakeItems));
 
                 // Generic outpost
-                // Stop packing (0), pack (1), and (dev) produce now (5)
-                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 5).Last().SetDebugOnly();
+                // Stop packing (0), pack (1), and (dev) produce now (9), random pawn takes 10 damage (10), all pawns become hungry (11), pack instantly (12)
+                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 9, 10, 11, 12).Skip(2).SetDebugOnly();
+                // Pick delivery method
+                MpCompat.RegisterLambdaDelegate(typeof(Outpost), nameof(Outpost.GetGizmos), 8);
                 // Remove pawn from outpost/create caravan (delegate, 4)
                 // We need a slight workaround, as the gizmo itself won't work - the pawn is inaccessible for syncing
-                var innerType = AccessTools.Inner(typeof(Outpost), "<>c__DisplayClass67_0");
-                outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(innerType, "<>4__this");
-                outpostsInnerClassPawnField = AccessTools.FieldRefAccess<Pawn>(innerType, "p");
-                MpCompat.harmony.Patch(AccessTools.Method(innerType, "<GetGizmos>b__4"),
+                var innerMethod = MpMethodUtil.GetLambda(typeof(Outpost), nameof(Outpost.GetGizmos), lambdaOrdinal: 4);
+                if (innerMethod == null)
+                    Log.Error("Cannot find the inner class for Vanilla Expanded Framework - Outposts module. Removing pawns from outposts 1 at a time will desync.");
+                else
+                {
+                    var fields = AccessTools.GetDeclaredFields(innerMethod.DeclaringType);
+                    if (fields.Count < 2)
+                        Log.Error($"The inner class for Vanilla Expanded Framework - Outposts module had {fields.Count} fields, expected 2. There was most likely an update and this patch needs fixing. Removing pawns from outposts 1 at a time will desync.");
+                    else
+                    {
+                        if (fields.Count > 2)
+                            Log.Error($"The inner class for Vanilla Expanded Framework - Outposts module had {fields.Count} fields, expected 2. There was most likely an update and this patch needs fixing. Removing pawns from outposts 1 at a time could possibly desync.");
+
+                        try
+                        {
+                            outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(
+                                innerMethod.DeclaringType, 
+                                fields.FirstOrDefault(x => x.FieldType == typeof(Outpost))?.Name ?? "<>4__this");
+                            outpostsInnerClassPawnField = AccessTools.FieldRefAccess<Pawn>(
+                                innerMethod.DeclaringType, 
+                                fields.FirstOrDefault(x => x.FieldType == typeof(Pawn))?.Name ?? "p");
+                        }
+                        catch (Exception)
+                        {
+                            Log.Error("Couldn't setup sync using the inner class for Vanilla Expanded Framework - Outposts module. Removing pawns from outposts 1 at a time will desync.");
+                        }
+                    }
+                }
+                MpCompat.harmony.Patch(innerMethod, 
                     prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreRemoveFromOutpost)));
                 MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedRemoveFromOutpost));
                 MP.RegisterSyncWorker<ResultOption>(SyncResultOption);
@@ -198,6 +226,15 @@ namespace Multiplayer.Compat
 
         private static bool PreRemoveFromOutpost(object __instance)
         {
+            if (outpostsInnerClassThisField == null || outpostsInnerClassPawnField == null)
+            {
+                Log.Error("Removing pawns from outposts while setting it up failed - the game will now most likely desync!");
+                // It'll cause a desync because we let it run, but it'll at least
+                // let people playing use this feature and then resync.
+                // Shouldn't have too much of an impact.
+                return true;
+            }
+            
             var outpost = outpostsInnerClassThisField(__instance);
             var pawn = outpostsInnerClassPawnField(__instance);
 

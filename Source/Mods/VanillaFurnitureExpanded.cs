@@ -14,9 +14,13 @@ namespace Multiplayer.Compat
             {
                 "AOMoreFurniture.JobDriver_PlayComputerIndustrial:WatchTickAction",
                 "AOMoreFurniture.JobDriver_PlayComputerModern:WatchTickAction",
+                "AOMoreFurniture.JobDriver_PlayArcadeSounds:WatchTickAction",
+                "AOMoreFurniture.JobDriver_PlayPunchingBag:WatchTickAction",
             };
 
             PatchingUtilities.PatchSystemRand(methods, false);
+            // Uses ShouldSpawnMotesAt, so could potentially cause issues somewhere. Seems like no RNG though... Let's better be safe here.
+            PatchingUtilities.PatchPushPopRand("AOMoreFurniture.JobDriver_PlayDarts:ThrowDart");
         }
     }
 }

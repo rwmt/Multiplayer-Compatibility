@@ -21,7 +21,7 @@ namespace Multiplayer.Compat
         private static MethodInfo refundPointsMethod;
         private static MethodInfo tryExecuteEventMethod;
 
-        private static MethodInfo rewardDatabase;
+        private static AccessTools.FieldRef<IList> rewardDatabase;
 
         private static Type windowType;
 
@@ -33,7 +33,7 @@ namespace Multiplayer.Compat
             refundPointsMethod = AccessTools.Method(type, "RefundPoints");
             tryExecuteEventMethod = AccessTools.Method(type, "TryExecuteEvent");
 
-            rewardDatabase = AccessTools.PropertyGetter(typeof(DefDatabase<>).MakeGenericType(type), "AllDefsListForReading");
+            rewardDatabase = AccessTools.StaticFieldRefAccess<IList>(AccessTools.Field(typeof(DefDatabase<>).MakeGenericType(type), "defsList"));
 
             windowType = AccessTools.TypeByName("AchievementsExpanded.MainTabWindow_Achievements");
 
@@ -55,23 +55,23 @@ namespace Multiplayer.Compat
         private static bool PurchaseReward(Def reward)
         {
             usedReward = true;
-            var database = rewardDatabase.Invoke(null, Array.Empty<object>()) as IList;
+            var database = rewardDatabase();
             SyncedCalls(database.IndexOf(reward));
             return false;
         }
 
         private static void SyncedCalls(int index)
         {
-            var database = rewardDatabase.Invoke(null, Array.Empty<object>()) as IList;
+            var database = rewardDatabase();
             var reward = database[index];
 
             if ((bool)purchaseRewardMethod.Invoke(reward, Array.Empty<object>()))
             {
                 if (!(bool)tryExecuteEventMethod.Invoke(reward, Array.Empty<object>()))
                     refundPointsMethod.Invoke(reward, Array.Empty<object>());
-                // Match the mod behavior and close the window for the user that succesfully bought the reward (trying to always close in our PurchaseReward method seemed to mess stuff up)
-                else if (usedReward) 
-                    foreach (var window in Find.WindowStack.Windows.Where(x => x.GetType() == windowType)) window.Close(false);
+                // Match the mod behavior and close the window for the user that successfully bought the reward (trying to always close in our PurchaseReward method seemed to mess stuff up)
+                else if (usedReward)
+                    Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == windowType)?.Close(false);
             }
 
             usedReward = false;

@@ -14,6 +14,11 @@ namespace Multiplayer.Compat
 
         public FertileFieldsCompat(ModContentPack mod)
         {
+            {
+                // RNG
+                PatchingUtilities.PatchSystemRand("RFF_Code.Building_CompostBin:PlaceProduct");
+            }
+
             Type type = GrowZoneManagerType = AccessTools.TypeByName("RFF_Code.GrowZoneManager");
 
             MP.RegisterSyncMethod(type, "ToggleReturnToSoil");
