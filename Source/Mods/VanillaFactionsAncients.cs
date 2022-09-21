@@ -23,8 +23,6 @@ namespace Multiplayer.Compat
         private static CallOnChosen onChosen;
         private static Type choosePowerDialogType;
 
-        private static Window currentDialog = null;
-
         public VanillaFactionsAncients(ModContentPack mod)
         {
             // Supply slingshot launch gizmo (after 2 possible confirmation)
@@ -35,8 +33,6 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("VFEAncients.Operation");
             operationPodField = AccessTools.FieldRefAccess<ThingComp>(type, "Pod");
             MP.RegisterSyncWorker<object>(SyncOperation, type, true);
-
-            MP.RegisterPauseLock(ShouldPause);
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
@@ -64,8 +60,7 @@ namespace Multiplayer.Compat
             onChosen = CompileCallOnChosen(powerDefType, tupleType);
             MP.RegisterSyncMethod(typeof(VanillaFactionsAncients), nameof(SyncedChoosePower));
             MP.RegisterSyncWorker<Window>(SyncDialogChoosePower, choosePowerDialogType);
-            MpCompat.harmony.Patch(AccessTools.DeclaredConstructor(choosePowerDialogType, new[] { typeof(List<>).MakeGenericType(tupleType), typeof(Pawn), typeof(Action<>).MakeGenericType(tupleType) }),
-                postfix: new HarmonyMethod(typeof(VanillaFactionsAncients), nameof(PostDialogConstructor)));
+            DialogUtilities.RegisterPauseLock(choosePowerDialogType);
             MpCompat.harmony.Patch(AccessTools.Method(choosePowerDialogType, nameof(Window.DoWindowContents)),
                 transpiler: new HarmonyMethod(typeof(VanillaFactionsAncients), nameof(ReplaceButtons)));
         }
@@ -93,27 +88,12 @@ namespace Multiplayer.Compat
         private static void SyncDialogChoosePower(SyncWorker sync, ref Window window)
         {
             if (!sync.isWriting)
-                window = currentDialog ?? Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == choosePowerDialogType);
-        }
-
-        #endregion
-
-        #region PauseLock
-
-        private static bool ShouldPause(Map map)
-        {
-            if (currentDialog == null) return false;
-            if (currentDialog.IsOpen) return true;
-
-            currentDialog = null;
-            return false;
+                window = Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == choosePowerDialogType);
         }
 
         #endregion
 
         #region Dialog
-
-        private static void PostDialogConstructor(Window __instance) => currentDialog = __instance;
 
         private static bool ChoosePower(Rect rect, string text, bool drawBackground, bool doMouseoverSound, bool active, Def power, Def weakness)
         {
@@ -128,7 +108,7 @@ namespace Multiplayer.Compat
 
         private static void SyncedChoosePower(Def power, Def weakness)
         {
-            var dialog = currentDialog ?? Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == choosePowerDialogType);
+            var dialog = Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == choosePowerDialogType);
             if (dialog == null) return;
 
             onChosen(dialog, power, weakness);

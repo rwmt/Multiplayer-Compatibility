@@ -73,7 +73,9 @@ namespace Multiplayer.Compat
                 armorColorField = AccessTools.FieldRefAccess<Color>(type, "colorArmor");
 
                 MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedSetColors));
-                MP.RegisterPauseLock(PauseIfDialogOpen);
+                // This dialog should most likely not react to pressing enter/esc (or whatever those were assigned to).
+                // Sounds like an oversight on VE team.
+                DialogUtilities.RegisterDialogCloseSync(warcasketDialogType, true);
             }
 
             // Curse window
@@ -228,10 +230,5 @@ namespace Multiplayer.Compat
                 yield return ci;
             }
         }
-
-        // Once we add non-blocking dialogs to the API
-        // we should apply this only to the map it's used on
-        private static bool PauseIfDialogOpen(Map map)
-            => Find.WindowStack.IsOpen(warcasketDialogType);
     }
 }
