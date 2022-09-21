@@ -44,6 +44,10 @@ namespace Multiplayer.Compat
         // Vanilla Furniture Expanded
         private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
 
+        // Dialog_NewFactionSpawning
+        private static Type newFactionSpawningDialogType;
+        private static AccessTools.FieldRef<object, FactionDef> factionDefField;
+
 
         //// MVCF ////
         // VerbManager
@@ -87,6 +91,7 @@ namespace Multiplayer.Compat
                 (PatchVanillaWeaponsExpanded, "Vanilla Weapons Expanded", false),
                 (PatchPipeSystem, "Pipe System", true),
                 (PatchKCSG, "KCSG (custom structure generation)", false),
+                (PatchFactionDiscovery, "Faction Discovery", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -338,6 +343,24 @@ namespace Multiplayer.Compat
             
             // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
             // If not, will need patching
+        }
+
+        private static void PatchFactionDiscovery()
+        {
+            newFactionSpawningDialogType = AccessTools.TypeByName("VFECore.Dialog_NewFactionSpawning");
+            factionDefField = AccessTools.FieldRefAccess<FactionDef>(newFactionSpawningDialogType, "factionDef");
+
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "<SpawnWithBases>g__SpawnCallback|7_0");
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "SpawnWithoutBases");
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "Ignore");
+            MP.RegisterSyncWorker<Window>(SyncFactionDiscoveryDialog, newFactionSpawningDialogType);
+
+            // This will only open the dialog for host only on game load, but will
+            // allow other players to access it from the mod settings.
+            var type = AccessTools.TypeByName("VFECore.Patch_GameComponentUtility");
+            type = AccessTools.Inner(type, "LoadedGame");
+            MpCompat.harmony.Patch(AccessTools.Method(type, "OnGameLoaded"),
+                new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(HostOnlyNewFactionDialog)));
         }
 
         #endregion
@@ -642,6 +665,33 @@ namespace Multiplayer.Compat
 
         private static void SyncedCloseHireDialog()
             => Find.WindowStack.TryRemove(hireDialogType);
+
+        private static void SyncFactionDiscoveryDialog(SyncWorker sync, ref Window window)
+        {
+            if (sync.isWriting)
+                sync.Write(factionDefField(window));
+            else
+            {
+                // For the person using the dialog, grab the existing one as we'll need to call the method on that instance
+                // to open the next dialog with new faction.
+                window = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == newFactionSpawningDialogType);
+                // We need to load the def, even if we don't use it - otherwise the synced method parameters will end up messed up
+                var factionDef = sync.Read<FactionDef>();
+
+                if (window == null)
+                {
+                    window ??= (Window)Activator.CreateInstance(
+                        newFactionSpawningDialogType,
+                        AccessTools.allDeclared,
+                        null,
+                        new object[] { new List<FactionDef>().GetEnumerator() },
+                        null);
+                    factionDefField(window) = factionDef;
+                }
+            }
+        }
+
+        private static bool HostOnlyNewFactionDialog() => !MP.IsInMultiplayer || MP.IsHosting;
 
         #endregion
     }
