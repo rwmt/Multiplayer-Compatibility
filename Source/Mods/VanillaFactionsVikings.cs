@@ -65,7 +65,7 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.Method(typeof(WindowStack), nameof(WindowStack.TryRemove), new[] { typeof(Window), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(VanillaFactionsVikings), nameof(PreTryRemoveWindow)));
 
-            MP.RegisterPauseLock(PauseIfDialogOpen);
+            DialogUtilities.RegisterDialogCloseSync(changeFacepaintDialogType, true);
         }
 
         private static void PreDoWindowContents(Window __instance)
@@ -131,10 +131,5 @@ namespace Multiplayer.Compat
                     dialog = Find.WindowStack.Windows.First(x => x.GetType() == changeFacepaintDialogType);
             }
         }
-
-        // Once we add non-blocking dialogs to the API
-        // we should apply this only to the map it's used on
-        private static bool PauseIfDialogOpen(Map map)
-            => Find.WindowStack.IsOpen(changeFacepaintDialogType);
     }
 }

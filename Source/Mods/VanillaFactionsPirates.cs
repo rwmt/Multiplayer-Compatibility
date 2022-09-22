@@ -81,7 +81,9 @@ namespace Multiplayer.Compat
                 armorColorField = AccessTools.FieldRefAccess<Color>(type, "colorArmor");
 
                 MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedSetColors));
-                MP.RegisterPauseLock(PauseIfDialogOpen);
+                // This dialog should most likely not react to pressing enter/esc (or whatever those were assigned to).
+                // Sounds like an oversight on VE team.
+                DialogUtilities.RegisterDialogCloseSync(warcasketDialogType, true);
             }
 
             // Curse window
