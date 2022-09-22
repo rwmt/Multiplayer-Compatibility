@@ -22,7 +22,7 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VFE.Classical")]
     class VanillaFactionsClassical
     {
-        private static Window senatorWindow;
+        private static bool syncDialog = false;
 
         public VanillaFactionsClassical(ModContentPack mod)
         {
@@ -43,55 +43,34 @@ namespace Multiplayer.Compat
             // Deploying the scorpion
             MP.RegisterSyncWorker<Designator_InstallScorpion>(SyncInstallScorpion, shouldConstruct: true);
 
-            MpCompat.harmony.Patch(
-                AccessTools.Constructor(typeof(Dialog_SenatorInfo), new[] { typeof(FactionExtension_SenatorInfo), typeof(List<SenatorInfo>), typeof(bool) }),
-                postfix: new HarmonyMethod(typeof(VanillaFactionsClassical), nameof(SenatorWindowOpened)));
-            MP.RegisterPauseLock(IsSenatorWindowOpen);
+            // Sync dialog closing and add pause lock.
+            // We only do it if it was opened from world map, not from faction list (which is for viewing only and has no interactions).
+            DialogUtilities.InitializeDialogCloseSync(true);
+            foreach (var ctor in AccessTools.GetDeclaredConstructors(typeof(Dialog_SenatorInfo)))
+                MpCompat.harmony.Patch(ctor, new HarmonyMethod(typeof(VanillaFactionsClassical), nameof(PostDialogOpen)));
+
             // Replace the buttons from senator list with our own
             MpCompat.harmony.Patch(
                 AccessTools.Method(typeof(Dialog_SenatorInfo), nameof(Dialog_SenatorInfo.DrawSenatorInfo)),
                 transpiler: new HarmonyMethod(typeof(VanillaFactionsClassical), nameof(ReplaceSenatorButtons)));
-            // Replace close button with our own
-            MpCompat.harmony.Patch(
-                AccessTools.Method(typeof(Dialog_SenatorInfo), nameof(Dialog_SenatorInfo.DoWindowContents)),
-                transpiler: new HarmonyMethod(typeof(VanillaFactionsClassical), nameof(ReplaceCloseButton)));
 
             // Sync our replacement button actions for the senator interaction
             MP.RegisterSyncMethod(typeof(VanillaFactionsClassical), nameof(SyncedQuestButton));
             MP.RegisterSyncMethod(typeof(VanillaFactionsClassical), nameof(SyncedBribeButton));
-            MP.RegisterSyncMethod(typeof(VanillaFactionsClassical), nameof(SyncedCloseSenatorDialog));
         }
 
         private static void LatePatch()
         {
             // Lighting the beacon
-            MpCompat.RegisterLambdaMethod("VFEC.Buildings.Beacon", "LightCommand", 0);
+            MpCompat.RegisterLambdaMethod(typeof(Beacon), nameof(Beacon.LightCommand), 0);
 
             // Initialize senator component (if not initialized yet)
-            MP.RegisterSyncMethod(AccessTools.TypeByName("VFEC.Senators.WorldComponent_Senators"), "CheckInit");
+            MP.RegisterSyncMethod(typeof(WorldComponent_Senators), nameof(WorldComponent_Senators.CheckInit));
+            MpCompat.harmony.Patch(MpMethodUtil.GetLambda(typeof(WorldComponent_Senators), nameof(WorldComponent_Senators.AddSenatorsOption)),
+                prefix: new HarmonyMethod(typeof(VanillaFactionsClassical), nameof(PreDialogCreated)));
         }
 
         private static void StopTargeter() => Find.WorldTargeter.StopTargeting();
-
-        private static void SenatorWindowOpened(Window __instance)
-        {
-            senatorWindow = __instance;
-            // Only allow using the "Close" button from the mod itself
-            // Pressing escape (cancel) or clicking outside is not synced
-            senatorWindow.closeOnCancel = false;
-            senatorWindow.closeOnClickedOutside = false;
-        }
-
-        private static bool IsSenatorWindowOpen(Map _)
-        {
-            if (senatorWindow == null)
-                return false;
-            if (senatorWindow.IsOpen)
-                return true;
-
-            senatorWindow = null;
-            return false;
-        }
 
         private static void SyncInstallScorpion(SyncWorker sync, ref Designator_InstallScorpion designator)
         {
@@ -107,12 +86,6 @@ namespace Multiplayer.Compat
                 designator.GiveJobTo = sync.Read<Pawn>();
                 designator.Scorpion = sync.Read<Scorpion>();
             }
-        }
-
-        private static void SyncedCloseSenatorDialog()
-        {
-            senatorWindow?.Close();
-            senatorWindow = null;
         }
 
         private static bool QuestButtonReplacement(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, Dialog_SenatorInfo.AllSenatorInfo senatorInfo,
@@ -250,32 +223,15 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static IEnumerable<CodeInstruction> ReplaceCloseButton(IEnumerable<CodeInstruction> instr)
+        private static void PreDialogCreated()
+            => syncDialog = true;
+
+        private static void PostDialogOpen(Window __instance)
         {
-
-            var targetCloseMethod = AccessTools.Method(typeof(Window), nameof(Window.Close));
-            var closeReplacement = AccessTools.Method(typeof(VanillaFactionsClassical), nameof(SyncedCloseSenatorDialog));
-
-            var codeInstructions = instr.ToArray();
-
-            for (var i = 0; i < codeInstructions.Length; i++)
+            if (MP.IsInMultiplayer && syncDialog)
             {
-                var ci = codeInstructions[i];
-                
-                if (ci.opcode == OpCodes.Ldarg_0 && i + 2 < codeInstructions.Length && codeInstructions[i + 1].opcode == OpCodes.Ldc_I4_1)
-                {
-                    var callInstr = codeInstructions[i + 2];
-                    if (callInstr.opcode == OpCodes.Callvirt && callInstr.operand is MethodInfo close && close == targetCloseMethod)
-                    {
-                        // Skip passing Window and bool parameters, not needed
-                        i += 2;
-                        callInstr.opcode = OpCodes.Call;
-                        callInstr.operand = closeReplacement;
-                        ci = callInstr;
-                    }
-                }
-
-                yield return ci;
+                syncDialog = false;
+                DialogUtilities.PostDialogOpen_CloseSync_PauseLock(__instance);
             }
         }
     }

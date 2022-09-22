@@ -48,6 +48,10 @@ namespace Multiplayer.Compat
         // Vanilla Furniture Expanded
         private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
 
+        // Dialog_NewFactionSpawning
+        private static Type newFactionSpawningDialogType;
+        private static AccessTools.FieldRef<object, FactionDef> factionDefField;
+
 
         //// MVCF ////
         // VerbManager
@@ -80,7 +84,7 @@ namespace Multiplayer.Compat
                 (PatchItemProcessor, "Item Processor", false),
                 (PatchOtherRng, "Other RNG", false),
                 (PatchVFECoreDebug, "Debug Gizmos", false),
-                (PatchAbilities, "Abilities", false),
+                (PatchAbilities, "Abilities", true),
                 (PatchHireableFactions, "Hireable Factions", false),
                 (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", false),
                 (PatchVanillaFactionMechanoids, "Vanilla Faction Mechanoids", false),
@@ -91,6 +95,7 @@ namespace Multiplayer.Compat
                 (PatchVanillaWeaponsExpanded, "Vanilla Weapons Expanded", false),
                 (PatchPipeSystem, "Pipe System", true),
                 (PatchKCSG, "KCSG (custom structure generation)", false),
+                (PatchFactionDiscovery, "Faction Discovery", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -186,16 +191,20 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
+
+            type = AccessTools.TypeByName("VFECore.CompShieldField");
+            MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
         }
 
         private static void PatchHireableFactions()
         {
             hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
 
+            DialogUtilities.RegisterDialogCloseSync(hireDialogType, true);
             MP.RegisterSyncMethod(hireDialogType, nameof(Window.OnAcceptKeyPressed));
             MP.RegisterSyncWorker<Window>(SyncHireDialog, hireDialogType);
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedSetHireData));
-            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseHireDialog));
             hireDataField = AccessTools.FieldRefAccess<Dictionary<PawnKindDef, Pair<int, string>>>(hireDialogType, "hireData");
 
             // I don't think daysAmountBuffer needs to be synced, just daysAmount only
@@ -214,11 +223,10 @@ namespace Multiplayer.Compat
             hireablesList = AccessTools.StaticFieldRefAccess<IList>(AccessTools.Field(AccessTools.TypeByName("VFECore.Misc.HireableSystemStaticInitialization"), "Hireables"));
 
             contractInfoDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_ContractInfo");
+
+            DialogUtilities.RegisterDialogCloseSync(contractInfoDialogType, true);
             MP.RegisterSyncWorker<Window>(SyncContractInfoDialog, contractInfoDialogType);
             MpCompat.RegisterLambdaMethod(contractInfoDialogType, "DoWindowContents", 0);
-            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseContractInfoDialog));
-            MpCompat.harmony.Patch(AccessTools.Method(contractInfoDialogType, nameof(Window.DoWindowContents)),
-                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostContractInfoDialogWindowContents)));
 
             MpCompat.RegisterLambdaDelegate("VFECore.HiringContractTracker", "CommFloatMenuOption", 0);
         }
@@ -360,6 +368,24 @@ namespace Multiplayer.Compat
             
             // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
             // If not, will need patching
+        }
+
+        private static void PatchFactionDiscovery()
+        {
+            newFactionSpawningDialogType = AccessTools.TypeByName("VFECore.Dialog_NewFactionSpawning");
+            factionDefField = AccessTools.FieldRefAccess<FactionDef>(newFactionSpawningDialogType, "factionDef");
+
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "<SpawnWithBases>g__SpawnCallback|7_0");
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "SpawnWithoutBases");
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "Ignore");
+            MP.RegisterSyncWorker<Window>(SyncFactionDiscoveryDialog, newFactionSpawningDialogType);
+
+            // This will only open the dialog for host only on game load, but will
+            // allow other players to access it from the mod settings.
+            var type = AccessTools.TypeByName("VFECore.Patch_GameComponentUtility");
+            type = AccessTools.Inner(type, "LoadedGame");
+            MpCompat.harmony.Patch(AccessTools.Method(type, "OnGameLoaded"),
+                new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(HostOnlyNewFactionDialog)));
         }
 
         #endregion
@@ -649,9 +675,6 @@ namespace Multiplayer.Compat
                     break;
                 }
             }
-
-            if (!Find.WindowStack.IsOpen(__instance))
-                SyncedCloseHireDialog();
         }
 
         private static void SyncedSetHireData(Dictionary<PawnKindDef, Pair<int, string>> hireData)
@@ -662,23 +685,11 @@ namespace Multiplayer.Compat
                 hireDataField(dialog) = hireData;
         }
 
-        private static void SyncedCloseHireDialog()
-            => Find.WindowStack.TryRemove(hireDialogType);
-
         private static void SyncContractInfoDialog(SyncWorker sync, ref Window window)
         {
             if (!sync.isWriting)
                 window = Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == contractInfoDialogType);
         }
-
-        private static void PostContractInfoDialogWindowContents(Window __instance)
-        {
-            if (MP.IsInMultiplayer && !Find.WindowStack.IsOpen(__instance))
-                SyncedCloseContractInfoDialog();
-        }
-
-        private static void SyncedCloseContractInfoDialog()
-            => Find.WindowStack.TryRemove(contractInfoDialogType);
 
         private static void SyncHireable(SyncWorker sync, ref object obj)
         {
@@ -687,6 +698,33 @@ namespace Multiplayer.Compat
             else
                 obj = hireablesList()[sync.Read<int>()];
         }
+
+        private static void SyncFactionDiscoveryDialog(SyncWorker sync, ref Window window)
+        {
+            if (sync.isWriting)
+                sync.Write(factionDefField(window));
+            else
+            {
+                // For the person using the dialog, grab the existing one as we'll need to call the method on that instance
+                // to open the next dialog with new faction.
+                window = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == newFactionSpawningDialogType);
+                // We need to load the def, even if we don't use it - otherwise the synced method parameters will end up messed up
+                var factionDef = sync.Read<FactionDef>();
+
+                if (window == null)
+                {
+                    window ??= (Window)Activator.CreateInstance(
+                        newFactionSpawningDialogType,
+                        AccessTools.allDeclared,
+                        null,
+                        new object[] { new List<FactionDef>().GetEnumerator() },
+                        null);
+                    factionDefField(window) = factionDef;
+                }
+            }
+        }
+
+        private static bool HostOnlyNewFactionDialog() => !MP.IsInMultiplayer || MP.IsHosting;
 
         #endregion
     }
