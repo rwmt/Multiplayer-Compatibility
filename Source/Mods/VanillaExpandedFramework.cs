@@ -76,7 +76,7 @@ namespace Multiplayer.Compat
                 (PatchItemProcessor, "Item Processor", false),
                 (PatchOtherRng, "Other RNG", false),
                 (PatchVFECoreDebug, "Debug Gizmos", false),
-                (PatchAbilities, "Abilities", false),
+                (PatchAbilities, "Abilities", true),
                 (PatchHireableFactions, "Hireable Factions", false),
                 (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", false),
                 (PatchVanillaFactionMechanoids, "Vanilla Faction Mechanoids", false),
@@ -182,6 +182,10 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
+
+            type = AccessTools.TypeByName("VFECore.CompShieldField");
+            MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
         }
 
         private static void PatchHireableFactions()
