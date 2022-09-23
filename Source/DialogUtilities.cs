@@ -90,7 +90,7 @@ namespace Multiplayer.Compat
         public static void InitializeDialogPauseLock()
         {
             if (isPauseLockInitialized) return;
-            
+
             MP.RegisterPauseLock(IsPausingDialogOpen);
             isPauseLockInitialized = true;
         }
@@ -110,15 +110,24 @@ namespace Multiplayer.Compat
         }
 
         public static void PostDialogOpen_CloseSync(Window __instance)
-            => OpenDialogsCloseSync.AddDistinct(__instance);
+        {
+            if (MP.IsInMultiplayer)
+                OpenDialogsCloseSync.AddDistinct(__instance);
+        }
 
         public static void PostDialogOpen_PauseLock(Window __instance)
-            => OpenPauseLockDialogs.AddDistinct(__instance);
+        {
+            if (MP.IsInMultiplayer)
+                OpenPauseLockDialogs.AddDistinct(__instance);
+        }
 
         public static void PostDialogOpen_CloseSync_PauseLock(Window __instance)
         {
-            OpenDialogsCloseSync.AddDistinct(__instance);
-            OpenPauseLockDialogs.AddDistinct(__instance);
+            if (MP.IsInMultiplayer)
+            {
+                OpenDialogsCloseSync.AddDistinct(__instance);
+                OpenPauseLockDialogs.AddDistinct(__instance);
+            }
         }
 
         private static bool PreTryRemove(Window window, bool doCloseSound)
@@ -128,6 +137,9 @@ namespace Multiplayer.Compat
 
             if (MP.IsExecutingSyncCommand)
             {
+                // If the dialog was removed outside of this method (in a sync method other than SyncedTryCloseDialog),
+                // the dialog wouldn't be removed from the list - we need to make sure it's gone from here.
+                OpenDialogsCloseSync.Remove(window);
                 // Try removing the dialog from pause lock dialogs
                 OpenPauseLockDialogs.Remove(window);
                 return true;
