@@ -154,16 +154,12 @@ namespace Multiplayer.Compat
         private static void PreActivateRitual(object instance, object[] _)
         {
             // Create the request
-            Log.Error("1");
             var ritualRequest = ritualEffectCommandCreateSetupMethod(instance);
             // Get the source
-            Log.Error("2");
             var source = ritualEffectCommandSourceField(instance);
             // Initialize the request
-            Log.Error("3");
             ritualActivatorInitializeMethod(ritualRequest, source);
             // Set the field inside of the instance to the request we created
-            Log.Error("4");
             ritualEffectCommandRitualRequestField(instance) = ritualRequest;
         }
 
