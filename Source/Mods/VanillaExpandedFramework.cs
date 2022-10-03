@@ -121,7 +121,8 @@ namespace Multiplayer.Compat
 
             type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
             MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-            MpCompat.RegisterLambdaMethod(type, "ProcessInput", Enumerable.Range(0, 8).ToArray());
+            MP.RegisterSyncMethod(type, "AddQuality").SetContext(SyncContext.MapSelected);
+            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 7).SetContext(SyncContext.MapSelected);
 
             type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
             MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
@@ -132,7 +133,7 @@ namespace Multiplayer.Compat
             {
                 type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
                 MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
-                MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing");
+                MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing").SetContext(SyncContext.MapSelected);
                 MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
             }
         }
