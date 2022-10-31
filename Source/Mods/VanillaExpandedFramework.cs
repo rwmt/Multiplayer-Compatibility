@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -27,10 +28,10 @@ namespace Multiplayer.Compat
         // CompAbilityApparel
         private static Type compAbilitiesApparelType;
         private static AccessTools.FieldRef<object, IEnumerable> givenAbilitiesField;
-        private static MethodInfo abilityApparelPawnGetter;
+        private static FastInvokeHandler abilityApparelPawnGetter;
 
         // Ability
-        private static MethodInfo abilityInitMethod;
+        private static FastInvokeHandler abilityInitMethod;
         private static AccessTools.FieldRef<object, Thing> abilityHolderField;
         private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
         private static ISyncField abilityAutoCastField;
@@ -52,26 +53,26 @@ namespace Multiplayer.Compat
         //// MVCF ////
         // VerbManager
         private static ConstructorInfo mvcfVerbManagerCtor;
-        private static MethodInfo mvcfInitializeManagerMethod;
-        private static MethodInfo mvcfPawnGetter;
+        private static FastInvokeHandler mvcfInitializeManagerMethod;
+        private static FastInvokeHandler mvcfPawnGetter;
         private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
 
         // WorldComponent_MVCF
-        private static MethodInfo mvcfGetWorldCompMethod;
-        private static AccessTools.FieldRef<object, object> mvcfAllManagersListField;
+        private static AccessTools.FieldRef<WorldComponent> mvcfWorldCompInstanceField;
         private static AccessTools.FieldRef<object, object> mvcfManagersTableField;
 
         // ManagedVerb
-        private static AccessTools.FieldRef<object, object> mvcfManagerVerbManagerField;
+        private static FastInvokeHandler mvcfManagedVerbManagerGetter;
+        private static AccessTools.FieldRef<object, IList> mvcfManagedVerbAllCompsField;
+
+        // VerbComp
+        private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
 
 
         //// System ////
-        // WeakReference
-        private static ConstructorInfo weakReferenceCtor;
-
         // ConditionalWeakTable
-        private static MethodInfo conditionalWeakTableAddMethod;
-        private static MethodInfo conditionalWeakTableTryGetValueMethod;
+        private static FastInvokeHandler conditionalWeakTableAddMethod;
+        private static FastInvokeHandler conditionalWeakTableTryGetValueMethod;
 
         public VanillaExpandedFramework(ModContentPack mod)
         {
@@ -92,6 +93,7 @@ namespace Multiplayer.Compat
                 (PatchPipeSystem, "Pipe System", true),
                 (PatchKCSG, "KCSG (custom structure generation)", false),
                 (PatchFactionDiscovery, "Faction Discovery", false),
+                (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -173,13 +175,13 @@ namespace Multiplayer.Compat
             // CompAbilityApparel
             compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
             givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
-            abilityApparelPawnGetter = AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn");
+            abilityApparelPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn"));
             //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
 
             // Ability itself
             var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
 
-            abilityInitMethod = AccessTools.Method(type, "Init");
+            abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
             abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
             MP.RegisterSyncMethod(type, "CreateCastJob");
@@ -255,6 +257,7 @@ namespace Multiplayer.Compat
                 "AnimalBehaviours.CompGasProducer",
                 "AnimalBehaviours.CompInitialHediff",
                 "AnimalBehaviours.DeathActionWorker_DropOnDeath",
+                "AnimalBehaviours.HediffComp_FilthProducer",
             };
             PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
 
@@ -276,8 +279,7 @@ namespace Multiplayer.Compat
         private static void PatchMVCF()
         {
             var type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
-            mvcfGetWorldCompMethod = AccessTools.Method(type, "GetComp");
-            mvcfAllManagersListField = AccessTools.FieldRefAccess<object>(type, "allManagers");
+            mvcfWorldCompInstanceField = AccessTools.StaticFieldRefAccess<WorldComponent>(AccessTools.Field(type, "Instance"));
             mvcfManagersTableField = AccessTools.FieldRefAccess<object>(type, "managers");
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedInitVerbManager));
             MpCompat.harmony.Patch(AccessTools.Method(type, "GetManagerFor"),
@@ -286,27 +288,34 @@ namespace Multiplayer.Compat
             type = AccessTools.TypeByName("MVCF.VerbManager");
             MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
             mvcfVerbManagerCtor = AccessTools.Constructor(type);
-            mvcfInitializeManagerMethod = AccessTools.Method(type, "Initialize");
-            mvcfPawnGetter = AccessTools.PropertyGetter(type, "Pawn");
+            mvcfInitializeManagerMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Initialize"));
+            mvcfPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
             mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
 
-            var weakReferenceType = typeof(System.WeakReference<>).MakeGenericType(type);
-            weakReferenceCtor = AccessTools.FirstConstructor(weakReferenceType, ctor => ctor.GetParameters().Count() == 1);
-
-            var conditionalWeakTableType = typeof(System.Runtime.CompilerServices.ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), type);
-            conditionalWeakTableAddMethod = AccessTools.Method(conditionalWeakTableType, "Add");
-            conditionalWeakTableTryGetValueMethod = AccessTools.Method(conditionalWeakTableType, "TryGetValue");
+            var conditionalWeakTableType = typeof(ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), type);
+            conditionalWeakTableAddMethod = MethodInvoker.GetHandler(AccessTools.Method(conditionalWeakTableType, "Add"));
+            conditionalWeakTableTryGetValueMethod = MethodInvoker.GetHandler(AccessTools.Method(conditionalWeakTableType, "TryGetValue"));
 
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
-            mvcfManagerVerbManagerField = AccessTools.FieldRefAccess<object>(type, "man");
+            mvcfManagedVerbManagerGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Manager"));
+            mvcfManagedVerbAllCompsField = AccessTools.FieldRefAccess<IList>(type, "AllComps");
             MP.RegisterSyncWorker<object>(SyncManagedVerb, type, isImplicit: true);
             // Seems like selecting the Thing that holds the verb inits some stuff, so we need to set the context
             MP.RegisterSyncMethod(type, "Toggle");
 
-            type = AccessTools.TypeByName("MVCF.Harmony.Gizmos");
+            type = AccessTools.TypeByName("MVCF.VerbComps.VerbComp");
+            mvcfVerbCompParentField = AccessTools.FieldRefAccess<object>(type, "parent");
+            MP.RegisterSyncWorker<object>(SyncVerbComp, type, isImplicit: true);
+
+            type = AccessTools.TypeByName("MVCF.Reloading.Comps.VerbComp_Reloadable_ChangeableAmmo");
+            var innerMethod = MpMethodUtil.GetLambda(type, "AmmoOptions", MethodType.Getter, null, 1);
+            MP.RegisterSyncDelegate(type, innerMethod.DeclaringType.Name, innerMethod.Name);
+
+            type = AccessTools.TypeByName("MVCF.Features.Feature_Humanoid");
             MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 1); // Fire at will
             MpCompat.RegisterLambdaDelegate(type, "GetAttackGizmos_Postfix", 4); // Interrupt Attack
-            MpCompat.RegisterLambdaDelegate(type, "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
+
+            MpCompat.RegisterLambdaDelegate("MVCF.Features.Feature_RangedAnimals", "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
         }
 
         private static void PatchExplosiveTrialsEffect()
@@ -343,9 +352,9 @@ namespace Multiplayer.Compat
         {
             var type = AccessTools.TypeByName("KCSG.SettlementGenUtils");
             type = AccessTools.Inner(type, "Sampling");
-            
+
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Sample"));
-            
+
             // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
             // If not, will need patching
         }
@@ -366,6 +375,13 @@ namespace Multiplayer.Compat
             type = AccessTools.Inner(type, "LoadedGame");
             MpCompat.harmony.Patch(AccessTools.Method(type, "OnGameLoaded"),
                 new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(HostOnlyNewFactionDialog)));
+        }
+
+        private static void PatchVanillaGenesExpanded()
+        {
+            var type = AccessTools.TypeByName("VanillaGenesExpanded.CompHumanHatcher");
+            PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Hatch"));
+            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
         }
 
         #endregion
@@ -422,21 +438,21 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
                 // Sync the pawn that has the VerbManager
-                sync.Write((Pawn)mvcfPawnGetter.Invoke(obj, Array.Empty<object>()));
+                sync.Write((Pawn)mvcfPawnGetter(obj, Array.Empty<object>()));
             else
             {
                 var pawn = sync.Read<Pawn>();
 
-                var comp = mvcfGetWorldCompMethod.Invoke(null, Array.Empty<object>());
+                var comp = mvcfWorldCompInstanceField();
                 var weakTable = mvcfManagersTableField(comp);
 
                 var outParam = new object[] { pawn, null };
 
                 // Either try getting the VerbManager from the comp, or create it if it's missing
-                if ((bool)conditionalWeakTableTryGetValueMethod.Invoke(weakTable, outParam))
+                if ((bool)conditionalWeakTableTryGetValueMethod(weakTable, outParam))
                     obj = outParam[1];
                 else
-                    obj = InitVerbManager(pawn, (WorldComponent)comp, table: weakTable);
+                    obj = InitVerbManager(pawn, comp, table: weakTable);
             }
         }
 
@@ -445,7 +461,7 @@ namespace Multiplayer.Compat
             if (sync.isWriting)
             {
                 // Get the VerbManager from inside of the ManagedVerb itself
-                var verbManager = mvcfManagerVerbManagerField(obj);
+                var verbManager = mvcfManagedVerbManagerGetter(obj);
                 // Find the ManagedVerb inside of list of all verbs
                 var managedVerbsList = mvcfVerbsField(verbManager);
                 var index = managedVerbsList.IndexOf(obj);
@@ -469,6 +485,30 @@ namespace Multiplayer.Compat
                     // Find the ManagedVerb with specific index inside of list of all verbs
                     var managedVerbsList = mvcfVerbsField(verbManager);
                     obj = managedVerbsList[index];
+                }
+            }
+        }
+
+        private static void SyncVerbComp(SyncWorker sync, ref object verbComp)
+        {
+            object verb = null;
+
+            if (sync.isWriting)
+            {
+                verb = mvcfVerbCompParentField(verbComp);
+                var index = mvcfManagedVerbAllCompsField(verb).IndexOf(verbComp);
+
+                SyncManagedVerb(sync, ref verb);
+                sync.Write(index);
+            }
+            else
+            {
+                SyncManagedVerb(sync, ref verb);
+                var index = sync.Read<int>();
+
+                if (index >= 0)
+                {
+                    verbComp = mvcfManagedVerbAllCompsField(verb)[index];
                 }
             }
         }
@@ -515,9 +555,9 @@ namespace Multiplayer.Compat
                         if (source != null && compAbilitiesApparel != null)
                         {
                             // Set the pawn and initialize the Ability, as it might have been skipped
-                            var pawn = abilityApparelPawnGetter.Invoke(compAbilitiesApparel, Array.Empty<object>()) as Pawn;
+                            var pawn = abilityApparelPawnGetter(compAbilitiesApparel, Array.Empty<object>()) as Pawn;
                             abilityPawnField(source) = pawn;
-                            abilityInitMethod.Invoke(source, Array.Empty<object>());
+                            abilityInitMethod(source, Array.Empty<object>());
                         }
                     }
                     else
@@ -539,7 +579,7 @@ namespace Multiplayer.Compat
             var table = mvcfManagersTableField(__instance);
             var parameters = new object[] { pawn, null };
 
-            if ((bool)conditionalWeakTableTryGetValueMethod.Invoke(table, parameters))
+            if ((bool)conditionalWeakTableTryGetValueMethod(table, parameters))
             {
                 // Might as well give the result back instead of continuing the normal execution of the method,
                 // as it would just do the same stuff as we do here again
@@ -563,42 +603,39 @@ namespace Multiplayer.Compat
         // Synced method for initializing the verb manager for all players, used in sitations where the moment of creation of the verb might not be synced
         private static void SyncedInitVerbManager(Pawn pawn) => InitVerbManager(pawn);
 
-        private static object InitVerbManager(Pawn pawn, WorldComponent comp = null, object list = null, object table = null)
+        private static object InitVerbManager(Pawn pawn, WorldComponent comp = null, object table = null)
         {
-            if (comp == null) comp = (WorldComponent)mvcfGetWorldCompMethod.Invoke(null, Array.Empty<object>());
+            comp ??= mvcfWorldCompInstanceField();
             if (comp == null) return null;
-            if (table == null) table = mvcfManagersTableField(comp);
+            table ??= mvcfManagersTableField(comp);
             var parameters = new object[] { pawn, null };
             object verbManager;
 
             // Try to find the verb manager first, as it might exist (and it will definitely exist for at least one player)
-            if ((bool)conditionalWeakTableTryGetValueMethod.Invoke(table, parameters))
+            if ((bool)conditionalWeakTableTryGetValueMethod(table, parameters))
             {
                 verbManager = parameters[1];
                 // If the manager has the pawn assigned, it means it's initialized, if it's not - we initialize it
-                if (mvcfPawnGetter.Invoke(verbManager, Array.Empty<object>()) == null)
-                    mvcfInitializeManagerMethod.Invoke(verbManager, new object[] { pawn });
+                if (mvcfPawnGetter(verbManager, Array.Empty<object>()) == null)
+                    mvcfInitializeManagerMethod(verbManager, pawn);
             }
             // If the verb manager doesn't exist, we create an empty one here and add it to the verb manager list and table, and then initialize it
             else
             {
-                verbManager = CreateAndAddVerbManagerToCollections(pawn, comp, list, table);
-                mvcfInitializeManagerMethod.Invoke(verbManager, new object[] { pawn });
+                verbManager = CreateAndAddVerbManagerToCollections(pawn, comp, table);
+                mvcfInitializeManagerMethod(verbManager, pawn);
             }
 
             return verbManager;
         }
 
         // Helper method for creating an empty verb manager for a pawn
-        private static object CreateAndAddVerbManagerToCollections(Pawn pawn, WorldComponent worldComponent, object list = null, object table = null)
+        private static object CreateAndAddVerbManagerToCollections(Pawn pawn, WorldComponent worldComponent, object table = null)
         {
             var verbManager = mvcfVerbManagerCtor.Invoke(Array.Empty<object>());
 
-            if (list == null) list = mvcfAllManagersListField(worldComponent);
-            if (table == null) table = mvcfManagersTableField(worldComponent);
-
-            conditionalWeakTableAddMethod.Invoke(table, new[] { pawn, verbManager });
-            ((IList)list).Add(weakReferenceCtor.Invoke(new[] { verbManager }));
+            table ??= mvcfManagersTableField(worldComponent);
+            conditionalWeakTableAddMethod(table, pawn, verbManager);
 
             return verbManager;
         }

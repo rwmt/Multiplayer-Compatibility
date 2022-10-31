@@ -16,7 +16,7 @@ namespace Multiplayer.Compat
             // Protection fee event
             MP.RegisterSyncDialogNodeTree(type, "ProtectionFee");
             // Caravan gizmo - turn in wanted criminal to settlement
-            MP.RegisterSyncDelegate(type, "<>c__DisplayClass8_0", "<CommandTurnInWanted>b__0");
+            MpCompat.RegisterLambdaDelegate(type, "CommandTurnInWanted", 0);
             // Toggle mode
             MpCompat.RegisterLambdaMethod(AccessTools.TypeByName("Warmup.CompWarmUpReduction"), "CompGetGizmosExtra", 1);
             // Five fingers fillet table
