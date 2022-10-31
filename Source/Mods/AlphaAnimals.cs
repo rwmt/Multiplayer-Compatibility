@@ -34,6 +34,14 @@ namespace Multiplayer.Compat
                     "AlphaBehavioursAndEvents.Gas_Ocular:Tick",
                 };
                 PatchingUtilities.PatchPushPopRand(rngFixMethods);
+
+                var fixSystemRngMethods = new[]
+                {
+                    "AlphaBehavioursAndEvents.Ability_SpawnOnRadius:Cast",
+                    "AlphaBehavioursAndEvents.CompCreateOcularPlants:CompTick",
+                    "AlphaBehavioursAndEvents.CompCreateOcularPlants:ConvertRandomPlantInRadius",
+                };
+                PatchingUtilities.PatchSystemRand(fixSystemRngMethods, false);
             }
         }
     }

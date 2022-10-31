@@ -12,6 +12,7 @@ namespace Multiplayer.Compat
         public AlphaMemes(ModContentPack mod)
         {
             PatchingUtilities.PatchSystemRand("AlphaMemes.AlphaMemes_DamageWorker_AddInjury_Apply_Patch:SendHistoryIfMelee", false);
+            PatchingUtilities.PatchPushPopRand("AlphaMemes.RitualBehaviorWorker_FuneralFramework:TryExecuteOn");
             // The following method is seeded, so it should be fine
             // If not, then patching it as well should fix it
             //"AlphaMemes.GameComponent_RandomMood:GameComponentTick",
