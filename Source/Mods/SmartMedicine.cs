@@ -6,19 +6,28 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Smart Medicine by Uuugggg</summary>
+    /// <summary>Smart Medicine by Uuugggg, Compact Hediffs by PeteTimesSix</summary>
+    /// SmartMedicine:
     /// <see href="https://github.com/alextd/Rimworld-SmartMedicine"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1309994319"/>
+    /// CompactHediffs:
+    /// <see href="https://github.com/PeteTimesSix/CompactHediffs"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2031734067"/>
     [MpCompatFor("Uuugggg.SmartMedicine")]
     public class SmartMedicine
     {
         private delegate void StockUpPasteSettingsDelegate(Pawn pawn);
+
         private delegate Dictionary<ThingDef, int> StockUpSettingsDelegate(Pawn pawn);
 
         private static Type smartMedicineCompType;
         private static StockUpSettingsDelegate stockUpSettingsMethod;
         private static StockUpPasteSettingsDelegate stockUpPasteMethod;
         private static AccessTools.FieldRef<object, Pawn> copiedPawnField;
+
+        // CompatcHediffs compat
+        private static FastInvokeHandler getSmartMedicinePriorityCareDictionary;
+        private static AccessTools.FieldRef<object, object> delegateTypeHediffCareField;
 
         public SmartMedicine(ModContentPack mod)
         {
@@ -27,7 +36,7 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("SmartMedicine.StockUpUtility");
 
                 var pasteMethod = AccessTools.Method(type, "StockUpPasteSettings");
-                
+
                 stockUpPasteMethod = AccessTools.MethodDelegate<StockUpPasteSettingsDelegate>(pasteMethod);
                 stockUpSettingsMethod = AccessTools.MethodDelegate<StockUpSettingsDelegate>(AccessTools.Method(type, "StockUpSettings"));
 
@@ -35,7 +44,7 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(SmartMedicine), nameof(PrePasteSettings)));
                 MpCompat.harmony.Patch(AccessTools.Method(type, "SetStockCount", new[] { typeof(Pawn), typeof(ThingDef), typeof(int) }),
                     prefix: new HarmonyMethod(typeof(SmartMedicine), nameof(PreSetStockCount)));
-                
+
                 // Mod methods to sync
                 MP.RegisterSyncMethod(AccessTools.Method(type, "StockUpStop", new[] { typeof(Pawn), typeof(ThingDef) }));
                 MP.RegisterSyncMethod(AccessTools.Method(type, "StockUpClearSettings"));
@@ -53,6 +62,24 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("SmartMedicine.HediffRowPriorityCare");
 
                 MpCompat.RegisterLambdaDelegate(type, "LabelButton", 0, 1);
+
+                // CompatcHediffs compat
+                type = AccessTools.TypeByName("PeteTimesSix.CompactHediffs.Rimworld.UI_compat.UI_SmartMedicine");
+                if (type != null)
+                {
+                    var delegateMethod = MpMethodUtil.GetLambda(type, "AddSmartMedicineFloatMenuButton", lambdaOrdinal: 1);
+                    var delegateType = delegateMethod.DeclaringType;
+
+                    MP.RegisterSyncDelegate(type, delegateType!.Name, delegateMethod.Name, new[] { "hediffs" });
+                    MpCompat.RegisterLambdaDelegate(type, "AddSmartMedicineFloatMenuButton", new[] { "CS$<>8__locals1/hediffs", "mc" }, 2);
+
+                    delegateTypeHediffCareField = AccessTools.FieldRefAccess<object>(delegateType, "hediffCares");
+                    MpCompat.harmony.Patch(AccessTools.Constructor(delegateType),
+                        prefix: new HarmonyMethod(typeof(SmartMedicine), nameof(InitHediffCareDictionary)));
+
+                    type = AccessTools.TypeByName("SmartMedicine.PriorityCareComp");
+                    getSmartMedicinePriorityCareDictionary = MethodInvoker.GetHandler(AccessTools.Method(type, "Get"));
+                }
             }
         }
 
@@ -105,5 +132,9 @@ namespace Multiplayer.Compat
             // pawn they selected being overriden
             copiedPawnField(comp) = originalPawn;
         }
+
+        // CompactHeddifs compat
+        private static void InitHediffCareDictionary(object __instance)
+            => delegateTypeHediffCareField(__instance) = getSmartMedicinePriorityCareDictionary(null);
     }
 }
