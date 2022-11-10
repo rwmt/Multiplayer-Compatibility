@@ -4,6 +4,8 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Grazing Lands by avilmask</summary>
+    /// <see href="https://github.com/catgirlfighter/RimWorld_GrazingLands"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1770268130"/>
     [MpCompatFor("avilmask.GrazingLands")]
     public class GrazingLands
     {
