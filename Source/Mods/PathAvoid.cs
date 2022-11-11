@@ -70,7 +70,7 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static bool SetAllTerrainToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor overrideTextAnchor, Window instance)
+        private static bool SetAllTerrainToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor? overrideTextAnchor, Window instance)
         {
             var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active, overrideTextAnchor);
 
@@ -83,7 +83,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        private static bool SetAllToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor overrideTextAnchor, Window instance)
+        private static bool SetAllToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor? overrideTextAnchor, Window instance)
         {
             var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active, overrideTextAnchor);
 
