@@ -88,21 +88,30 @@ namespace Multiplayer.Compat
             var enqueueMethod = AccessTools.Method(typeof(ConcurrentQueue<ZombieCostSpecs>), nameof(ConcurrentQueue<ZombieCostSpecs>.Enqueue));
             var enqueueReplacement = AccessTools.Method(typeof(ZombieLandMpComponent), nameof(ZombieLandMpComponent.Enqueue)).MakeGenericMethod(typeof(ZombieCostSpecs));
 
+            var patchedCount = 0;
+
             foreach (var ci in instr)
             {
                 if (ci.opcode == OpCodes.Callvirt && ci.operand is MethodInfo method)
                 {
                     if (method == coroutineMethod)
+                    {
                         ci.operand = coroutineReplacement;
+                        patchedCount++;
+                    }
                     else if (method == enqueueMethod)
                     {
                         ci.operand = enqueueReplacement;
                         ci.opcode = OpCodes.Call;
+                        patchedCount++;
                     }
                 }
 
                 yield return ci;
             }
+            
+            if (patchedCount == 0) Log.Warning("Failed to patch ZombieLand coroutine");
+            else if (patchedCount == 1) Log.Warning("Failed to fully patch ZombieLand coroutine");
         }
     }
 

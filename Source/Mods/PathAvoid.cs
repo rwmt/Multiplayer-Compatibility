@@ -70,9 +70,9 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static bool SetAllTerrainToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, Window instance)
+        private static bool SetAllTerrainToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor overrideTextAnchor, Window instance)
         {
-            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active);
+            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active, overrideTextAnchor);
 
             if (!MP.IsInMultiplayer)
                 return result;
@@ -83,9 +83,9 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        private static bool SetAllToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, Window instance)
+        private static bool SetAllToDefButton(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor overrideTextAnchor, Window instance)
         {
-            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active);
+            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active, overrideTextAnchor);
 
             if (!MP.IsInMultiplayer)
                 return result;
@@ -116,9 +116,10 @@ namespace Multiplayer.Compat
 
         private static IEnumerable<CodeInstruction> ReplaceAcceptButtons(IEnumerable<CodeInstruction> instr)
         {
-            var buttonMethod = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool) });
+            var buttonMethod = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
             var isAccept = false;
             var isSecond = false;
+            var patchedCount = 0;
 
             foreach (var ci in instr)
             {
@@ -128,9 +129,15 @@ namespace Multiplayer.Compat
                     yield return new CodeInstruction(OpCodes.Ldarg_0);
 
                     if (isSecond)
+                    {
                         ci.operand = AccessTools.Method(typeof(PathAvoidCompat), nameof(SetAllToDefButton));
+                        patchedCount++;
+                    }
                     else
+                    {
                         ci.operand = AccessTools.Method(typeof(PathAvoidCompat), nameof(SetAllTerrainToDefButton));
+                        patchedCount++;
+                    }
 
                     isAccept = false;
                     isSecond = true;
@@ -140,6 +147,9 @@ namespace Multiplayer.Compat
 
                 yield return ci;
             }
+            
+            if (patchedCount == 0) Log.Warning("Failed to patch PathAvoid accept buttons");
+            else if (patchedCount == 1) Log.Warning("Failed to patch both PathAvoid buttons");
         }
     }
 }
