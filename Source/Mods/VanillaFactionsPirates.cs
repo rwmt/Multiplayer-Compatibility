@@ -224,6 +224,7 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> ReplaceButton(IEnumerable<CodeInstruction> instr)
         {
             var method = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonInvisible));
+            var anythingPatched = false;
 
             foreach (var ci in instr)
             {
@@ -233,16 +234,14 @@ namespace Multiplayer.Compat
                     yield return new CodeInstruction(OpCodes.Ldarg_2);
 
                     ci.operand = AccessTools.Method(typeof(VanillaFactionsPirates), nameof(InjectedButton));
+                    anythingPatched = true;
                 }
 
                 yield return ci;
             }
-        }
 
-        // Once we add non-blocking dialogs to the API
-        // we should apply this only to the map it's used on
-        private static bool PauseIfDialogOpen(Map map)
-            => Find.WindowStack.IsOpen(warcasketDialogType);
+            if (!anythingPatched) Log.Warning("Failed to patch Vanilla Factions Pirates - curse page");
+        }
 
         private static bool PreShieldDetonation(Verb __instance, ref bool __result)
         {
