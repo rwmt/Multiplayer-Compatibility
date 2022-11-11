@@ -25,16 +25,21 @@ namespace Multiplayer.Compat
             // The GetChecker method either gets an existing, or creates a new comp
             getCompUnlockerCheckerMethod = AccessTools.MethodDelegate<GetChecker>(AccessTools.Method(type, "GetChecker"));
 
-            // Watch unload bool changes
-            MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
-                prefix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPrefix)),
-                postfix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPostix)));
-
             // RNG Patch
             PatchingUtilities.PatchUnityRand("CommonSense.JobGiver_Wander_TryGiveJob_CommonSensePatch:Postfix", false);
 
             // Gizmo patch
             MpCompat.RegisterLambdaMethod("CommonSense.DoCleanComp", "CompGetGizmosExtra", 1);
+
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
+        }
+
+        private static void LatePatch()
+        {
+            // Watch unload bool changes
+            MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
+                prefix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPrefix)),
+                postfix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPostix)));
         }
 
         private static void CommonSensePatchPrefix(Thing thing)
