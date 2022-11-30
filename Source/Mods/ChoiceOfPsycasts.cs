@@ -16,7 +16,7 @@ namespace Multiplayer.Compat
         
         public ChoiceOfPsycastsCompat(ModContentPack mod)
         {
-            var type = learnPsycastsType = AccessTools.TypeByName("RimWorld.ChoiceOfPsycasts.LearnPsycasts");
+            var type = learnPsycastsType = AccessTools.TypeByName("ChoiceOfPsycasts.LearnPsycasts");
 
             MpCompat.RegisterLambdaDelegate(type, "Choice", 1);
             MpCompat.RegisterLambdaDelegate(type, "ChoiceCustom", 1);
