@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -15,6 +16,25 @@ namespace Multiplayer.Compat
 {
     internal static class DebugActions
     {
+        private const string CategoryName = "Multiplayer Compatibility";
+
+        #region ReferenceBuilder
+
+        const string REFERENCES_FOLDER = "References";
+        internal static ModContentPack content;
+
+        [DebugAction(CategoryName, "Generate reference DLL", allowedGameStates = AllowedGameStates.Entry)]
+        private static void BuildDllReferences()
+        {
+            Log.Warning($"MPCompat :: Put any reference building requests under {REFERENCES_FOLDER} as {{DLLNAME}}.txt");
+            var (successes, skipped, failures) = ReferenceBuilder.Restore(Path.Combine(content.RootDir, REFERENCES_FOLDER));
+            Log.Warning($"MPCompat :: Finished building references. Built: {successes}. Skipped: {skipped}. Failed: {failures}.");
+        }
+
+        #endregion
+
+        #region DesyncSourceSearch
+
         internal enum StuffToSearch
         {
             SystemRng,
@@ -27,11 +47,10 @@ namespace Multiplayer.Compat
             Selector,
             Stopwatch,
             GameComponentUpdate,
+            TimeManager,
         }
 
         private static readonly int MaxFoundStuff = Enum.GetNames(typeof(StuffToSearch)).Length;
-
-        private const string CategoryName = "Multiplayer Compatibility";
 
         private static readonly MethodInfo FindCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Find), nameof(Find.CurrentMap));
         private static readonly MethodInfo GameCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Game), nameof(Game.CurrentMap));
@@ -58,7 +77,6 @@ namespace Multiplayer.Compat
                 nameof(Multiplayer),
                 nameof(Microsoft),
                 nameof(HarmonyLib),
-                nameof(Microsoft),
                 nameof(Mono),
                 nameof(MonoMod),
                 nameof(Ionic),
@@ -77,7 +95,6 @@ namespace Multiplayer.Compat
                 "I18N",
                 "LiteNetLib",
                 "RestSharp",
-                "JetBrains",
                 "YamlDotNet",
                 "SemVer",
 
@@ -177,6 +194,13 @@ namespace Multiplayer.Compat
                     Log.Warning("== It can be called while the game is paused, and is not called once per tick. Depending on what it's used for, it may cause issues. ==");
                     Log.Message(log[StuffToSearch.GameComponentUpdate].Append("\n").Join(delimiter: "\n"));
                 }
+
+                if (log[StuffToSearch.TimeManager].Any())
+                {
+                    Log.Warning("== TimeManager usage found: ==");
+                    Log.Warning("== TimeManager uses timing functions that won't be synced across players. Unless used for UI, sounds, etc. then it will cause desyncs. ==");
+                    Log.Message(log[StuffToSearch.TimeManager].Append("\n").Join(delimiter: "\n"));
+                }
             }
             else Log.Warning("== No unpatched RNG or potentially unsafe methods found ==");
 
@@ -205,23 +229,24 @@ namespace Multiplayer.Compat
                     logAllClasses.Add(type.FullName);
             }
 
+            const string monoFunctionPointerClass = "System.MonoFNPtrFakeClass";
+
             try
             {
-                // Get all methods, constructors, getters, and setters (everything that should have IL instructions)
-                var methods = AccessTools.GetDeclaredMethods(type).Cast<MethodBase>()
+                // Get all methods, constructors, getters, and setters (everything that should have IL instructions).
+                // Ignore stuff that works on the mono function pointer stuff, as it crashes the game.
+                var methods = AccessTools.GetDeclaredMethods(type).Where(m => m.ReturnType.FullName != monoFunctionPointerClass).Cast<MethodBase>()
                     .Concat(AccessTools.GetDeclaredConstructors(type))
-                    .Concat(AccessTools.GetDeclaredProperties(type).SelectMany(p => new[] { p.GetGetMethod(true), p.GetSetMethod(true) }).Where(p => p != null));
+                    .Concat(AccessTools.GetDeclaredProperties(type)
+                        .SelectMany(p => new[] { p.GetGetMethod(true), p.GetSetMethod(true) })
+                        .Where(p => p != null && p.ReturnType.FullName != monoFunctionPointerClass))
+                    .Where(m => m.HasMethodBody());
 
                 foreach (var method in methods)
                 {
                     try
                     {
-                        MpCompat.harmony.Patch(method,
-                            transpiler: new HarmonyMethod(typeof(DebugActions), nameof(FindRng)));
-                    }
-                    catch (Exception e) when ((e?.InnerException ?? e) is PatchingCancelledException cancelled)
-                    {
-                        foreach (var found in cancelled.foundStuff)
+                        foreach (var found in FindRng(method))
                         {
                             lock (log[found])
                                 log[found].Add($"{type.FullName}:{method.Name}");
@@ -239,11 +264,12 @@ namespace Multiplayer.Compat
             }
         }
 
-        internal static IEnumerable<CodeInstruction> FindRng(IEnumerable<CodeInstruction> instr, MethodBase original)
+        internal static HashSet<StuffToSearch> FindRng(MethodBase baseMethod)
         {
+            var instr = PatchProcessor.GetCurrentInstructions(baseMethod);
             var foundStuff = new HashSet<StuffToSearch>();
 
-            if (original == GameComponentUpdate)
+            if (baseMethod == GameComponentUpdate)
                 foundStuff.Add(StuffToSearch.GameComponentUpdate);
 
             foreach (var ci in instr)
@@ -273,6 +299,7 @@ namespace Multiplayer.Compat
                     case MethodInfo { DeclaringType: not null } method when method.ReturnType == typeof(Coroutine):
                         foundStuff.Add(StuffToSearch.Coroutines);
                         break;
+                    // Player dependent stuff, like current camera position, current map, currently selected things
                     case MethodInfo { DeclaringType: not null } method when method.ReturnType == typeof(CameraDriver):
                         foundStuff.Add(StuffToSearch.CameraDriver);
                         break;
@@ -282,20 +309,18 @@ namespace Multiplayer.Compat
                     case MethodInfo method when method.DeclaringType == typeof(Selector):
                         foundStuff.Add(StuffToSearch.Selector);
                         break;
+                    // Operating on time instead of ticks
+                    case MethodInfo method when method.DeclaringType == typeof(Time):
+                        foundStuff.Add(StuffToSearch.TimeManager);
+                        break;
                 }
 
                 if (foundStuff.Count == MaxFoundStuff) break;
             }
 
-            throw new PatchingCancelledException(foundStuff);
+            return foundStuff;
         }
 
-        internal class PatchingCancelledException : Exception
-        {
-            public HashSet<StuffToSearch> foundStuff;
-
-            public PatchingCancelledException(HashSet<StuffToSearch> foundStuff)
-                => this.foundStuff = foundStuff;
-        }
+        #endregion
     }
 }
