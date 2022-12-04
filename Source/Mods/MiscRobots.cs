@@ -21,9 +21,9 @@ namespace Multiplayer.Compat
             
             MP.RegisterSyncMethod(rechargestationType, "Button_CallAllBotsForShutdown");
             MP.RegisterSyncMethod(rechargestationType, "Button_CallBotForShutdown");
-            MP.RegisterSyncMethod(rechargestationType, "Button_RepairDamagedRobot");
             MP.RegisterSyncMethod(rechargestationType, "Button_RequestRepair4Robot");
-            MP.RegisterSyncMethod(rechargestationType, "Button_ResetDestroyedRobot");
+            MP.RegisterSyncMethod(rechargestationType, "Button_RepairDamagedRobot").SetDebugOnly();
+            MP.RegisterSyncMethod(rechargestationType, "Button_ResetDestroyedRobot").SetDebugOnly();
             MP.RegisterSyncMethod(rechargestationType, "Button_SpawnAllAvailableBots");
             MP.RegisterSyncMethod(rechargestationType, "Button_SpawnBot");
 
