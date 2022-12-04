@@ -29,11 +29,15 @@ namespace Multiplayer.Compat
 
             //Might as well sync the arrow gizmos in case some one actually click on it, because it is accessible by users,but not affecting gameplay
             MP.RegisterSyncMethod(robotType, "Debug_ForceGotoDistance");
+            MP.RegisterSyncMethod(robotType, "Debug_Info");
 
             MP.RegisterSyncMethod(rechargestationType, "AddRobotToContainer").SetContext(SyncContext.CurrentMap);
 
             PatchingUtilities.PatchPushPopRand("AIRobot.MoteThrowHelper:ThrowBatteryXYZ");
             PatchingUtilities.PatchPushPopRand("AIRobot.MoteThrowHelper:ThrowNoRobotSign");
+            
+            //Rand.value access
+            PatchingUtilities.PatchPushPopRand("AIRobot.X2_Building_AIRobotRechargeStation:TryHealDamagedBodyPartOfRobot");
 
             MP.RegisterSyncMethod(robothelperType, "StartStationRepairJob");
 
