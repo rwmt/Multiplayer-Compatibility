@@ -1,4 +1,4 @@
-name: Validate Pull Request
+name: Build & Test Debug
 
 env:
   SLN_PATH: Source/
