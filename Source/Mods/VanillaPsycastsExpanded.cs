@@ -119,6 +119,7 @@ namespace Multiplayer.Compat
             // Gizmos
             {
                 MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.CompBreakLink", "GetGizmos", 0);
+                MpCompat.RegisterLambdaDelegate("VanillaPsycastsExpanded.Ability_GuardianSkipBarrier", "GetGizmo", 0);
             }
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
