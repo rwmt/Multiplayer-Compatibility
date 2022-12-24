@@ -44,6 +44,12 @@ namespace Multiplayer.Compat
         private static Type renameSkipdoorDialogType;
         private static ConstructorInfo renameSkipdoorDialogConstructor;
         private static AccessTools.FieldRef<object, ThingWithComps> renameSkipdoorDialogSkipdoorField;
+
+        // Dialog_CreatePsyring
+        private static Type createPsyringDialogType;
+        private static ConstructorInfo createPsyringDialogConstructor;
+        private static AccessTools.FieldRef<object, Pawn> createPsyringPawnField;
+        private static AccessTools.FieldRef<object, Thing> createPsyringFuelField;
         
         // Skipdoor.<>c__DisplayClass35_0
         private static Type innerClassSkipdoorLocalsType;
@@ -100,6 +106,19 @@ namespace Multiplayer.Compat
             {
                 MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.Dialog_RenamePsyset:SetName"),
                     prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PreSetPsysetName)));
+            }
+
+            // CreatePsyring dialog
+            {
+                createPsyringDialogType = AccessTools.TypeByName("VanillaPsycastsExpanded.Technomancer.Dialog_CreatePsyring");
+                createPsyringDialogConstructor = AccessTools.DeclaredConstructor(createPsyringDialogType, new [] { typeof(Pawn), typeof(Thing) });
+                createPsyringPawnField = AccessTools.FieldRefAccess<Pawn>(createPsyringDialogType, "pawn");
+                createPsyringFuelField = AccessTools.FieldRefAccess<Thing>(createPsyringDialogType, "fuel");
+
+                MP.RegisterSyncWorker<object>(SyncDialogCreatePsyring, createPsyringDialogType);
+                MP.RegisterSyncMethod(createPsyringDialogType, "Create");
+
+                DialogUtilities.RegisterDialogCloseSync(createPsyringDialogType, true);
             }
 
             // Sync methods
@@ -388,6 +407,23 @@ namespace Multiplayer.Compat
         {
             var psyset = hediffPsysetsList(hediff)[index];
             psysetNameField(psyset) = name;
+        }
+
+        private static void SyncDialogCreatePsyring(SyncWorker sync, ref object dialog)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(createPsyringPawnField(dialog));
+                sync.Write(createPsyringFuelField(dialog));
+            }
+            else
+            {
+                var pawn = sync.Read<Pawn>();
+                var fuel = sync.Read<Thing>();
+
+                // When Dialog_CreatePsyring.Create() is called next tick this dialog is already gone from WindowStack, this is disposable.
+                dialog = createPsyringDialogConstructor.Invoke(new object[] { pawn, fuel });
+            }
         }
 
         private static void SyncDialogRenameSkipdoor(SyncWorker sync, ref Dialog_Rename dialog)
