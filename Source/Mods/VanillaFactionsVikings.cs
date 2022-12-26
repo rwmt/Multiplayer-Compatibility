@@ -5,7 +5,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Vikings by Oskar Potocki, Erin, Sarg Bjornson, erdelf, Kikohi, Taranchuk, Helixien, Chowder</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2231295285"/>
-    /// <see href="https://github.com/AndroidQuazar/Vanilla-Factions-Expanded-Vikings"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Vikings"/>
     [MpCompatFor("OskarPotocki.VFE.Vikings")]
     class VanillaFactionsVikings
     {

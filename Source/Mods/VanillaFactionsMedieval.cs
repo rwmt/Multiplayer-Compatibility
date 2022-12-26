@@ -2,8 +2,8 @@
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Traits Expanded by Oskar Potocki, XeoNovaDan</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpandedMedieval"/>
+    /// <summary>Vanilla Factions Expanded - Medieval by Oskar Potocki, XeoNovaDan</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Medieval"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2023513450"/>
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.MedievalModule")]
     public class VanillaFactionsMedieval

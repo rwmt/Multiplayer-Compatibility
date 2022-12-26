@@ -3,7 +3,7 @@
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Plants Expanded - More Plants by Sarg Bjornson, Oskar Potocki</summary>
-    /// <see href="https://github.com/juanosarg/VanillaPlantsExpanded-MorePlants"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaPlantsExpanded-MorePlants"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2748889667"/>
     [MpCompatFor("VanillaExpanded.VPlantsEMore")]
     internal class VanillaPlantsMorePlants

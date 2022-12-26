@@ -8,6 +8,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
+    /// <summary>Save Our Ship 2 by Thain, Kentington</summary>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1909914131"/>
     [MpCompatFor("kentington.saveourship2")]
     internal class SaveOurShip2
     {

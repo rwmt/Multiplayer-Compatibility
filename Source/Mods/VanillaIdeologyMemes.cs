@@ -5,7 +5,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Ideology Expanded - Memes and Structures by Oskar Potocki, Sarg Bjornson, Chowder</summary>
-    /// <see href="https://github.com/juanosarg/VanillaIdeologyExpanded-Memes"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaIdeologyExpanded-Memes"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2636329500"/>
     [MpCompatFor("VanillaExpanded.VMemesE")]
     internal class VanillaIdeologyMemes

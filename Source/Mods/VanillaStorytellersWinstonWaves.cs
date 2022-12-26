@@ -12,6 +12,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Storytellers Expanded - Winston Waves by Oskar Potocki, Kikohi</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2734032569"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaStorytellersExpanded-WinstonWave"/>
     [MpCompatFor("VanillaStorytellersExpanded.WinstonWave")]
     internal class VanillaStorytellersWinstonWaves
     {

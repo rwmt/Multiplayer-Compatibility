@@ -2,9 +2,9 @@
 
 namespace Multiplayer.Compat
 {
-    /// <summary> Vanilla Brewing Expanded by Oskar Potocki, Sarg Bjornson, Chowder</summary>
+    /// <summary>Vanilla Brewing Expanded by Oskar Potocki, Sarg Bjornson, Chowder</summary>
     /// <see href="https://steamcommunity.com/workshop/filedetails/?id=2186560858"/>
-    /// <see href="https://github.com/juanosarg/VanillaBrewingExpanded"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaBrewingExpanded"/>
     [MpCompatFor("VanillaExpanded.VBrewE")]
     class VanillaBrewingExpanded
     {

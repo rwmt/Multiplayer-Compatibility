@@ -6,7 +6,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Insectoids by Oskar Potocki, Sarg Bjornson, Kikohi</summary>
-    /// <see href="https://github.com/Kik0hi/Vanilla-Factions-Expanded-Insectoids"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Insectoids"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2149755445"/>
     [MpCompatFor("OskarPotocki.VFE.Insectoid")]
     class VanillaFactionsInsectoid

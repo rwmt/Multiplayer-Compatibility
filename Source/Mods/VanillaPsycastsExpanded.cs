@@ -12,7 +12,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Psycasts Expanded by erdelf, Oskar Potocki, legodude17, Taranchuk, xrushha, Sarg Bjornson, Sir Van, Reann Shepard</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaPsycastsExpanded"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaPsycastsExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2842502659"/>
     [MpCompatFor("VanillaExpanded.VPsycastsE")]
     public class VanillaPsycastsExpanded

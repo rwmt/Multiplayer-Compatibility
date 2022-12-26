@@ -12,7 +12,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Pirates by Oskar Potocki, Sarg Bjornson, erdelf, Roolo, Smash Phil, Taranchuk, xrushha, Kikohi, legodude17</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpanded-Pirates"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Pirates"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2723801948"/>
     [MpCompatFor("OskarPotocki.VFE.Pirates")]
     internal class VanillaFactionsPirates

@@ -11,8 +11,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Factions Expanded - Ancients</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpandedAncients"/>
+    /// <summary>Vanilla Factions Expanded - Ancients by Kikohi, legodude17, Oskar Potocki, Reann Shepard, xrushha</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Ancients"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2654846754"/>
     [MpCompatFor("VanillaExpanded.VFEA")]
     internal class VanillaFactionsAncients

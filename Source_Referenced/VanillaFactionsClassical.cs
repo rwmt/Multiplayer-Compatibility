@@ -17,7 +17,7 @@ using VFEC.Senators;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Classical by Oskar Potocki, ISOREX, xrushha, legodude17, Chowder</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpanded-Classical"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Classical"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2787850474"/>
     [MpCompatFor("OskarPotocki.VFE.Classical")]
     class VanillaFactionsClassical

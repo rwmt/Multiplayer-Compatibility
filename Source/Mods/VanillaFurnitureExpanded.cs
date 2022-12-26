@@ -3,7 +3,7 @@
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Furniture Expanded by OskarPotocki, Atlas, Kikohi</summary>
-    /// <see href="https://github.com/Atla55/More-Furniture-A-O"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFurnitureExpanded"/>
     /// <see href="https://steamcommunity.com/workshop/filedetails/?id=1718190143"/>
     [MpCompatFor("VanillaExpanded.VFECore")]
     internal class VanillaFurnitureExpanded

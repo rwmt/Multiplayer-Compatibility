@@ -4,6 +4,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Events Expanded by Oskar Potocki, Helixien, Kikohi</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1938420742"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaEventsExpanded"/>
     /// Contribution to Multiplayer Compatibility by Sokyran and Reshiram
     [MpCompatFor("VanillaExpanded.VEE")]
     class VEE

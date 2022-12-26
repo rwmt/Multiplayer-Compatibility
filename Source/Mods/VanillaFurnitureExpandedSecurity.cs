@@ -11,9 +11,9 @@ using Verse.Sound;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Furniture Expanded - Power by Oskar Potocki, Trunken, and XeoNovaDan </summary>
+    /// <summary>Vanilla Furniture Expanded - Security by Oskar Potocki, Trunken, and XeoNovaDan </summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1845154007"/>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFurnitureExpanded-Security"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFurnitureExpanded-Security"/>
     /// Contribution to Multiplayer Compatibility by Sokyran and Reshiram
     [MpCompatFor("VanillaExpanded.VFESecurity")]
     class VFESecurity

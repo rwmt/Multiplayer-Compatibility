@@ -6,6 +6,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Fanilla Factions Expanded - Settlers by OskarPotocki.VanillaFactionsExpanded.SettlersModule</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2052918119"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Settlers"/>
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.SettlersModule")]
     class VanillaFactionsSettlers
     {

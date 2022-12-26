@@ -13,9 +13,8 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Expanded Framework and other Vanilla Expanded mods by Oskar Potocki, Sarg Bjornson, Chowder, XeoNovaDan, Orion, Kikohi, erdelf, Taranchuk, and more</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaExpandedFramework"/>
-    /// <see href="https://github.com/juanosarg/ItemProcessor"/>
-    /// <see href="https://github.com/juanosarg/VanillaCookingExpanded"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaExpandedFramework"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaCookingExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2023507013"/>
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     class VanillaExpandedFramework

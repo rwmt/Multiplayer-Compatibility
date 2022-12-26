@@ -7,8 +7,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>VanillaCuisineExpanded-Fishing by juanosarg</summary>
-    /// <see href="https://github.com/juanosarg/VanillaCuisineExpanded-Fishing"/>
+    /// <summary>Vanilla Fishing Expanded by Oskar Potocki, Sarg Bjornson</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFishingExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1914064942"/>
     /// contribution to Multiplayer Compatibility by Cody Spring
     [MpCompatFor("VanillaExpanded.VCEF")]

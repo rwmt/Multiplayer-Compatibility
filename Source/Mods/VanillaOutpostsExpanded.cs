@@ -11,6 +11,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Outposts Expanded by legodude17, Oskar Potocki, Chowder, Kikohi</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2688941031"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaOutpostsExpanded"/>
     [MpCompatFor("vanillaexpanded.outposts")]
     internal class VanillaOutpostsExpanded
     {
