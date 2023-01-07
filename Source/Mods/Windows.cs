@@ -1,5 +1,4 @@
 ﻿using HarmonyLib;
-using Multiplayer.API;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -13,7 +12,7 @@ namespace Multiplayer.Compat
         public Windows(ModContentPack mod)
         {
             var type = AccessTools.TypeByName("OpenTheWindows.Building_Window");
-            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 1, 3);
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 3, 5);
 
             type = AccessTools.TypeByName("OpenTheWindows.CompWindow");
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 1);
