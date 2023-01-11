@@ -21,15 +21,18 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("ResearchPowl.Queue");
             var methods = new[]
             {
-                "AppendS",
-                "PrependS",
-                "ReplaceS",
-                "RemoveS",
-                "Insert",
-                "FinishS",
-                "ReplaceMoreS",
-                "Undo",
-                "Redo",
+                // modifies _queue
+                "UnsafeConcat",
+                "UnsafeInsert",
+                "Remove",
+                "Replace",
+                "ReplaceMore",
+                "Finish",
+                "DoMove",
+                
+                // calls UpdateCurrentResearch
+                "UnsafeAppend",
+                "Prepend",
             };
 
             foreach (var method in methods) 
