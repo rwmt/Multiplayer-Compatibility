@@ -56,13 +56,14 @@ namespace Multiplayer.Compat
         private static FastInvokeHandler mvcfPawnGetter;
         private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
 
-        // WorldComponent_MVCF
-        private static AccessTools.FieldRef<WorldComponent> mvcfWorldCompInstanceField;
-        private static AccessTools.FieldRef<object, object> mvcfManagersTableField;
+        // PawnVerbUtility
+        private static AccessTools.FieldRef<object, object> mvcfPawnVerbUtilityField;
 
         // ManagedVerb
         private static FastInvokeHandler mvcfManagedVerbManagerGetter;
-        private static AccessTools.FieldRef<object, IList> mvcfManagedVerbAllCompsField;
+
+        // VerbWithComps
+        private static AccessTools.FieldRef<object, IList> mvcfVerbWithCompsField;
 
         // VerbComp
         private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
@@ -277,11 +278,11 @@ namespace Multiplayer.Compat
 
         private static void PatchMVCF()
         {
-            var type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
-            mvcfWorldCompInstanceField = AccessTools.StaticFieldRefAccess<WorldComponent>(AccessTools.Field(type, "Instance"));
-            mvcfManagersTableField = AccessTools.FieldRefAccess<object>(type, "managers");
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedInitVerbManager));
-            MpCompat.harmony.Patch(AccessTools.Method(type, "GetManagerFor"),
+
+            Type type = AccessTools.TypeByName("MVCF.Utilities.PawnVerbUtility");
+            mvcfPawnVerbUtilityField = AccessTools.FieldRefAccess<object>(type, "managers");
+            MpCompat.harmony.Patch(AccessTools.Method(type, "Manager"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(GetManagerForPrefix)));
 
             type = AccessTools.TypeByName("MVCF.VerbManager");
@@ -297,10 +298,12 @@ namespace Multiplayer.Compat
 
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
             mvcfManagedVerbManagerGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Manager"));
-            mvcfManagedVerbAllCompsField = AccessTools.FieldRefAccess<IList>(type, "AllComps");
             MP.RegisterSyncWorker<object>(SyncManagedVerb, type, isImplicit: true);
             // Seems like selecting the Thing that holds the verb inits some stuff, so we need to set the context
             MP.RegisterSyncMethod(type, "Toggle");
+
+            type = AccessTools.TypeByName("MVCF.VerbWithComps");
+            mvcfVerbWithCompsField = AccessTools.FieldRefAccess<IList>(type, "comps");
 
             type = AccessTools.TypeByName("MVCF.VerbComps.VerbComp");
             mvcfVerbCompParentField = AccessTools.FieldRefAccess<object>(type, "parent");
@@ -442,8 +445,7 @@ namespace Multiplayer.Compat
             {
                 var pawn = sync.Read<Pawn>();
 
-                var comp = mvcfWorldCompInstanceField();
-                var weakTable = mvcfManagersTableField(comp);
+                var weakTable = mvcfPawnVerbUtilityField(null);
 
                 var outParam = new object[] { pawn, null };
 
@@ -451,7 +453,7 @@ namespace Multiplayer.Compat
                 if ((bool)conditionalWeakTableTryGetValueMethod(weakTable, outParam))
                     obj = outParam[1];
                 else
-                    obj = InitVerbManager(pawn, comp, table: weakTable);
+                    obj = InitVerbManager(pawn, table: weakTable);
             }
         }
 
@@ -495,7 +497,7 @@ namespace Multiplayer.Compat
             if (sync.isWriting)
             {
                 verb = mvcfVerbCompParentField(verbComp);
-                var index = mvcfManagedVerbAllCompsField(verb).IndexOf(verbComp);
+                var index = mvcfVerbWithCompsField(verb).IndexOf(verbComp);
 
                 SyncManagedVerb(sync, ref verb);
                 sync.Write(index);
@@ -507,7 +509,7 @@ namespace Multiplayer.Compat
 
                 if (index >= 0)
                 {
-                    verbComp = mvcfManagedVerbAllCompsField(verb)[index];
+                    verbComp = mvcfVerbWithCompsField(verb)[index];
                 }
             }
         }
@@ -571,12 +573,12 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static bool GetManagerForPrefix(Pawn pawn, bool createIfMissing, WorldComponent __instance, ref object __result)
+        private static bool GetManagerForPrefix(Pawn p, bool createIfMissing, ref object __result)
         {
             if (MP.IsInMultiplayer || !createIfMissing) return true; // We don't care and let the method run, we only care if we might need to creat a VerbManager
 
-            var table = mvcfManagersTableField(__instance);
-            var parameters = new object[] { pawn, null };
+            var table = mvcfPawnVerbUtilityField(null);
+            var parameters = new object[] { p, null };
 
             if ((bool)conditionalWeakTableTryGetValueMethod(table, parameters))
             {
@@ -590,11 +592,11 @@ namespace Multiplayer.Compat
                 // We just return the reference for it so other objects can use it now. The data they
                 // have will be updated after the sync, so the gizmos related to verbs might not be
                 // shown immediately for players who selected specific pawns.
-                __result = CreateAndAddVerbManagerToCollections(pawn, __instance, table: table);
+                __result = CreateAndAddVerbManagerToCollections(p, table: table);
             }
 
             // Ensure VerbManager is initialized for all players, as it might not be
-            SyncedInitVerbManager(pawn);
+            SyncedInitVerbManager(p);
 
             return false;
         }
@@ -602,11 +604,8 @@ namespace Multiplayer.Compat
         // Synced method for initializing the verb manager for all players, used in sitations where the moment of creation of the verb might not be synced
         private static void SyncedInitVerbManager(Pawn pawn) => InitVerbManager(pawn);
 
-        private static object InitVerbManager(Pawn pawn, WorldComponent comp = null, object table = null)
+        private static object InitVerbManager(Pawn pawn, object table = null)
         {
-            comp ??= mvcfWorldCompInstanceField();
-            if (comp == null) return null;
-            table ??= mvcfManagersTableField(comp);
             var parameters = new object[] { pawn, null };
             object verbManager;
 
@@ -621,7 +620,7 @@ namespace Multiplayer.Compat
             // If the verb manager doesn't exist, we create an empty one here and add it to the verb manager list and table, and then initialize it
             else
             {
-                verbManager = CreateAndAddVerbManagerToCollections(pawn, comp, table);
+                verbManager = CreateAndAddVerbManagerToCollections(pawn, table);
                 mvcfInitializeManagerMethod(verbManager, pawn);
             }
 
@@ -629,11 +628,11 @@ namespace Multiplayer.Compat
         }
 
         // Helper method for creating an empty verb manager for a pawn
-        private static object CreateAndAddVerbManagerToCollections(Pawn pawn, WorldComponent worldComponent, object table = null)
+        private static object CreateAndAddVerbManagerToCollections(Pawn pawn, object table = null)
         {
             var verbManager = mvcfVerbManagerCtor.Invoke(Array.Empty<object>());
 
-            table ??= mvcfManagersTableField(worldComponent);
+            table ??= mvcfPawnVerbUtilityField(null);
             conditionalWeakTableAddMethod(table, pawn, verbManager);
 
             return verbManager;
