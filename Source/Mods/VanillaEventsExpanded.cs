@@ -13,7 +13,7 @@ namespace Multiplayer.Compat
         {
             var methodsForAll = new[]
             {
-                "VEE.HeddifComp_MightJoin:CompPostTick",
+                "VEE.HediffComp_MightJoin:CompPostTick",
 
                 "VEE.RegularEvents.ApparelPod:TryExecuteWorker",
                 "VEE.RegularEvents.CaravanAnimalWI:GenerateGroup",
