@@ -575,7 +575,7 @@ namespace Multiplayer.Compat
 
         private static bool GetManagerForPrefix(Pawn p, bool createIfMissing, ref object __result)
         {
-            if (MP.IsInMultiplayer || !createIfMissing) return true; // We don't care and let the method run, we only care if we might need to creat a VerbManager
+            if (!MP.IsInMultiplayer || !createIfMissing) return true; // We don't care and let the method run, we only care if we might need to creat a VerbManager
 
             var table = mvcfPawnVerbUtilityField(null);
             var parameters = new object[] { p, null };
