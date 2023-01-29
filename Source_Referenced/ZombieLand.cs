@@ -27,9 +27,6 @@ namespace Multiplayer.Compat
 
             var transpiler = new HarmonyMethod(typeof(ZombieLand), nameof(ReplaceCoroutineCall));
             MpCompat.harmony.Patch(
-                AccessTools.Method(typeof(ZombieGenerator), nameof(ZombieGenerator.SpawnZombie)),
-                transpiler: transpiler);
-            MpCompat.harmony.Patch(
                 AccessTools.Method(typeof(ZombiesRising), nameof(ZombiesRising.TryExecute)),
                 transpiler: transpiler);
             MpCompat.harmony.Patch(
