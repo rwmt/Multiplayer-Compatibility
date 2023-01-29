@@ -2,12 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
-using RimWorld.Planet;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -51,13 +49,13 @@ namespace Multiplayer.Compat
 
         //// MVCF ////
         // VerbManager
-        private static ConstructorInfo mvcfVerbManagerCtor;
-        private static FastInvokeHandler mvcfInitializeManagerMethod;
         private static FastInvokeHandler mvcfPawnGetter;
         private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
 
         // PawnVerbUtility
         private static AccessTools.FieldRef<object, object> mvcfPawnVerbUtilityField;
+        private delegate object GetManager(Pawn p, bool createIfMissing);
+        private static GetManager mvcfPawnVerbUtilityGetManager;
 
         // ManagedVerb
         private static FastInvokeHandler mvcfManagedVerbManagerGetter;
@@ -71,7 +69,6 @@ namespace Multiplayer.Compat
 
         //// System ////
         // ConditionalWeakTable
-        private static FastInvokeHandler conditionalWeakTableAddMethod;
         private static FastInvokeHandler conditionalWeakTableTryGetValueMethod;
 
         public VanillaExpandedFramework(ModContentPack mod)
@@ -278,22 +275,19 @@ namespace Multiplayer.Compat
 
         private static void PatchMVCF()
         {
-            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedInitVerbManager));
+            MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.SpawnSetup)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(EverybodyGetsVerbManager)));
 
             Type type = AccessTools.TypeByName("MVCF.Utilities.PawnVerbUtility");
+            mvcfPawnVerbUtilityGetManager = AccessTools.MethodDelegate<GetManager>(AccessTools.Method(type, "Manager"));
             mvcfPawnVerbUtilityField = AccessTools.FieldRefAccess<object>(type, "managers");
-            MpCompat.harmony.Patch(AccessTools.Method(type, "Manager"),
-                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(GetManagerForPrefix)));
 
             type = AccessTools.TypeByName("MVCF.VerbManager");
             MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
-            mvcfVerbManagerCtor = AccessTools.Constructor(type);
-            mvcfInitializeManagerMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Initialize"));
             mvcfPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
             mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
 
             var conditionalWeakTableType = typeof(ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), type);
-            conditionalWeakTableAddMethod = MethodInvoker.GetHandler(AccessTools.Method(conditionalWeakTableType, "Add"));
             conditionalWeakTableTryGetValueMethod = MethodInvoker.GetHandler(AccessTools.Method(conditionalWeakTableType, "TryGetValue"));
 
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
@@ -453,7 +447,7 @@ namespace Multiplayer.Compat
                 if ((bool)conditionalWeakTableTryGetValueMethod(weakTable, outParam))
                     obj = outParam[1];
                 else
-                    obj = InitVerbManager(pawn, table: weakTable);
+                    throw new Exception($"MpCompat :: VerbManager of {pawn} isn't initialized! NO WAY!");
             }
         }
 
@@ -573,69 +567,10 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static bool GetManagerForPrefix(Pawn p, bool createIfMissing, ref object __result)
+        // Initialize the VerbManager early, we expect it to exist on every player.
+        private static void EverybodyGetsVerbManager(Pawn __instance)
         {
-            if (!MP.IsInMultiplayer || !createIfMissing) return true; // We don't care and let the method run, we only care if we might need to creat a VerbManager
-
-            var table = mvcfPawnVerbUtilityField(null);
-            var parameters = new object[] { p, null };
-
-            if ((bool)conditionalWeakTableTryGetValueMethod(table, parameters))
-            {
-                // Might as well give the result back instead of continuing the normal execution of the method,
-                // as it would just do the same stuff as we do here again
-                __result = parameters[1];
-            }
-            else
-            {
-                // We basically setup an empty reference, but we'll initialize it in the synced method.
-                // We just return the reference for it so other objects can use it now. The data they
-                // have will be updated after the sync, so the gizmos related to verbs might not be
-                // shown immediately for players who selected specific pawns.
-                __result = CreateAndAddVerbManagerToCollections(p, table: table);
-            }
-
-            // Ensure VerbManager is initialized for all players, as it might not be
-            SyncedInitVerbManager(p);
-
-            return false;
-        }
-
-        // Synced method for initializing the verb manager for all players, used in sitations where the moment of creation of the verb might not be synced
-        private static void SyncedInitVerbManager(Pawn pawn) => InitVerbManager(pawn);
-
-        private static object InitVerbManager(Pawn pawn, object table = null)
-        {
-            var parameters = new object[] { pawn, null };
-            object verbManager;
-
-            // Try to find the verb manager first, as it might exist (and it will definitely exist for at least one player)
-            if ((bool)conditionalWeakTableTryGetValueMethod(table, parameters))
-            {
-                verbManager = parameters[1];
-                // If the manager has the pawn assigned, it means it's initialized, if it's not - we initialize it
-                if (mvcfPawnGetter(verbManager, Array.Empty<object>()) == null)
-                    mvcfInitializeManagerMethod(verbManager, pawn);
-            }
-            // If the verb manager doesn't exist, we create an empty one here and add it to the verb manager list and table, and then initialize it
-            else
-            {
-                verbManager = CreateAndAddVerbManagerToCollections(pawn, table);
-                mvcfInitializeManagerMethod(verbManager, pawn);
-            }
-
-            return verbManager;
-        }
-
-        // Helper method for creating an empty verb manager for a pawn
-        private static object CreateAndAddVerbManagerToCollections(Pawn pawn, object table = null)
-        {
-            var verbManager = mvcfVerbManagerCtor.Invoke(Array.Empty<object>());
-
-            table ??= mvcfPawnVerbUtilityField(null);
-            conditionalWeakTableAddMethod(table, pawn, verbManager);
-
-            return verbManager;
+            mvcfPawnVerbUtilityGetManager(__instance, true);
         }
 
         private static void PreAbilityDoAction(object __instance)
