@@ -570,7 +570,11 @@ namespace Multiplayer.Compat
         // Initialize the VerbManager early, we expect it to exist on every player.
         private static void EverybodyGetsVerbManager(Pawn __instance)
         {
-            mvcfPawnVerbUtilityGetManager(__instance, true);
+            try {
+                mvcfPawnVerbUtilityGetManager(__instance, true);
+            } catch (NullReferenceException) {
+                // Can't be helped...
+            }
         }
 
         private static void PreAbilityDoAction(object __instance)
