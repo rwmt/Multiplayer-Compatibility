@@ -48,6 +48,8 @@ namespace Multiplayer.Compat
 
 
         //// MVCF ////
+        // Core
+        private static IEnumerable<string> mvcfEnabledFeaturesSet;
         // VerbManager
         private static FastInvokeHandler mvcfPawnGetter;
         private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
@@ -278,7 +280,13 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.SpawnSetup)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(EverybodyGetsVerbManager)));
 
-            Type type = AccessTools.TypeByName("MVCF.Utilities.PawnVerbUtility");
+            var type = AccessTools.TypeByName("MVCF.MVCF");
+            // HashSet<string>, using it as IEnumerable<string> for a bit of extra safety in case it ever gets changed to a list or something.
+            mvcfEnabledFeaturesSet = AccessTools.Field(type, "EnabledFeatures").GetValue(null) as IEnumerable<string>;
+            if (mvcfEnabledFeaturesSet == null)
+                Log.Warning("Cannot access the list of enabled MVCF features, this may cause issues");
+
+            type = AccessTools.TypeByName("MVCF.Utilities.PawnVerbUtility");
             mvcfPawnVerbUtilityGetManager = AccessTools.MethodDelegate<GetManager>(AccessTools.Method(type, "Manager"));
             mvcfPawnVerbUtilityField = AccessTools.FieldRefAccess<object>(type, "managers");
 
@@ -570,11 +578,25 @@ namespace Multiplayer.Compat
         // Initialize the VerbManager early, we expect it to exist on every player.
         private static void EverybodyGetsVerbManager(Pawn __instance)
         {
-            try {
-                mvcfPawnVerbUtilityGetManager(__instance, true);
-            } catch (NullReferenceException) {
-                // Can't be helped...
+            // No point in doing this out of MP
+            if (!MP.IsInMultiplayer)
+                return;
+
+            // In the unlikely case the feature set we got is null, we'll let it run anyway just in case.
+            if (mvcfEnabledFeaturesSet == null)
+            {
+                try 
+                {
+                    mvcfPawnVerbUtilityGetManager(__instance, true);
+                }
+                catch (NullReferenceException)
+                {
+                    // Ignored
+                }
             }
+            // If none of the features is enabled, there's not really any point in using the managers.
+            else if (mvcfEnabledFeaturesSet.Any())
+                mvcfPawnVerbUtilityGetManager(__instance, true);
         }
 
         private static void PreAbilityDoAction(object __instance)
