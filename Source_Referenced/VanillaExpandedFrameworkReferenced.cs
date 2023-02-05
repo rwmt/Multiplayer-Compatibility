@@ -36,12 +36,17 @@ namespace Multiplayer.Compat
 
                 // Take items dialog
                 MpCompat.harmony.Patch(AccessTools.Method(typeof(Dialog_TakeItems), nameof(Dialog_TakeItems.DoBottomButtons)),
-                    prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreDoBottomButtons)));
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreTakeItemsDoBottomButtons)));
                 MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedTakeItems));
 
+                // Give items dialog
+                MpCompat.harmony.Patch(AccessTools.Method(typeof(Dialog_GiveItems), nameof(Dialog_GiveItems.DoBottomButtons)),
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreGiveItemsDoBottomButtons)));
+                MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedGiveItems));
+
                 // Generic outpost
-                // Stop packing (0), pack (1), and (dev) produce now (9), random pawn takes 10 damage (10), all pawns become hungry (11), pack instantly (12)
-                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 9, 10, 11, 12).Skip(2).SetDebugOnly();
+                // Stop packing (0), pack (1), pick colony to deliver to (8), and (dev) produce now (9), random pawn takes 10 damage (10), all pawns become hungry (11), pack instantly (12)
+                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 8, 9, 10, 11, 12).Reverse().Take(4).SetDebugOnly();
                 // Pick delivery method
                 MpCompat.RegisterLambdaDelegate(typeof(Outpost), nameof(Outpost.GetGizmos), 8);
                 // Remove pawn from outpost/create caravan (delegate, 4)
@@ -169,7 +174,7 @@ namespace Multiplayer.Compat
 
         // Basically replace the original method with our own, that's basically the same
         // (with the main difference being how we are handling the button)
-        private static bool PreDoBottomButtons(Rect rect, Dialog_TakeItems __instance)
+        private static bool PreTakeItemsDoBottomButtons(Rect rect, Dialog_TakeItems __instance)
         {
             var rect2 = new Rect(rect.width - __instance.BottomButtonSize.x, rect.height - 40f, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y);
             
@@ -212,11 +217,68 @@ namespace Multiplayer.Compat
                     if (thing.stackCount <= transferable.CountToTransfer)
                     {
                         transferable.AdjustBy(-thing.stackCount);
-                        caravan.AddPawnOrItem(thing, true);
+                        caravan.AddPawnOrItem(outpost.TakeItem(thing), true);
                     }
                     else
                     {
                         caravan.AddPawnOrItem(thing.SplitOff(transferable.CountToTransfer), true);
+                        transferable.AdjustTo(0);
+                        transferable.things.Add(thing);
+                    }
+                }
+            }
+        }
+
+        // Basically replace the original method with our own, that's basically the same
+        // (with the main difference being how we are handling the button)
+        private static bool PreGiveItemsDoBottomButtons(Rect rect, Dialog_GiveItems __instance)
+        {
+            var rect2 = new Rect(rect.width - __instance.BottomButtonSize.x, rect.height - 40f, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y);
+            
+            if (Widgets.ButtonText(rect2, "Outposts.Give".Translate()))
+            {
+                var thingsToTransfer = __instance.transferables
+                    .Where(x => x.HasAnyThing && x.CountToTransfer > 0)
+                    .ToDictionary(x => x.ThingDef, x => x.CountToTransfer);
+
+                SyncedGiveItems(__instance.outpost, __instance.caravan, thingsToTransfer);
+                __instance.Close();
+            }
+
+            if (Widgets.ButtonText(new Rect(0f, rect2.y, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y), "CancelButton".Translate()))
+                __instance.Close();
+
+            if (Widgets.ButtonText(new Rect(rect.width / 2f - __instance.BottomButtonSize.x, rect2.y, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y), "ResetButton".Translate()))
+            {
+                SoundDefOf.Tick_Low.PlayOneShotOnCamera();
+                __instance.CalculateAndRecacheTransferables();
+            }
+
+            return false;
+        }
+
+        private static void SyncedGiveItems(Outpost outpost, Caravan caravan, Dictionary<ThingDef, int> itemsToTransfer)
+        {
+            var dummyDialog = new Dialog_GiveItems(outpost, caravan);
+            dummyDialog.CalculateAndRecacheTransferables();
+
+            foreach (var transferable in dummyDialog.transferables)
+            {
+                if (transferable.HasAnyThing && itemsToTransfer.TryGetValue(transferable.ThingDef, out var count))
+                    transferable.ForceTo(count);
+
+                while (transferable.HasAnyThing && transferable.CountToTransfer > 0)
+                {
+                    var thing = transferable.things.Pop();
+
+                    if (thing.stackCount <= transferable.CountToTransfer)
+                    {
+                        transferable.AdjustBy(-thing.stackCount);
+                        outpost.AddItem(thing);
+                    }
+                    else
+                    {
+                        outpost.AddItem(thing.SplitOff(transferable.CountToTransfer));
                         transferable.AdjustTo(0);
                         transferable.things.Add(thing);
                     }
