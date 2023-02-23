@@ -346,10 +346,12 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaMethod("PipeSystem.CompExplosiveContent", "CompGetGizmosExtra", 0).SetDebugOnly();
             // Choose output
             MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceProcessor", "PostSpawnSetup", 1);
-            // Transfer/extract
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "PostSpawnSetup", 0, 1);
-            // (Dev) fill/empty
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "CompGetGizmosExtra", 0, 1);
+            // Extract resource (0), toggle allow manual refill (2), transfer to other containers (3)
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "PostSpawnSetup", 0, 2, 3);
+            // (Dev) fill/add 5/empty
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "CompGetGizmosExtra", 0, 1, 2).SetDebugOnly();
+            // Spawn resource now
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompSpawnerOrNet", "CompGetGizmosExtra", 0).SetDebugOnly();
         }
 
         private static void PatchKCSG()
