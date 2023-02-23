@@ -31,6 +31,7 @@ namespace Multiplayer.Compat
                 {
                     "GeneticRim.CompExploder",
                     "GeneticRim.HediffComp_PeriodicWounds",
+                    "GeneticRim.CompElectroWomb",
                 };
 
                 PatchingUtilities.PatchSystemRandCtor(constructors, false);
