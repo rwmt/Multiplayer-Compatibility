@@ -19,9 +19,6 @@ namespace Multiplayer.Compat
     {
         public VanillaRacesPhytokin(ModContentPack mod)
         {
-            // Plant saplingchild
-            MpCompat.RegisterLambdaMethod("VanillaRacesExpandedPhytokin.HediffComp_Saplingchild", "CompGetGizmos", 0);
-
             // Dev mode gizmos
             // Reset dryad counter (in case of counter breaking)
             MpCompat.RegisterLambdaDelegate("VanillaRacesExpandedPhytokin.CompDryadCounter", "CompGetGizmosExtra", 0).SetDebugOnly();
