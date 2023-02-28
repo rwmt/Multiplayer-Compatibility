@@ -12,13 +12,20 @@ namespace Multiplayer.Compat
     [MpCompatFor("Owlchemist.GiddyUp")]
     public class GiddyUp2
     {
+        // Multiplayer
         private static FastInvokeHandler transferableAdjustTo;
 
+        // ExtendedPawnData/ExtendedPawnStore
         private static AccessTools.FieldRef<object, Pawn> extendedPawnDataPawn;
         private static FastInvokeHandler getGUData;
 
+        // Patch_TransferableOneWayWidget
         private static AccessTools.FieldRef<object, object> parentClass;
         private static AccessTools.FieldRef<object, TransferableOneWay> transferableField;
+        
+        // Designator
+        private static AccessTools.FieldRef<object, Area> designatorSelectedArea;
+        private static AccessTools.FieldRef<object, string> designatorAreaLabel;
 
         public GiddyUp2(ModContentPack mod)
         {
@@ -58,7 +65,6 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(AccessTools.TypeByName("GiddyUpRideAndRoll.PawnColumnWorker_Mountable_Colonists"), "SetValue");
                 MP.RegisterSyncMethod(AccessTools.TypeByName("GiddyUpRideAndRoll.PawnColumnWorker_Mountable_Slaves"), "SetValue");
             }
-
             // Sync
             {
                 var type = AccessTools.TypeByName("GiddyUp.ExtendedPawnData");
@@ -67,6 +73,13 @@ namespace Multiplayer.Compat
 
                 getGUData = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("GiddyUp.StorageUtility:GetGUData"));
                 transferableAdjustTo = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Multiplayer.Client.SyncFields:TransferableAdjustTo"));
+
+                type = AccessTools.TypeByName("GiddyUp.Designator_GU");
+                designatorSelectedArea = AccessTools.FieldRefAccess<Area>(type, "selectedArea");
+                designatorAreaLabel = AccessTools.FieldRefAccess<string>(type, "areaLabel");
+                // Designator_GU has an argument for the constructor which would fail with shouldConstruct, but it's only
+                // used by the subclasses which have parameterless ones (they provide the argument themselves).
+                MP.RegisterSyncWorker<Designator>(SyncGiddyUpDesignator, type, isImplicit: true, shouldConstruct: true);
             }
         }
 
@@ -84,6 +97,20 @@ namespace Multiplayer.Compat
             {
                 var pawn = sync.Read<Pawn>();
                 extendedPawnData = getGUData(null, pawn);
+            }
+        }
+
+        private static void SyncGiddyUpDesignator(SyncWorker sync, ref Designator designator)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(designatorSelectedArea(designator));
+                sync.Write(designatorAreaLabel(designator));
+            }
+            else
+            {
+                designatorSelectedArea(designator) = sync.Read<Area>();
+                designatorAreaLabel(designator) = sync.Read<string>();
             }
         }
     }
