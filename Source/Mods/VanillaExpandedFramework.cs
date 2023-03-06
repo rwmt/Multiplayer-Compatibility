@@ -2,10 +2,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -41,6 +44,8 @@ namespace Multiplayer.Compat
 
         // Vanilla Furniture Expanded
         private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
+        private static Type randomBuildingGraphicCompType;
+        private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
 
         // Dialog_NewFactionSpawning
         private static Type newFactionSpawningDialogType;
@@ -228,11 +233,18 @@ namespace Multiplayer.Compat
             MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
             MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
+            type = randomBuildingGraphicCompType = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
+            randomBuildingGraphicCompChangeGraphicMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "ChangeGraphic"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
 
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
             MP.RegisterSyncMethod(type, "SwitchColor");
+
+            // Preferably leave it at the end in case it fails - if it fails all the other stuff here will still get patched
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
+                transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
+            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
         }
 
         private static void PatchVanillaFactionMechanoids()
@@ -695,6 +707,66 @@ namespace Multiplayer.Compat
         }
 
         private static bool HostOnlyNewFactionDialog() => !MP.IsInMultiplayer || MP.IsHosting;
+
+        private static bool Dialog_ChooseGraphic_ReplacementButton(Rect butRect, bool doMouseoverSound, Thing thingToChange, int index, Window window)
+        {
+            var result = Widgets.ButtonInvisible(butRect, doMouseoverSound);
+            if (!MP.IsInMultiplayer || !result)
+                return result;
+
+            window.Close();
+
+            Dialog_ChooseGraphic_SyncChange(index, thingToChange,
+                // Filter the comps before syncing them
+                Find.Selector.SelectedObjects
+                    .OfType<ThingWithComps>()
+                    .Where(thing => thing.def == thingToChange.def)
+                    .Select(thing => thing.AllComps.FirstOrDefault(x => x.GetType() == randomBuildingGraphicCompType))
+                    .Where(comp => comp != null));
+
+            return false;
+        }
+
+        private static void Dialog_ChooseGraphic_SyncChange(int index, Thing thingToChange, IEnumerable<ThingComp> compsToChange)
+        {
+            LongEventHandler.ExecuteWhenFinished(() =>
+            {
+                foreach (var comp in compsToChange)
+                    randomBuildingGraphicCompChangeGraphicMethod(comp, false, index, false);
+            });
+
+            thingToChange.DirtyMapMesh(thingToChange.Map);
+        }
+
+        private static IEnumerable<CodeInstruction> Dialog_ChooseGraphic_ReplaceSelectionButton(IEnumerable<CodeInstruction> instr)
+        {
+            // Technically no need to replace specify the argument types, but including them just in case another method with same name gets added in the future
+            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonInvisible), new[] { typeof(Rect), typeof(bool) });
+            var replacementMethod = AccessTools.DeclaredMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplacementButton));
+
+            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
+            var thingToChangeField = AccessTools.DeclaredField(type, "thingToChange");
+            FieldInfo indexField = null;
+
+            foreach (var ci in instr)
+            {
+                if (indexField == null && (ci.opcode == OpCodes.Ldfld || ci.opcode == OpCodes.Stfld) && ci.operand is FieldInfo { Name: "i" } field)
+                    indexField = field;
+
+                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod && indexField != null)
+                {
+                    ci.operand = replacementMethod;
+
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    yield return new CodeInstruction(OpCodes.Ldfld, thingToChangeField); // Load in the "thingToChange" (Thing) field
+                    yield return new CodeInstruction(OpCodes.Ldloc_S, 5); // Load in the local of type "<>c__DisplayClass9_0"
+                    yield return new CodeInstruction(OpCodes.Ldfld, indexField); // Load in the "i" (int) from the nested type
+                    yield return new CodeInstruction(OpCodes.Ldarg_0); // Load in the instance (Dialog_ChooseGraphic)
+                }
+
+                yield return ci;
+            }
+        }
 
         #endregion
     }
