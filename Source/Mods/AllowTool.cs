@@ -30,8 +30,8 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, Pawn> parentInnerClassPawnField;
         private static AccessTools.FieldRef<object, Thing> parentInnerClassTargetField;
 
-        // MP
-        private static AccessTools.FieldRef<object, bool> dontSyncField;
+        // Designator_SelectSimilar
+        private static Type selectSimilarType;
 
         // Override for shift/control key press and visible map rect
         private static bool? shiftHeldState = null;
@@ -40,11 +40,6 @@ namespace Multiplayer.Compat
 
         public AllowTool(ModContentPack mod)
         {
-            // MP stuff
-            {
-                dontSyncField = AccessTools.FieldRefAccess<bool>("Multiplayer.Client.Multiplayer:dontSync");
-            }
-
             // Gizmos
             {
                 // Drafted hunt
@@ -112,9 +107,15 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<object>(ShiftControlStateOnlySyncWorker, type, shouldConstruct: true);
 
                 // Remove syncing from select similar designator (breaks the designator otherwise)
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AllowTool.Designator_SelectSimilar:DesignateMultiCell"),
-                    prefix: new HarmonyMethod(typeof(AllowTool), nameof(SelectSimilarPrefix)),
-                    finalizer: new HarmonyMethod(typeof(AllowTool), nameof(SyncAgainFinalizer)));
+                selectSimilarType = AccessTools.TypeByName("AllowTool.Designator_SelectSimilar");
+
+                // Patch MP to not sync select similar designator
+                type = AccessTools.TypeByName("Multiplayer.Client.DesignatorPatches");
+                var methods = new[] { "DesignateSingleCell", "DesignateMultiCell", "DesignateThing" };
+
+                foreach (var method in methods)
+                    MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, method),
+                        prefix: new HarmonyMethod(typeof(AllowTool), nameof(StopDesignatorSyncing)));
             }
 
             // Recache haul urgently deterministically (currently uses Time.unscaledTime)
@@ -185,29 +186,13 @@ namespace Multiplayer.Compat
                 activationResultShowMessage(__result);
         }
 
-        // MP will try to automatically sync the select similar designator, so we tell MP to not sync this one
-        private static void SelectSimilarPrefix(ref bool __state)
+        private static bool StopDesignatorSyncing([HarmonyArgument("__instance")] Designator instance, ref bool __result)
         {
-            if (!MP.IsInMultiplayer || dontSyncField()) return;
+            if (MP.IsInMultiplayer && !selectSimilarType.IsInstanceOfType(instance))
+                return true;
 
-            __state = true;
-            dontSyncField() = true;
-        }
-
-        // private static void ContextMenuEntryPrefix(object __instance, ref bool __state)
-        // {
-        //     // Prevent syncing of client-only menu entry types
-        //     if (!MP.IsInMultiplayer || dontSyncField() || !unsyncedMenuEntries.Contains(__instance.GetType())) return;
-        //
-        //     __state = true;
-        //     dontSyncField() = true;
-        // }
-
-        // We need to make sure the value is set back to false, or basically everything in MP will break
-        private static void SyncAgainFinalizer(bool __state)
-        {
-            if (__state)
-                dontSyncField() = false;
+            __result = true;
+            return false;
         }
 
         // Some designators use the current state of shift/control key, so we need to sync those as well
