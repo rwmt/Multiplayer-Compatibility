@@ -20,7 +20,7 @@ namespace Multiplayer.Compat
 
         public BiotechExpansionMythic(ModContentPack mod)
         {
-            TemporarySyncWorkers.RegisterIGeneResourceDrain();
+            MpSyncWorkers.Requires<IGeneResourceDrain>();
 
             var type = AccessTools.TypeByName("BTE_MY.CompCreateReveredMote");
             MP.RegisterSyncMethod(type, "GetMeditationSpots"); // Scan for meditation spots
