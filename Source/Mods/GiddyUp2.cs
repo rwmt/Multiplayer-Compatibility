@@ -40,8 +40,8 @@ namespace Multiplayer.Compat
 
             // FloatMenus
             {
-                // Dismount/Mount/Switch mount/Godmode mount
-                MpCompat.RegisterLambdaDelegate("GiddyUp.Harmony.FloatMenuUtility", "AddMountingOptions", 0, 1, 2, 3).Last().SetDebugOnly();
+                // Dismount/Mount/Switch mount
+                MpCompat.RegisterLambdaDelegate("GiddyUp.Harmony.FloatMenuUtility", "AddMountingOptions", 0, 1, 2);
 
                 // Select/clear rider pawn for caravan
                 var type = AccessTools.TypeByName("GiddyUpCaravan.Harmony.Patch_TransferableOneWayWidget");
