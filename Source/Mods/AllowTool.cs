@@ -307,18 +307,30 @@ namespace Multiplayer.Compat
             }
             else
             {
-                var parent = Activator.CreateInstance(innerParentType);
+                try
+                {
+                    // Required to allow finishing off friendly pawns.
+                    // In most cases will be meaningless and only used when someone actually holds shift to designate friendly.
+                    // We just assume it's always held, as otherwise the method wouldn't get synced in the first place for friendlies anyway.
+                    shiftHeldState = true;
+
+                    var parent = Activator.CreateInstance(innerParentType);
                 
-                var pawn = sync.Read<Pawn>();
-                var target = sync.Read<Thing>();
-                parentInnerClassPawnField(parent) = pawn;
-                parentInnerClassTargetField(parent) = target;
+                    var pawn = sync.Read<Pawn>();
+                    var target = sync.Read<Thing>();
+                    parentInnerClassPawnField(parent) = pawn;
+                    parentInnerClassTargetField(parent) = target;
 
-                innerClassParentField(obj) = parent;
+                    innerClassParentField(obj) = parent;
 
-                var workGiver = (WorkGiver_Scanner)createWorkGiverInstance(null);
-                innerClassWorkGiverField(obj) = workGiver;
-                innerClassJobField(obj) = workGiver.JobOnThing(pawn, target, true);
+                    var workGiver = (WorkGiver_Scanner)createWorkGiverInstance(null);
+                    innerClassWorkGiverField(obj) = workGiver;
+                    innerClassJobField(obj) = workGiver.JobOnThing(pawn, target, true);
+                }
+                finally
+                {
+                    shiftHeldState = null;
+                }
             }
         }
     }
