@@ -142,7 +142,7 @@ namespace Multiplayer.Compat
                 var parentField = AccessTools.GetDeclaredFields(type).FirstOrDefault(t => t.FieldType.Name.StartsWith("<>c__DisplayClass"));
                 innerClassParentField = AccessTools.FieldRefAccess<object, object>(parentField);
 
-                MP.RegisterSyncMethod(method);
+                MP.RegisterSyncMethod(method).SetContext(SyncContext.QueueOrder_Down);
                 MP.RegisterSyncWorker<object>(SyncFinishOffInnerClass, type, shouldConstruct: true);
 
                 innerParentType = parentField.FieldType;
