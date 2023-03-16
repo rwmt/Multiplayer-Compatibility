@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
+using Multiplayer.API;
+using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -144,9 +147,9 @@ namespace Multiplayer.Compat
         }
 
         #region System RNG transpiler
-        private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Array.Empty<Type>());
+        private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Type.EmptyTypes);
         private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(System.Random).GetConstructor(new[] { typeof(int) });
-        private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Array.Empty<Type>());
+        private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Type.EmptyTypes);
         private static readonly ConstructorInfo RandRedirectorSeededConstructor = typeof(RandRedirector).GetConstructor(new[] { typeof(int) });
 
         /// <summary>Transpiler that replaces all calls to <see cref="System.Random"/> constructor with calls to <see cref="RandRedirector"/> constructor</summary>
@@ -252,6 +255,79 @@ namespace Multiplayer.Compat
 
             if (!anythingPatched) Log.Warning($"No Unity RNG was patched for method: {original?.FullDescription() ?? "(unknown method)"}");
         }
+        #endregion
+
+        #region Cancel on UI
+
+        /// <summary>
+        /// <para>Returns <see langword="true"/> if <see cref="UIRoot_Play.UIRootOnGUI"/> or <see cref="UIRoot_Play.UIRootUpdate"/> are called.</para>
+        /// <para>Should be used to prevent any gameplay-related changes from being executed from UI.</para>
+        /// <para>Requires calling <see cref="InitCancelOnUI"/> or any <see cref="PatchCancelMethodOnUI"/>, otherwise it will always be <see langword="false"/>.</para>
+        /// </summary>
+        public static bool IsDoingUI { get; private set; } = false;
+
+        private static bool isPatchApplied = false;
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void PatchCancelMethodOnUI(params string[] methodNames) => PatchCancelMethodOnUI(methodNames as IEnumerable<string>);
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void PatchCancelMethodOnUI(IEnumerable<string> methodNames)
+            => PatchCancelMethodOnUI(methodNames
+                .Select(m =>
+                {
+                    var method = AccessTools.DeclaredMethod(m) ?? AccessTools.Method(m);
+                    if (method == null)
+                        Log.Error($"({nameof(PatchingUtilities)}) Could not find method {m}");
+                    return method;
+                })
+                .Where(m => m != null));
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void PatchCancelMethodOnUI(params MethodBase[] methods) => PatchCancelMethodOnUI(methods as IEnumerable<MethodBase>);
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void PatchCancelMethodOnUI(IEnumerable<MethodBase> methods)
+        {
+            InitCancelOnUI();
+            foreach (var method in methods)
+                Patch(method);
+        }
+
+        private static void Patch(MethodBase method)
+        {
+            MpCompat.harmony.Patch(method,
+                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelDuringAlerts)));
+        }
+
+        /// <summary>
+        /// <para>Patches <see cref="UIRoot_Play.UIRootOnGUI"/> and <see cref="UIRoot_Play.UIRootUpdate"/> to set <see cref="IsDoingUI"/> when they are running.</para>
+        /// <para>Called automatically from any <see cref="PatchCancelMethodOnUI"/> method.</para>
+        /// </summary>
+        public static void InitCancelOnUI()
+        {
+            if (isPatchApplied) return;
+
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootOnGUI)),
+                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(Prefix)),
+                finalizer: new HarmonyMethod(typeof(PatchingUtilities), nameof(Finalizer)));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootUpdate)),
+                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(Prefix)),
+                finalizer: new HarmonyMethod(typeof(PatchingUtilities), nameof(Finalizer)));
+
+            isPatchApplied = true;
+        }
+
+        private static void Prefix() => IsDoingUI = true;
+
+        private static void Finalizer() => IsDoingUI = false;
+
+        private static bool CancelDuringAlerts() => MP.IsInMultiplayer && !IsDoingUI;
+
         #endregion
     }
 }

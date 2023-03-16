@@ -40,7 +40,7 @@ namespace Multiplayer.Compat
             // Gamplay logic during UI code
             {
                 // Hediffs added in MoodOffset, can be called during alert updates (not synced)
-                CancelOnUI.PatchMethod("VanillaMemesExpanded.Thought_DisableFirstDefeatThought:MoodOffset");
+                PatchingUtilities.PatchCancelMethodOnUI("VanillaMemesExpanded.Thought_DisableFirstDefeatThought:MoodOffset");
             }
         }
     }

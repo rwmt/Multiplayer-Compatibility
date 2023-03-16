@@ -381,7 +381,7 @@ namespace Multiplayer.Compat
             newFactionSpawningDialogType = AccessTools.TypeByName("VFECore.Dialog_NewFactionSpawning");
             factionDefField = AccessTools.FieldRefAccess<FactionDef>(newFactionSpawningDialogType, "factionDef");
 
-            MP.RegisterSyncMethod(newFactionSpawningDialogType, "<SpawnWithBases>g__SpawnCallback|7_0");
+            MP.RegisterSyncMethod(MpMethodUtil.GetLocalFunc(newFactionSpawningDialogType, "SpawnWithBases", localFunc: "SpawnCallback"));
             MP.RegisterSyncMethod(newFactionSpawningDialogType, "SpawnWithoutBases");
             MP.RegisterSyncMethod(newFactionSpawningDialogType, "Ignore");
             MP.RegisterSyncWorker<Window>(SyncFactionDiscoveryDialog, newFactionSpawningDialogType);
@@ -402,7 +402,7 @@ namespace Multiplayer.Compat
         }
 
         // Hediffs added in MoodOffset, can be called during alert updates (not synced)
-        private static void PatchVanillaCookingExpanded() => CancelOnUI.PatchMethod("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
+        private static void PatchVanillaCookingExpanded() => PatchingUtilities.PatchCancelMethodOnUI("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
 
         #endregion
 
