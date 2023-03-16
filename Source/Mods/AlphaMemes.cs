@@ -16,6 +16,9 @@ namespace Multiplayer.Compat
             // The following method is seeded, so it should be fine
             // If not, then patching it as well should fix it
             //"AlphaMemes.GameComponent_RandomMood:GameComponentTick",
+
+            // Hediffs added in MoodOffset, can be called during alert updates (not synced)
+            PatchingUtilities.PatchCancelMethodOnUI("AlphaMemes.Thought_Catharsis:MoodOffset");
         }
     }
 }

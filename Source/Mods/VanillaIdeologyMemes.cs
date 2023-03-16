@@ -36,6 +36,12 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncMethod(type, "SetObjectForDeconstruction");
                 MP.RegisterSyncMethod(type, "CancelObjectForDeconstruction");
             }
+
+            // Gamplay logic during UI code
+            {
+                // Hediffs added in MoodOffset, can be called during alert updates (not synced)
+                PatchingUtilities.PatchCancelMethodOnUI("VanillaMemesExpanded.Thought_DisableFirstDefeatThought:MoodOffset");
+            }
         }
     }
 }

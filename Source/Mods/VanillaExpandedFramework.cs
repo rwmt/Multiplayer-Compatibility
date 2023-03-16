@@ -98,6 +98,7 @@ namespace Multiplayer.Compat
                 (PatchKCSG, "KCSG (custom structure generation)", false),
                 (PatchFactionDiscovery, "Faction Discovery", false),
                 (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
+                (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -148,8 +149,6 @@ namespace Multiplayer.Compat
         {
             PatchingUtilities.PatchPushPopRand(new[]
             {
-                // AddHediff desyncs with Arbiter, but seems fine without it
-                "VanillaCookingExpanded.Thought_Hediff:MoodOffset",
                 // Uses GenView.ShouldSpawnMotesAt and uses RNG if it returns true,
                 // and it's based on player camera position. Need to push/pop or it'll desync
                 // unless all players looking when it's called
@@ -382,7 +381,7 @@ namespace Multiplayer.Compat
             newFactionSpawningDialogType = AccessTools.TypeByName("VFECore.Dialog_NewFactionSpawning");
             factionDefField = AccessTools.FieldRefAccess<FactionDef>(newFactionSpawningDialogType, "factionDef");
 
-            MP.RegisterSyncMethod(newFactionSpawningDialogType, "<SpawnWithBases>g__SpawnCallback|7_0");
+            MP.RegisterSyncMethod(MpMethodUtil.GetLocalFunc(newFactionSpawningDialogType, "SpawnWithBases", localFunc: "SpawnCallback"));
             MP.RegisterSyncMethod(newFactionSpawningDialogType, "SpawnWithoutBases");
             MP.RegisterSyncMethod(newFactionSpawningDialogType, "Ignore");
             MP.RegisterSyncWorker<Window>(SyncFactionDiscoveryDialog, newFactionSpawningDialogType);
@@ -401,6 +400,9 @@ namespace Multiplayer.Compat
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Hatch"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
         }
+
+        // Hediffs added in MoodOffset, can be called during alert updates (not synced)
+        private static void PatchVanillaCookingExpanded() => PatchingUtilities.PatchCancelMethodOnUI("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
 
         #endregion
 
