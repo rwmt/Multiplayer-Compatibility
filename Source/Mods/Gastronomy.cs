@@ -66,7 +66,7 @@ namespace Multiplayer.Compat
                     postfix: new HarmonyMethod(typeof(Gastronomy), nameof(FillTabPostfix)));
 
                 // Clear debt on cliking it
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass18_0", "<DrawDebts>b__1").CancelIfAnyFieldNull().CancelIfNoSelectedObjects().SetContext(SyncContext.CurrentMap);
+                MP.RegisterSyncDelegate(type, "<>c__DisplayClass18_0", "<DrawDebts>b__1").CancelIfAnyFieldNull().CancelIfNoSelectedMapObjects().SetContext(SyncContext.CurrentMap);
 
                 // Sync worker for debt itself, requires SyncContext.CurrentMap
                 type = AccessTools.TypeByName("Gastronomy.Restaurant.Debt");

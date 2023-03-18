@@ -50,15 +50,6 @@ namespace Multiplayer.Compat
         private static ConstructorInfo createPsyringDialogConstructor;
         private static AccessTools.FieldRef<object, Pawn> createPsyringPawnField;
         private static AccessTools.FieldRef<object, Thing> createPsyringFuelField;
-        
-        // Skipdoor.<>c__DisplayClass35_0
-        private static Type innerClassSkipdoorLocalsType;
-        private static AccessTools.FieldRef<object, ThingWithComps> innerClassSkipdoorThisField;
-        private static AccessTools.FieldRef<object, Pawn> innerClassSkipdoorPawnField;
-
-        // Skipdoor.<>c__DisplayClass35_1
-        private static AccessTools.FieldRef<object, object> innerClassSkipdoorLocalsField;
-        private static AccessTools.FieldRef<object, Thing> innerClassSkipdoorTargetField;
 
         // HashSet<AbilityDef>
         private static Type abilityDefHashSetType;
@@ -209,50 +200,8 @@ namespace Multiplayer.Compat
                         if (dialog is Window w)
                             Find.WindowStack.TryRemove(w);
                     });
-
-                var innerClassMethod = MpMethodUtil.GetLambda(type, nameof(ThingWithComps.GetFloatMenuOptions));
-
-                if (innerClassMethod == null)
-                    Log.Error("Couldn't find inner class 1 for skipdoor, skipdoors won't work.");
-                else
-                {
-                    var fields = AccessTools.GetDeclaredFields(innerClassMethod.DeclaringType);
-                    if (fields.Count != 2)
-                        Log.Error($"Found incorrect amount of fields while trying to register skipdoor (inner class 1) - found: {fields.Count}, expected: 2.");
-                    
-                    foreach (var field in fields)
-                    {
-                        if (field.FieldType == type)
-                            innerClassSkipdoorTargetField = AccessTools.FieldRefAccess<object, Thing>(field);
-                        else
-                        {
-                            innerClassSkipdoorLocalsType = field.FieldType;
-                            innerClassSkipdoorLocalsField = AccessTools.FieldRefAccess<object, object>(field);
-                        }
-                    }
-
-                    if (innerClassSkipdoorLocalsType == null)
-                    {
-                        Log.Error("Couldn't find inner class 0 for skipdoor, skipdoors won't work.");
-                    }
-                    else
-                    {
-                        fields = AccessTools.GetDeclaredFields(innerClassSkipdoorLocalsType);
-                        if (fields.Count != 2)
-                            Log.Error($"Found incorrect amount of fields while trying to register skipdoor (inner class 0) - found: {fields.Count}, expected: 2.");
-
-                        foreach (var field in fields)
-                        {
-                            if (field.FieldType == type)
-                                innerClassSkipdoorThisField = AccessTools.FieldRefAccess<object, ThingWithComps>(field);
-                            else if (field.FieldType == typeof(Pawn))
-                                innerClassSkipdoorPawnField = AccessTools.FieldRefAccess<object, Pawn>(field);
-                        }
-                        
-                        MP.RegisterSyncWorker<object>(SyncInnerSkipdoorClass, innerClassMethod.DeclaringType, shouldConstruct: true);
-                        MP.RegisterSyncMethod(innerClassMethod);
-                    }
-                }
+                MpCompat.RegisterLambdaDelegate(type, nameof(ThingWithComps.GetFloatMenuOptions), 0)[0]
+                    .TransformField("skipdoor", Serializer.New<Thing, int>(WriteSkipdoor, ReadSkipdoor), true);
             }
         }
 
@@ -448,32 +397,9 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static void SyncInnerSkipdoorClass(SyncWorker sync, ref object obj)
-        {
-            if (sync.isWriting)
-            {
-                var locals = innerClassSkipdoorLocalsField(obj);
-                var target = innerClassSkipdoorTargetField(obj);
-                
-                // The target is on a different map, so we can't just sync it as MP does not allow it.
-                // We need to sync the ID number and manually get the target by ID instead.
-                sync.Write(target.thingIDNumber);
-                sync.Write(innerClassSkipdoorThisField(locals));
-                sync.Write(innerClassSkipdoorPawnField(locals));
-            }
-            else
-            {
-                // shouldConstruct: true, so obj is constructed
-                // but we need to construct the other object used for locals
-                var locals = Activator.CreateInstance(innerClassSkipdoorLocalsType);
-                innerClassSkipdoorLocalsField(obj) = locals;
-
-                // Get the target by ID.
-                innerClassSkipdoorTargetField(obj) = thingsById.GetValueSafe(sync.Read<int>());
-                innerClassSkipdoorThisField(locals) = sync.Read<ThingWithComps>();
-                innerClassSkipdoorPawnField(locals) = sync.Read<Pawn>();
-            }
-        }
+        private static int WriteSkipdoor(Thing thing) => thing.thingIDNumber;
+        
+        private static Thing ReadSkipdoor(int id) => thingsById.GetValueSafe(id);
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instr)
         {
