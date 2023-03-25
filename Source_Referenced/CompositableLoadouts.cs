@@ -32,6 +32,8 @@ namespace Multiplayer.Compat
         private static Tag currentTag = null;
         private static List<ItemStateCopy> stateCopies = new List<ItemStateCopy>();
 
+        private static float nextCallAllowedTime = float.NegativeInfinity;
+
         #endregion
 
         #region Init
@@ -54,6 +56,8 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(typeof(LoadoutManager), nameof(LoadoutManager.SetTagForBill));
             MP.RegisterSyncMethod(typeof(LoadoutManager), nameof(LoadoutManager.AddTag));
             MP.RegisterSyncMethod(typeof(LoadoutManager), nameof(LoadoutManager.RemoveTag));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(LoadoutManager), nameof(LoadoutManager.AddTag)),
+                prefix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(StopDuplicateTagAdditionToManager)));
 
             // LoadoutState
             MP.RegisterSyncMethod(typeof(CompositableLoadouts), nameof(SyncedSetLoadoutStateName));
@@ -79,6 +83,7 @@ namespace Multiplayer.Compat
 
             // Tag editor
             MP.RegisterSyncMethod(typeof(CompositableLoadouts), nameof(SyncSetTagRequiredItemsList));
+            MP.RegisterSyncMethod(typeof(CompositableLoadouts), nameof(SyncSetTagName));
             var removeLocalTagFromDialog = new HarmonyMethod(typeof(CompositableLoadouts), nameof(RemoveLocalTagFromDialog));
             MpCompat.harmony.Patch(AccessTools.DeclaredConstructor(typeof(Dialog_TagEditor), new[] { typeof(Tag) }),
                 postfix: removeLocalTagFromDialog);
@@ -86,7 +91,7 @@ namespace Multiplayer.Compat
                 postfix: removeLocalTagFromDialog);
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_TagEditor), nameof(Dialog_TagEditor.Draw)),
                 prefix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(PreTagEditorDraw)),
-                postfix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(CheckCurrentTagForChanges)));
+                postfix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(PostTagEditorDraw)));
 
             // Tag selector
             MP.RegisterSyncMethod(typeof(CompositableLoadouts), nameof(SyncedCloseAndSelect));
@@ -103,7 +108,6 @@ namespace Multiplayer.Compat
             // LoadoutComponent
             MP.RegisterSyncMethod(typeof(LoadoutComponent), nameof(LoadoutComponent.AddTag));
             MP.RegisterSyncMethod(typeof(LoadoutComponent), nameof(LoadoutComponent.RemoveTag));
-            // MP.RegisterSyncMethod(typeof(CompositableLoadouts), nameof(SyncedRemoveTag));
             MpCompat.RegisterLambdaMethod(typeof(LoadoutComponent), nameof(LoadoutComponent.CompGetGizmosExtra), 0);
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(LoadoutComponent), nameof(LoadoutComponent.AddTag)),
                 prefix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(StopDuplicateTagAdditionToComp)));
@@ -140,6 +144,9 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_LoadoutEditor), nameof(Dialog_LoadoutEditor.DrawTags)),
                 prefix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(PreLoadoutEditorDraggableTags)),
                 postfix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(PostLoadoutEditorDraggableTags)));
+            // Same as above
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_TagEditor), nameof(Dialog_TagEditor.DrawTagEditor)),
+                transpiler: new HarmonyMethod(typeof(CompositableLoadouts), nameof(ReplaceButtonsWithTimedButtons)));
 
             // Utility
             // Works on defs, will need to do late as they're not loaded otherwise
@@ -288,7 +295,7 @@ namespace Multiplayer.Compat
                 ___curTag = null;
         }
 
-        private static void PreTagEditorDraw(Tag ___curTag)
+        private static void PreTagEditorDraw(Tag ___curTag, ref string __state)
         {
             stateCopies.Clear();
 
@@ -298,8 +305,20 @@ namespace Multiplayer.Compat
                 return;
             }
 
+            if (___curTag.uniqueId >= 0)
+                __state = ___curTag.name;
             currentTag = ___curTag;
             stateCopies.AddRange(___curTag.requiredItems.Select(tag => new ItemStateCopy(tag)));
+        }
+
+        private static void PostTagEditorDraw(Tag ___curTag, string __state)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            if (__state != null && __state != ___curTag.name && ___curTag.uniqueId >= 0)
+                SyncSetTagName(___curTag, ___curTag.name);
+            CheckCurrentTagForChanges();
         }
 
         private static void CheckCurrentTagForChanges()
@@ -341,6 +360,8 @@ namespace Multiplayer.Compat
             tag.requiredItems = newList;
         }
 
+        private static void SyncSetTagName(Tag tag, string name) => tag.name = name;
+
         #endregion
 
         #region Tag Selector Patches
@@ -360,10 +381,16 @@ namespace Multiplayer.Compat
 
         private static bool ReplacedTagSelectorButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor, Dialog_TagSelector instance)
         {
-            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
-            if (!MP.IsInMultiplayer || !result)
-                return result;
+            if (!MP.IsInMultiplayer)
+                return Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
 
+            var callAllowed = Time.realtimeSinceStartup > nextCallAllowedTime;
+            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active && callAllowed, overrideTextAnchor);
+
+            if (!result || !callAllowed)
+                return false;
+
+            nextCallAllowedTime = Time.realtimeSinceStartup + 1;
             if (label == Strings.SelectTags)
                 SyncedCloseAndSelect(null, instance.selectedTags, false, instance.onSelect);
             else if (label == Strings.CreateNewTag)
@@ -460,6 +487,43 @@ namespace Multiplayer.Compat
         private static bool StopDuplicateDefAdditionToTag(Tag __instance, ThingDef thing)
             => !MP.IsInMultiplayer || __instance.requiredItems.All(item => item.Def != thing);
 
+        private static bool StopDuplicateTagAdditionToManager(LoadoutManager __instance, Tag tag)
+            => !MP.IsInMultiplayer || !__instance.tags.Any(t => t.uniqueId == tag.uniqueId);
+
+        // Calling methods which sync local tag can create multiple tags if clicked repeatedly (possibly by accident).
+        // Issue with this is that we cannot easily check if the tag that was just created already exists, as there's nothing
+        // that'll be unique for them (besides the ID, which we get during syncing local ones).
+        // This replacement for buttons is here to prevent spam-clicking buttons, which would result in creation of high amount of duplicate tags.
+        private static bool PreventDuplicateButtonClicks(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor)
+        {
+            if (!MP.IsInMultiplayer || label != Strings.CreateNewTag)
+                return Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
+
+            var callAllowed = Time.realtimeSinceStartup > nextCallAllowedTime;
+            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active && callAllowed, overrideTextAnchor);
+
+            if (!result || !callAllowed)
+                return false;
+
+            nextCallAllowedTime = Time.realtimeSinceStartup + 1;
+            return true;
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceButtonsWithTimedButtons(IEnumerable<CodeInstruction> instr)
+        {
+            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonText), 
+                new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
+            var replacementMethod = AccessTools.DeclaredMethod(typeof(CompositableLoadouts), nameof(PreventDuplicateButtonClicks));
+
+            foreach (var ci in instr)
+            {
+                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod)
+                    ci.operand = replacementMethod;
+                
+                yield return ci;
+            }
+        }
+
         #endregion
 
         #region Sync Workers
@@ -534,6 +598,7 @@ namespace Multiplayer.Compat
                     requiredItems = sync.Read<List<Item>>(),
                 };
                 tags.Add(tag);
+                LoadoutManager.PawnsWithTags.Add(tag, new SerializablePawnList(new List<Pawn>()));
 
                 if (!MP.IsExecutingSyncCommandIssuedBySelf)
                     return;
