@@ -20,6 +20,11 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     class VanillaExpandedFramework
     {
+        //// MP ///
+        // ThingsById
+        private static Dictionary<int, Thing> thingsById;
+
+
         //// VFECore ////
         // CompAbility
         private static Type compAbilitiesType;
@@ -50,6 +55,20 @@ namespace Multiplayer.Compat
         // Dialog_NewFactionSpawning
         private static Type newFactionSpawningDialogType;
         private static AccessTools.FieldRef<object, FactionDef> factionDefField;
+        
+        // Dialog_RenameDoorTeleporter
+        private static Type renameDoorTeleporterDialogType;
+        private static ConstructorInfo renameDoorTeleporterDialogConstructor;
+        private static AccessTools.FieldRef<object, ThingWithComps> renameDoorTeleporterDialogThingField;
+
+        // DoorTeleporter.<>c__DisplayClass26_0
+        private static Type innerClassDoorTeleporterLocalsType;
+        private static AccessTools.FieldRef<object, ThingWithComps> innerClassDoorTeleporterThisField;
+        private static AccessTools.FieldRef<object, Pawn> innerClassDoorTeleporterPawnField;
+
+        // DoorTeleporter.<>c__DisplayClass26_1
+        private static AccessTools.FieldRef<object, object> innerClassDoorTeleporterLocalsField;
+        private static AccessTools.FieldRef<object, Thing> innerClassDoorTeleporterTargetField;
 
 
         //// MVCF ////
@@ -99,6 +118,7 @@ namespace Multiplayer.Compat
                 (PatchFactionDiscovery, "Faction Discovery", false),
                 (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
                 (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", false),
+                (PatchDoorTeleporter, "Teleporter Doors", true),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -117,6 +137,10 @@ namespace Multiplayer.Compat
                 }
             }
         }
+
+        // Right now only used by teleporter doors. Could potentially be used by other mods.
+        // It's a separate method instead of being always initialized in case this ever changes in MP and causes issues here.
+        private static void EnsureThingsByIdDictionaryActive() => thingsById ??= (Dictionary<int, Thing>)AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.ThingsById"), "thingsById").GetValue(null);
 
         #region Main patches
 
@@ -403,6 +427,75 @@ namespace Multiplayer.Compat
 
         // Hediffs added in MoodOffset, can be called during alert updates (not synced)
         private static void PatchVanillaCookingExpanded() => PatchingUtilities.PatchCancelMethodOnUI("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
+
+        private static void PatchDoorTeleporter()
+        {
+            var type = AccessTools.TypeByName("VFECore.DoorTeleporter");
+            // Destroy
+            MpCompat.RegisterLambdaMethod(type, "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
+            // Teleport to x
+            MpCompat.RegisterLambdaDelegate(type, nameof(ThingWithComps.GetFloatMenuOptions), 0);
+
+            renameDoorTeleporterDialogType = AccessTools.TypeByName("VFECore.Dialog_RenameDoorTeleporter");
+            renameDoorTeleporterDialogConstructor = AccessTools.DeclaredConstructor(renameDoorTeleporterDialogType, new[] { type });
+            renameDoorTeleporterDialogThingField = AccessTools.FieldRefAccess<ThingWithComps>(renameDoorTeleporterDialogType, "DoorTeleporter");
+
+            PatchingUtilities.PatchPushPopRand(renameDoorTeleporterDialogConstructor);
+            MP.RegisterSyncWorker<Dialog_Rename>(SyncDialogRenameDoorTeleporter, renameDoorTeleporterDialogType);
+            MP.RegisterSyncMethod(renameDoorTeleporterDialogType, nameof(Dialog_Rename.SetName))
+                // Since we sync the "SetName" method and nothing else, it'll leave the dialog open for
+                // players who didn't click the button to rename it - we need to manually close it.
+                .SetPostInvoke((dialog, _) =>
+                {
+                    if (dialog is Window w)
+                        Find.WindowStack.TryRemove(w);
+                });
+
+            var innerClassMethod = MpMethodUtil.GetLambda(type, nameof(ThingWithComps.GetFloatMenuOptions));
+
+            if (innerClassMethod == null)
+                Log.Error("Couldn't find inner class 1 for door teleporters, they won't work.");
+            else
+            {
+                var fields = AccessTools.GetDeclaredFields(innerClassMethod.DeclaringType);
+                if (fields.Count != 2)
+                    Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 1) - found: {fields.Count}, expected: 2.");
+
+                foreach (var field in fields)
+                {
+                    if (field.FieldType == type)
+                        innerClassDoorTeleporterTargetField = AccessTools.FieldRefAccess<object, Thing>(field);
+                    else
+                    {
+                        innerClassDoorTeleporterLocalsType = field.FieldType;
+                        innerClassDoorTeleporterLocalsField = AccessTools.FieldRefAccess<object, object>(field);
+                    }
+                }
+
+                if (innerClassDoorTeleporterLocalsType == null)
+                {
+                    Log.Error("Couldn't find inner class 0 for door teleporters, they won't work.");
+                }
+                else
+                {
+                    fields = AccessTools.GetDeclaredFields(innerClassDoorTeleporterLocalsType);
+                    if (fields.Count != 2)
+                        Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 0) - found: {fields.Count}, expected: 2.");
+
+                    foreach (var field in fields)
+                    {
+                        if (field.FieldType == type)
+                            innerClassDoorTeleporterThisField = AccessTools.FieldRefAccess<object, ThingWithComps>(field);
+                        else if (field.FieldType == typeof(Pawn))
+                            innerClassDoorTeleporterPawnField = AccessTools.FieldRefAccess<object, Pawn>(field);
+                    }
+
+                    EnsureThingsByIdDictionaryActive();
+                    MP.RegisterSyncWorker<object>(SyncInnerDoorTeleporterClass, innerClassMethod.DeclaringType, shouldConstruct: true);
+                    MP.RegisterSyncMethod(innerClassMethod);
+                }
+            }
+        }
 
         #endregion
 
@@ -705,6 +798,55 @@ namespace Multiplayer.Compat
                         null);
                     factionDefField(window) = factionDef;
                 }
+            }
+        }
+
+        private static void SyncDialogRenameDoorTeleporter(SyncWorker sync, ref Dialog_Rename dialog)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(renameDoorTeleporterDialogThingField(dialog));
+                sync.Write(dialog.curName);
+            }
+            else
+            {
+                var doorTeleporter = sync.Read<ThingWithComps>();
+                var name = sync.Read<string>();
+
+                // The dialog may be already open
+                dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == renameDoorTeleporterDialogType) as Dialog_Rename;
+                // If the dialog is not open, or the open dialog is for a different door - create a new dialog instead
+                if (dialog == null || renameDoorTeleporterDialogThingField(dialog) != doorTeleporter)
+                    dialog = (Dialog_Rename)renameDoorTeleporterDialogConstructor.Invoke(new object[] { doorTeleporter });
+
+                dialog.curName = name;
+            }
+        }
+
+        private static void SyncInnerDoorTeleporterClass(SyncWorker sync, ref object obj)
+        {
+            if (sync.isWriting)
+            {
+                var locals = innerClassDoorTeleporterLocalsField(obj);
+                var target = innerClassDoorTeleporterTargetField(obj);
+                
+                // The target is on a different map, so we can't just sync it as MP does not allow it.
+                // We need to sync the ID number and manually get the target by ID instead.
+                sync.Write(target.thingIDNumber);
+                sync.Write(innerClassDoorTeleporterThisField(locals));
+                sync.Write(innerClassDoorTeleporterPawnField(locals));
+            }
+            else
+            {
+                // shouldConstruct: true, so obj is constructed
+                // but we need to construct the other object used for locals
+                var locals = Activator.CreateInstance(innerClassDoorTeleporterLocalsType);
+                innerClassDoorTeleporterLocalsField(obj) = locals;
+
+                // Get the target by ID.
+                innerClassDoorTeleporterTargetField(obj) = thingsById.GetValueSafe(sync.Read<int>());
+                innerClassDoorTeleporterThisField(locals) = sync.Read<ThingWithComps>();
+                innerClassDoorTeleporterPawnField(locals) = sync.Read<Pawn>();
             }
         }
 
