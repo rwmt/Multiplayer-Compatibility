@@ -40,6 +40,9 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, Thing> abilityHolderField;
         private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
         private static ISyncField abilityAutoCastField;
+        
+        // AbilityDef
+        private static AccessTools.FieldRef<Def, int> abilityDefTargetCountField;
 
         // Dialog_Hire
         private static Type hireDialogType;
@@ -214,13 +217,18 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(type, "CreateCastJob");
             MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
             abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
-            MpCompat.harmony.Patch(AccessTools.Method(type, "DoAction"),
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoTargeting"),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoTargeting)));
 
             type = AccessTools.TypeByName("VFECore.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
+
+            type = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
+            abilityDefTargetCountField = AccessTools.FieldRefAccess<int>(type, "targetCount");
         }
 
         private static void PatchHireableFactions()
@@ -723,6 +731,14 @@ namespace Multiplayer.Compat
                 return;
 
             MP.WatchEnd();
+        }
+
+        private static void PostAbilityDoTargeting(ref int ___currentTargetingIndex, Def ___def)
+        {
+            // Normally the method would call CreateCastJob which would set it to -1,
+            // but since we sync that specific method we instead manually set it to -1
+            if (___currentTargetingIndex >= abilityDefTargetCountField(___def))
+                ___currentTargetingIndex = -1;
         }
 
         private static void SyncHireDialog(SyncWorker sync, ref Window dialog)
