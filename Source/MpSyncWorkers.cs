@@ -4,6 +4,7 @@ using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using Verse;
+using Verse.AI.Group;
 
 namespace Multiplayer.Compat
 {
@@ -21,6 +22,8 @@ namespace Multiplayer.Compat
 
             if (type == typeof(IGeneResourceDrain))
                 MP.RegisterSyncWorker<IGeneResourceDrain>(SyncIGeneResourceDrain);
+            else if (type == typeof(LordJob))
+                MP.RegisterSyncWorker<LordJob>(SyncLordJob, isImplicit: true);
             else
                 Log.Error($"Trying to register SyncWorker of type {type}, but it's not supported.\n{new StackTrace(1)}");
         }
@@ -36,6 +39,14 @@ namespace Multiplayer.Compat
             }
             else
                 resourceDrain = sync.Read<Gene>() as IGeneResourceDrain;
+        }
+
+        private static void SyncLordJob(SyncWorker sync, ref LordJob job)
+        {
+            if (sync.isWriting)
+                sync.Write(job.lord);
+            else
+                job = sync.Read<Lord>()?.LordJob;
         }
 
         private static bool HasSyncWorker(Type type)
