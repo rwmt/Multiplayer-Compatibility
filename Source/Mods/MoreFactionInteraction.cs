@@ -68,6 +68,9 @@ namespace Multiplayer.Compat
                 type = AccessTools.TypeByName(typeName);
                 MP.RegisterSyncDialogNodeTree(type, "TryExecuteWorker");
             }
+
+            // Caravan -> Help with Crops
+            MP.RegisterSyncMethod(AccessTools.Method("MoreFactionInteraction.World_Incidents.WorldObjectComp_SettlementBumperCropComp:NotifyCaravanArrived"));
         }
     }
 }
