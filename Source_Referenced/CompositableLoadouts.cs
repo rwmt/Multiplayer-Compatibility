@@ -487,8 +487,8 @@ namespace Multiplayer.Compat
         private static bool StopDuplicateDefAdditionToTag(Tag __instance, ThingDef thing)
             => !MP.IsInMultiplayer || __instance.requiredItems.All(item => item.Def != thing);
 
-        private static bool StopDuplicateTagAdditionToManager(LoadoutManager __instance, Tag tag)
-            => !MP.IsInMultiplayer || !__instance.tags.Any(t => t.uniqueId == tag.uniqueId);
+        private static bool StopDuplicateTagAdditionToManager(Tag tag)
+            => !MP.IsInMultiplayer || !LoadoutManager.instance.tags.Any(t => t.uniqueId == tag.uniqueId);
 
         // Calling methods which sync local tag can create multiple tags if clicked repeatedly (possibly by accident).
         // Issue with this is that we cannot easily check if the tag that was just created already exists, as there's nothing
