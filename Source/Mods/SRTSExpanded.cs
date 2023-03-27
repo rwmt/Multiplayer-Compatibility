@@ -11,6 +11,7 @@ namespace Multiplayer.Compat
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1845423808"/>
     [MpCompatFor("smashphil.srtsexpanded")]
     [MpCompatFor("smashphil.neceros.srtsexpanded")]
+    [MpCompatFor("Shashlichnik.srtsexpanded")]
     class SRTSExpanded
     {
         private static MethodInfo tryLaunchMethod;
