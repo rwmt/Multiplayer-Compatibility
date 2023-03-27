@@ -260,13 +260,13 @@ namespace Multiplayer.Compat
         #region Cancel on UI
 
         /// <summary>
-        /// <para>Returns <see langword="true"/> if <see cref="UIRoot_Play.UIRootOnGUI"/> or <see cref="UIRoot_Play.UIRootUpdate"/> are called.</para>
-        /// <para>Should be used to prevent any gameplay-related changes from being executed from UI.</para>
-        /// <para>Requires calling <see cref="InitCancelOnUI"/> or any <see cref="PatchCancelMethodOnUI"/>, otherwise it will always be <see langword="false"/>.</para>
+        /// <para>Returns <see langword="true"/> during ticking and synced commands.</para>
+        /// <para>Should be used to prevent any gameplay-related changes from being executed from UI or other unsafe contexts.</para>
+        /// <para>Requires calling <see cref="InitCancelOnUI"/> or any <see cref="PatchCancelMethodOnUI"/> method, otherwise it will always be <see langword="false"/>.</para>
         /// </summary>
-        public static bool IsDoingUI { get; private set; } = false;
+        public static bool ShouldCancel => (bool)(shouldCancelUiMethod?.Invoke(null) ?? false);
 
-        private static bool isPatchApplied = false;
+        private static FastInvokeHandler shouldCancelUiMethod;
 
         /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
         /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
@@ -305,28 +305,13 @@ namespace Multiplayer.Compat
         }
 
         /// <summary>
-        /// <para>Patches <see cref="UIRoot_Play.UIRootOnGUI"/> and <see cref="UIRoot_Play.UIRootUpdate"/> to set <see cref="IsDoingUI"/> when they are running.</para>
+        /// <para>Gets access to Multiplayer.Client.AppendMoodThoughtsPatch:Cancel getter to check if execution should be cancelled during alerts.</para>
         /// <para>Called automatically from any <see cref="PatchCancelMethodOnUI"/> method.</para>
         /// </summary>
         public static void InitCancelOnUI()
-        {
-            if (isPatchApplied) return;
+            => shouldCancelUiMethod ??= MethodInvoker.GetHandler(AccessTools.PropertyGetter("Multiplayer.Client.AppendMoodThoughtsPatch:Cancel"));
 
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootOnGUI)),
-                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(Prefix)),
-                finalizer: new HarmonyMethod(typeof(PatchingUtilities), nameof(Finalizer)));
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootUpdate)),
-                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(Prefix)),
-                finalizer: new HarmonyMethod(typeof(PatchingUtilities), nameof(Finalizer)));
-
-            isPatchApplied = true;
-        }
-
-        private static void Prefix() => IsDoingUI = true;
-
-        private static void Finalizer() => IsDoingUI = false;
-
-        private static bool CancelDuringAlerts() => MP.IsInMultiplayer && !IsDoingUI;
+        private static bool CancelDuringAlerts() => !ShouldCancel;
 
         #endregion
     }
