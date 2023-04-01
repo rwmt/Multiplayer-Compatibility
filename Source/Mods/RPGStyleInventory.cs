@@ -25,7 +25,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(type, "InterfaceIngest").SetContext(SyncContext.MapSelected);
 
             // Remove/add forced apparel
-            if (mod.PackageId == "Sandy.RPGStyleInventory.avilmask.Revamped") {
+            if (mod.PackageId == "Sandy.RPGStyleInventory.avilmask.Revamped".ToLower()) {
                 MpCompat.RegisterLambdaDelegate(type, "PopupMenu", 1, 2);
             }
         }
