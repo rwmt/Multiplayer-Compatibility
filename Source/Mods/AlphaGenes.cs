@@ -8,11 +8,9 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>
-    /// Alpha Genes by Allie, Sarg
+    /// <summary>Alpha Genes by Allie, Sarg</summary>
     /// <see href="https://github.com/juanosarg/AlphaGenes"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2891845502"/>
-    /// </summary>
     [MpCompatFor("sarg.alphagenes")]
     internal class AlphaGenes
     {
