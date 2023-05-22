@@ -34,31 +34,36 @@ namespace Multiplayer.Compat
                 transpiler: new HarmonyMethod(typeof(VanillaRacesPhytokin), nameof(UseParentMap)));
         }
 
-        private static IEnumerable<CodeInstruction> UseParentMap(IEnumerable<CodeInstruction> instr)
+        public static IEnumerable<CodeInstruction> UseParentMap(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
-            var instrArr = instr.ToArray();
             var patched = false;
 
             var targetMethod = AccessTools.PropertyGetter(typeof(Find), nameof(Find.CurrentMap));
+            var replacement = baseMethod.DeclaringType!.IsInstanceOfType(typeof(HediffComp))
+                ? AccessTools.Field(typeof(HediffComp), nameof(HediffComp.parent))
+                : AccessTools.Field(typeof(ThingComp), nameof(ThingComp.parent));
 
-            foreach (var ci in instrArr)
+            foreach (var ci in instr)
             {
                 if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod)
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(typeof(ThingComp), nameof(ThingComp.parent)));
+                    yield return new CodeInstruction(OpCodes.Ldfld, replacement);
 
                     ci.opcode = OpCodes.Callvirt;
                     ci.operand = AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map));
 
                     patched = true;
                 }
-                
+
                 yield return ci;
             }
 
             if (!patched)
-                Log.Warning("Failed patching");
+            {
+                var name = baseMethod.DeclaringType!.Namespace.NullOrEmpty() ? string.Empty : $"{baseMethod.DeclaringType?.Name}.";
+                Log.Warning($"Failed patching {name}{baseMethod.Name}");
+            }
         }
     }
 }
