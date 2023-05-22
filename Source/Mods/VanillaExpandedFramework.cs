@@ -122,6 +122,7 @@ namespace Multiplayer.Compat
                 (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
                 (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", false),
                 (PatchDoorTeleporter, "Teleporter Doors", true),
+                (PatchSpecialTerrain, "Special Terrain", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -926,6 +927,26 @@ namespace Multiplayer.Compat
 
                 yield return ci;
             }
+        }
+
+        #endregion
+
+        #region Special Terrain
+
+        private static void PatchSpecialTerrain()
+        {
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.SpecialTerrainList:TerrainUpdate"),
+                prefix: new HarmonyMethod(typeof(BiomesCore), nameof(RemoveTerrainUpdateTimeBudget)));
+        }
+
+        private static void RemoveTerrainUpdateTimeBudget(ref long timeBudget)
+        {
+            if (MP.IsInMultiplayer)
+                timeBudget = long.MaxValue; // Basically limitless time
+
+            // The method is limited in updating a max of 1/3 of all active special terrains.
+            // If we'd want to work on having a performance option of some sort, we'd have to
+            // base it around amount of terrain updates per tick, instead of basing it on actual time.
         }
 
         #endregion
