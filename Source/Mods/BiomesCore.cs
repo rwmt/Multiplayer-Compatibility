@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
-using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -49,10 +45,8 @@ namespace Multiplayer.Compat
 
             // Current map usage
             {
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("BiomesCore.GameCondition_Earthquake:GameConditionTick"),
-                    transpiler: new HarmonyMethod(typeof(BiomesCore), nameof(UseParentMap)));
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("BiomesCore.IncidentWorker_Earthquake:TryExecuteWorker"),
-                    transpiler: new HarmonyMethod(typeof(BiomesCore), nameof(UseParentMap)));
+                PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("BiomesCore.GameCondition_Earthquake:GameConditionTick"));
+                PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("BiomesCore.IncidentWorker_Earthquake:TryExecuteWorker"));
             }
 
             // RNG + GenView.ShouldSpawnMotesAt
@@ -113,50 +107,6 @@ namespace Multiplayer.Compat
                 // Get the IntVec3 and use that for hash code (since it's safe for MP)
                 obj = terrainInstancePositionField(obj);
             }
-        }
-
-        private static IEnumerable<CodeInstruction> UseParentMap(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
-        {
-            var patched = false;
-            var targetMethod = AccessTools.PropertyGetter(typeof(Find), nameof(Find.CurrentMap));
-            var isIncidentWorker = baseMethod.DeclaringType!.IsSubclassOf(typeof(IncidentWorker));
-
-            foreach (var ci in instr)
-            {
-                yield return ci;
-
-                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod)
-                {
-                    if (isIncidentWorker)
-                    {
-                        // Replace current instruction instead of skipping (keep labels in case something tries to jump here)
-                        // Load first argument (0 being `this`)
-                        ci.opcode = OpCodes.Ldarg_1;
-                        ci.operand = null;
-
-                        // Load the `IncidentParms.target` field on the first argument
-                        yield return new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(IncidentParms), nameof(IncidentParms.target)));
-
-                        // Cast the argument to Map
-                        yield return new CodeInstruction(OpCodes.Castclass, typeof(Map));
-                    }
-                    else
-                    {
-                        // Replace current instruction instead of skipping (keep labels in case something tries to jump here)
-                        // Call `this.`
-                        ci.opcode = OpCodes.Ldarg_0;
-                        ci.operand = null;
-
-                        // Call the `SingleMap` getter
-                        yield return new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(GameCondition), nameof(GameCondition.SingleMap)));
-                    }
-
-                    patched = true;
-                }
-            }
-
-            if (!patched)
-                Log.Warning("Failed patching");
         }
     }
 }
