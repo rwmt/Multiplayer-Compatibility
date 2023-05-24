@@ -48,6 +48,7 @@ namespace Multiplayer.Compat
             Stopwatch,
             GameComponentUpdate,
             TimeManager,
+            GetHashCode,
         }
 
         private static readonly int MaxFoundStuff = Enum.GetNames(typeof(StuffToSearch)).Length;
@@ -55,6 +56,7 @@ namespace Multiplayer.Compat
         private static readonly MethodInfo FindCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Find), nameof(Find.CurrentMap));
         private static readonly MethodInfo GameCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Game), nameof(Game.CurrentMap));
         private static readonly MethodInfo GameComponentUpdate = AccessTools.DeclaredMethod(typeof(GameComponent), nameof(GameComponent.GameComponentUpdate));
+        private static readonly MethodInfo GetHashCodeMethod = AccessTools.DeclaredMethod(typeof(object), nameof(GetHashCode));
 
         [DebugAction(CategoryName, "Log unsafe stuff", allowedGameStates = AllowedGameStates.Entry)]
         public static void LogUnpatchedStuff() => LogUnpatchedStuff(false);
@@ -201,6 +203,13 @@ namespace Multiplayer.Compat
                     Log.Warning("== TimeManager uses timing functions that won't be synced across players. Unless used for UI, sounds, etc. then it will cause desyncs. ==");
                     Log.Message(log[StuffToSearch.TimeManager].Append("\n").Join(delimiter: "\n"));
                 }
+
+                if (log[StuffToSearch.GetHashCode].Any())
+                {
+                    Log.Warning("== GetHashCode usage found: ==");
+                    Log.Warning("== A lot of those will likely be false positives. However, depending on what the mod does with it - it can cause issues. Especially if the object has not implemented, or has non-deterministic .GetHashCode() implementation. ==");
+                    Log.Message(log[StuffToSearch.GetHashCode].Append("\n").Join(delimiter: "\n"));
+                }
             }
             else Log.Warning("== No unpatched RNG or potentially unsafe methods found ==");
 
@@ -226,7 +235,7 @@ namespace Multiplayer.Compat
             if (logAllClasses != null)
             {
                 lock (logAllClasses)
-                    logAllClasses.Add(type.FullName);
+                    logAllClasses.Add($"{type.FullName} ({type.Assembly.GetName().Name})");
             }
 
             const string monoFunctionPointerClass = "System.MonoFNPtrFakeClass";
@@ -249,7 +258,7 @@ namespace Multiplayer.Compat
                         foreach (var found in FindRng(method))
                         {
                             lock (log[found])
-                                log[found].Add($"{type.FullName}:{method.Name}");
+                                log[found].Add($"{type.FullName}:{method.Name} ({type.Assembly.GetName().Name})");
                         }
                     }
                     catch (Exception)
@@ -312,6 +321,10 @@ namespace Multiplayer.Compat
                     // Operating on time instead of ticks
                     case MethodInfo method when method.DeclaringType == typeof(Time):
                         foundStuff.Add(StuffToSearch.TimeManager);
+                        break;
+                    // Calls .GetHashCode, unless it's the method we're currently checking
+                    case MethodInfo method when method == GetHashCodeMethod && baseMethod != GetHashCodeMethod:
+                        foundStuff.Add(StuffToSearch.GetHashCode);
                         break;
                 }
 
