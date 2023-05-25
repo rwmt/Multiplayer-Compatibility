@@ -27,9 +27,9 @@ namespace Multiplayer.Compat
 
             // Current map usage
             {
-                PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("AlphaGenes.HediffComp_DeleteAfterTime:CompPostTick"));
+                PatchingUtilities.ReplaceCurrentMapUsage("AlphaGenes.HediffComp_DeleteAfterTime:CompPostTick");
                 // Debug stuff, may get changed or removed.
-                PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("AlphaGenes.CompRandomItemSpawner:CompTick"));
+                PatchingUtilities.ReplaceCurrentMapUsage("AlphaGenes.CompRandomItemSpawner:CompTick");
             }
         }
     }

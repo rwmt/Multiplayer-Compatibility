@@ -14,9 +14,9 @@ namespace Multiplayer.Compat
         {
             // Fix the mod using Find.CurrentMap instead of parent.Map - in both cases it creates new lord job on current (instead of parent) map
             // Change mech to a vanilla one if the mod mechanoid is disabled
-            PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("AlphaMechs.CompChangeDef:CompTick"));
+            PatchingUtilities.ReplaceCurrentMapUsage("AlphaMechs.CompChangeDef:CompTick");
             // Hediff runs out and mech turns back hostile
-            PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("AlphaMechs.HediffComp_DeleteAfterTime:CompPostTick"));
+            PatchingUtilities.ReplaceCurrentMapUsage("AlphaMechs.HediffComp_DeleteAfterTime:CompPostTick");
 
             // Gizmos
             MP.RegisterSyncMethod(AccessTools.DeclaredMethod("AlphaMechs.Pawn_HemogenVat:EjectContents"));

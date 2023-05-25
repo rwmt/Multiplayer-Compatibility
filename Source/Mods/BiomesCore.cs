@@ -45,8 +45,8 @@ namespace Multiplayer.Compat
 
             // Current map usage
             {
-                PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("BiomesCore.GameCondition_Earthquake:GameConditionTick"));
-                PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod("BiomesCore.IncidentWorker_Earthquake:TryExecuteWorker"));
+                PatchingUtilities.ReplaceCurrentMapUsage("BiomesCore.GameCondition_Earthquake:GameConditionTick");
+                PatchingUtilities.ReplaceCurrentMapUsage("BiomesCore.IncidentWorker_Earthquake:TryExecuteWorker");
             }
 
             // RNG + GenView.ShouldSpawnMotesAt

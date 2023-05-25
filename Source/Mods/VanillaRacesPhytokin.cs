@@ -25,7 +25,7 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1).SetDebugOnly();
             // Fix the mod using Find.CurrentMap instead of parent.Map
             // Can be safely removed it the following PR is accepted: https://github.com/Vanilla-Expanded/VanillaRacesExpanded-Phytokin/pull/2
-            PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.DeclaredMethod(type, "CompTick"));
+            PatchingUtilities.ReplaceCurrentMapUsage(type, "CompTick");
         }
     }
 }
