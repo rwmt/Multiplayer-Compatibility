@@ -320,10 +320,53 @@ namespace Multiplayer.Compat
 
         #region Find.CurrentMap replacer
 
+        public static void ReplaceCurrentMapUsage(Type type, string methodName)
+        {
+            if (type == null)
+            {
+                Log.Error(methodName == null 
+                    ? "Trying to patch current map usage for null type and null or empty method name." 
+                    : $"Trying to patch current map usage for null type ({methodName}).");
+                return;
+            }
+
+            if (methodName.NullOrEmpty())
+            {
+                Log.Error($"Trying to patch current map usage for null or empty method name ({type.FullName}).");
+                return;
+            }
+
+            var method = AccessTools.DeclaredMethod(methodName) ?? AccessTools.Method(methodName);
+            if (method != null)
+                ReplaceCurrentMapUsage(method);
+            else
+            {
+                var name = type.Namespace.NullOrEmpty() ? methodName : $"{type.Name}:{methodName}";
+                Log.Warning($"Trying to patch current map usage for null method ({name}). Was the method removed or renamed?");
+            }
+        }
+
+        public static void ReplaceCurrentMapUsage(string typeColonName)
+        {
+            if (typeColonName.NullOrEmpty())
+            {
+                Log.Error("Trying to patch current map usage for null or empty method name.");
+                return;
+            }
+
+            var method = AccessTools.DeclaredMethod(typeColonName) ?? AccessTools.Method(typeColonName);
+            if (method != null)
+                ReplaceCurrentMapUsage(method);
+            else
+                Log.Warning($"Trying to patch current map usage for null method ({typeColonName}). Was the method removed or renamed?");
+        }
+
         public static void ReplaceCurrentMapUsage(MethodBase method)
         {
             if (method != null)
                 MpCompat.harmony.Patch(method, transpiler: new HarmonyMethod(typeof(PatchingUtilities), nameof(ReplaceCurrentMapUsageTranspiler)));
+            else
+                Log.Warning("Trying to patch current map usage for null method. Was the method removed or renamed?");
         }
 
         private static IEnumerable<CodeInstruction> ReplaceCurrentMapUsageTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
@@ -343,7 +386,7 @@ namespace Multiplayer.Compat
                 }
             }
 
-            var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}.{baseMethod.Name}";
+            var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
 
             if (!helper.IsSupported)
                 Log.Warning($"Unsupported type, can't patch current map usage for {name}");
