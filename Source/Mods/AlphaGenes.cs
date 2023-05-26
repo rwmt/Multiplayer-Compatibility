@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Reflection.Emit;
-using HarmonyLib;
+﻿using HarmonyLib;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -32,45 +27,10 @@ namespace Multiplayer.Compat
 
             // Current map usage
             {
-                // Debug stuff, may get changed or removed. And we don't fully care if it fails.
-                try
-                {
-                    MpCompat.harmony.Patch(
-                        AccessTools.DeclaredMethod("AlphaGenes.CompRandomItemSpawner:CompTick"),
-                        transpiler: new HarmonyMethod(typeof(AlphaGenes), nameof(UseParentMap)));
-                }
-                catch (Exception e)
-                {
-                    Log.Warning($"Failed to patch method AlphaGenes.CompRandomItemSpawner:CompTick for dev mode item, the rest of the patch should still work.\n{e}");
-                }
+                PatchingUtilities.ReplaceCurrentMapUsage("AlphaGenes.HediffComp_DeleteAfterTime:CompPostTick");
+                // Debug stuff, may get changed or removed.
+                PatchingUtilities.ReplaceCurrentMapUsage("AlphaGenes.CompRandomItemSpawner:CompTick");
             }
-        }
-
-        private static IEnumerable<CodeInstruction> UseParentMap(IEnumerable<CodeInstruction> instr)
-        {
-            var instrArr = instr.ToArray();
-            var patched = false;
-
-            var targetMethod = AccessTools.PropertyGetter(typeof(Find), nameof(Find.CurrentMap));
-
-            foreach (var ci in instrArr)
-            {
-                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod)
-                {
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(typeof(ThingComp), nameof(ThingComp.parent)));
-
-                    ci.opcode = OpCodes.Callvirt;
-                    ci.operand = AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map));
-
-                    patched = true;
-                }
-                
-                yield return ci;
-            }
-
-            if (!patched)
-                throw new Exception("Method was not patched");
         }
     }
 }

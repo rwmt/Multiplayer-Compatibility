@@ -14,11 +14,9 @@ namespace Multiplayer.Compat
         {
             // Fix the mod using Find.CurrentMap instead of parent.Map - in both cases it creates new lord job on current (instead of parent) map
             // Change mech to a vanilla one if the mod mechanoid is disabled
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AlphaMechs.CompChangeDef:CompTick"),
-                transpiler: new HarmonyMethod(typeof(VanillaRacesPhytokin), nameof(VanillaRacesPhytokin.UseParentMap)));
+            PatchingUtilities.ReplaceCurrentMapUsage("AlphaMechs.CompChangeDef:CompTick");
             // Hediff runs out and mech turns back hostile
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AlphaMechs.HediffComp_DeleteAfterTime:CompPostTick"),
-                transpiler: new HarmonyMethod(typeof(VanillaRacesPhytokin), nameof(VanillaRacesPhytokin.UseParentMap)));
+            PatchingUtilities.ReplaceCurrentMapUsage("AlphaMechs.HediffComp_DeleteAfterTime:CompPostTick");
 
             // Gizmos
             MP.RegisterSyncMethod(AccessTools.DeclaredMethod("AlphaMechs.Pawn_HemogenVat:EjectContents"));
