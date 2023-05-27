@@ -24,6 +24,8 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<IGeneResourceDrain>(SyncIGeneResourceDrain);
             else if (type == typeof(LordJob))
                 MP.RegisterSyncWorker<LordJob>(SyncLordJob, isImplicit: true);
+            else if (type == typeof(ThingDefCount))
+                MP.RegisterSyncWorker<ThingDefCount>(SyncThingDefCount);
             else
                 Log.Error($"Trying to register SyncWorker of type {type}, but it's not supported.\n{new StackTrace(1)}");
         }
@@ -47,6 +49,22 @@ namespace Multiplayer.Compat
                 sync.Write(job.lord);
             else
                 job = sync.Read<Lord>()?.LordJob;
+        }
+
+        private static void SyncThingDefCount(SyncWorker sync, ref ThingDefCount thingDefCount)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(thingDefCount.ThingDef);
+                sync.Write(thingDefCount.Count);
+            }
+            else
+            {
+                var def = sync.Read<ThingDef>();
+                var count = sync.Read<int>();
+
+                thingDefCount = new ThingDefCount(def, count);
+            }
         }
 
         private static bool HasSyncWorker(Type type)
