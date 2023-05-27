@@ -20,86 +20,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     class VanillaExpandedFramework
     {
-        //// MP ///
-        // ThingsById
-        private static Dictionary<int, Thing> thingsById;
-
-
-        //// VFECore ////
-        // CompAbility
-        private static Type compAbilitiesType;
-        private static AccessTools.FieldRef<object, IEnumerable> learnedAbilitiesField;
-
-        // CompAbilityApparel
-        private static Type compAbilitiesApparelType;
-        private static AccessTools.FieldRef<object, IEnumerable> givenAbilitiesField;
-        private static FastInvokeHandler abilityApparelPawnGetter;
-
-        // Ability
-        private static FastInvokeHandler abilityInitMethod;
-        private static AccessTools.FieldRef<object, Thing> abilityHolderField;
-        private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
-        private static ISyncField abilityAutoCastField;
-        
-        // AbilityDef
-        private static AccessTools.FieldRef<Def, int> abilityDefTargetCountField;
-
-        // Dialog_Hire
-        private static Type hireDialogType;
-        private static AccessTools.FieldRef<object, Dictionary<PawnKindDef, Pair<int, string>>> hireDataField;
-        private static ISyncField daysAmountField;
-        private static ISyncField currentFactionDefField;
-
-        // Vanilla Furniture Expanded
-        private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
-        private static Type randomBuildingGraphicCompType;
-        private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
-
-        // Dialog_NewFactionSpawning
-        private static Type newFactionSpawningDialogType;
-        private static AccessTools.FieldRef<object, FactionDef> factionDefField;
-        
-        // Dialog_RenameDoorTeleporter
-        private static Type renameDoorTeleporterDialogType;
-        private static ConstructorInfo renameDoorTeleporterDialogConstructor;
-        private static AccessTools.FieldRef<object, ThingWithComps> renameDoorTeleporterDialogThingField;
-
-        // DoorTeleporter.<>c__DisplayClass26_0
-        private static Type innerClassDoorTeleporterLocalsType;
-        private static AccessTools.FieldRef<object, ThingWithComps> innerClassDoorTeleporterThisField;
-        private static AccessTools.FieldRef<object, Pawn> innerClassDoorTeleporterPawnField;
-
-        // DoorTeleporter.<>c__DisplayClass26_1
-        private static AccessTools.FieldRef<object, object> innerClassDoorTeleporterLocalsField;
-        private static AccessTools.FieldRef<object, Thing> innerClassDoorTeleporterTargetField;
-
-
-        //// MVCF ////
-        // Core
-        private static IEnumerable<string> mvcfEnabledFeaturesSet;
-        // VerbManager
-        private static FastInvokeHandler mvcfPawnGetter;
-        private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
-
-        // PawnVerbUtility
-        private static AccessTools.FieldRef<object, object> mvcfPawnVerbUtilityField;
-        private delegate object GetManager(Pawn p, bool createIfMissing);
-        private static GetManager mvcfPawnVerbUtilityGetManager;
-
-        // ManagedVerb
-        private static FastInvokeHandler mvcfManagedVerbManagerGetter;
-
-        // VerbWithComps
-        private static AccessTools.FieldRef<object, IList> mvcfVerbWithCompsField;
-
-        // VerbComp
-        private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
-
-
-        //// System ////
-        // ConditionalWeakTable
-        private static FastInvokeHandler conditionalWeakTableTryGetValueMethod;
-
         public VanillaExpandedFramework(ModContentPack mod)
         {
             (Action patchMethod, string componentName, bool latePatch)[] patches =
@@ -142,36 +62,31 @@ namespace Multiplayer.Compat
             }
         }
 
+        #region Shared sync workers and patches
+
+        // MP - ThingsById
+        private static Dictionary<int, Thing> thingsById;
+
         // Right now only used by teleporter doors. Could potentially be used by other mods.
         // It's a separate method instead of being always initialized in case this ever changes in MP and causes issues here.
         private static void EnsureThingsByIdDictionaryActive() => thingsById ??= (Dictionary<int, Thing>)AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.ThingsById"), "thingsById").GetValue(null);
 
-        #region Main patches
-
-        private static void PatchItemProcessor()
+        private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
         {
-            var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
-            // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
-            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3, 4, 6, 8, 9, 10);
+            var traverse = Traverse.Create(command);
+            var building = traverse.Field("building");
 
-            type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-            MP.RegisterSyncMethod(type, "AddQuality").SetContext(SyncContext.MapSelected);
-            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 7).SetContext(SyncContext.MapSelected);
-
-            type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-            MP.RegisterSyncMethod(type, "TryConfigureIngredientsByOutput");
-
-            // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
-            foreach (var ingredientNumber in new[] { "First", "Second", "Third", "Fourth" })
-            {
-                type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
-                MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
-                MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing").SetContext(SyncContext.MapSelected);
-                MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
-            }
+            if (sync.isWriting)
+                sync.Write(building.GetValue() as Thing);
+            else
+                building.SetValue(sync.Read<Thing>());
         }
+
+        #endregion
+
+        #region Small and generic patches
+
+        // Generally, here's a place for patches that are a single method, without any stored fields, and aren't too long.
 
         private static void PatchOtherRng()
         {
@@ -190,94 +105,21 @@ namespace Multiplayer.Compat
             });
         }
 
-        private static void PatchVFECoreDebug()
-        {
-            MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
-        }
+        private static void PatchVFECoreDebug() 
+            => MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
 
-        private static void PatchAbilities()
-        {
-            // Comp holding ability
-            // CompAbility
-            compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
-            learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
-            // Unlock ability, user-input use by Vanilla Psycasts Expanded
-            MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
-            // CompAbilityApparel
-            compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
-            givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
-            abilityApparelPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn"));
-            //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
+        private static void PatchExplosiveTrialsEffect() 
+            => PatchingUtilities.PatchPushPopRand("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail");
 
-            // Ability itself
-            var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
+        private static void PatchVanillaApparelExpanded() 
+            => MpCompat.RegisterLambdaMethod("VanillaApparelExpanded.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
 
-            abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
-            abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
-            abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
-            MP.RegisterSyncMethod(type, "CreateCastJob");
-            MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
-            abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
-                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
-                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoTargeting"),
-                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoTargeting)));
+        private static void PatchVanillaWeaponsExpanded() 
+            => MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
 
-            type = AccessTools.TypeByName("VFECore.CompShieldField");
-            MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
-            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
-
-            type = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
-            abilityDefTargetCountField = AccessTools.FieldRefAccess<int>(type, "targetCount");
-        }
-
-        private static void PatchHireableFactions()
-        {
-            hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
-
-            MP.RegisterSyncMethod(hireDialogType, "OnAcceptKeyPressed");
-            MP.RegisterSyncWorker<Window>(SyncHireDialog, hireDialogType);
-            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedSetHireData));
-            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseHireDialog));
-            hireDataField = AccessTools.FieldRefAccess<Dictionary<PawnKindDef, Pair<int, string>>>(hireDialogType, "hireData");
-            // I don't think daysAmountBuffer needs to be synced, just daysAmount only
-            daysAmountField = MP.RegisterSyncField(hireDialogType, "daysAmount");
-            currentFactionDefField = MP.RegisterSyncField(hireDialogType, "curFaction");
-            MpCompat.harmony.Patch(AccessTools.Method(hireDialogType, "DoWindowContents"),
-                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreHireDialogDoWindowContents)),
-                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostHireDialogDoWindowContents)));
-        }
-
-        private static void PatchVanillaFurnitureExpanded()
-        {
-            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
-
-            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
-            MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-
-            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
-
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
-            setStoneBuildingField = AccessTools.FieldRefAccess<ThingComp>(type, "building");
-            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
-            MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
-            MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
-
-            type = randomBuildingGraphicCompType = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
-            randomBuildingGraphicCompChangeGraphicMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "ChangeGraphic"));
-            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
-
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
-            MP.RegisterSyncMethod(type, "SwitchColor");
-
-            // Preferably leave it at the end in case it fails - if it fails all the other stuff here will still get patched
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
-                transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
-            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
-        }
+        // Hediffs added in MoodOffset, can be called during alert updates (not synced)
+        private static void PatchVanillaCookingExpanded()
+            => PatchingUtilities.PatchCancelMethodOnUI("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
 
         private static void PatchVanillaFactionMechanoids()
         {
@@ -318,6 +160,438 @@ namespace Multiplayer.Compat
             type = AccessTools.TypeByName("AnimalBehaviours.Pawn_GetGizmos_Patch");
             MpCompat.RegisterLambdaDelegate(type, "Postfix", 1);
         }
+
+        private static void PatchKCSG()
+        {
+            var type = AccessTools.TypeByName("KCSG.SettlementGenUtils");
+            type = AccessTools.Inner(type, "Sampling");
+
+            PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Sample"));
+
+            // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
+            // If not, will need patching
+        }
+
+        private static void PatchVanillaGenesExpanded()
+        {
+            var type = AccessTools.TypeByName("VanillaGenesExpanded.CompHumanHatcher");
+            PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Hatch"));
+            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
+        }
+
+        #endregion
+
+        #region Item Processor
+
+        private static void PatchItemProcessor()
+        {
+            var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
+            // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3, 4, 6, 8, 9, 10);
+
+            type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
+            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+            MP.RegisterSyncMethod(type, "AddQuality").SetContext(SyncContext.MapSelected);
+            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 7).SetContext(SyncContext.MapSelected);
+
+            type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
+            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+            MP.RegisterSyncMethod(type, "TryConfigureIngredientsByOutput");
+
+            // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
+            foreach (var ingredientNumber in new[] { "First", "Second", "Third", "Fourth" })
+            {
+                type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
+                MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
+                MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing").SetContext(SyncContext.MapSelected);
+                MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
+            }
+        }
+
+        private static void SyncSetIngredientCommand(SyncWorker sync, ref Command command)
+        {
+            var traverse = Traverse.Create(command);
+            var building = traverse.Field("building");
+            var ingredientList = traverse.Field("things");
+
+            if (sync.isWriting)
+            {
+                sync.Write(building.GetValue() as Thing);
+                var ingredientListValue = ingredientList.GetValue();
+                if (ingredientListValue == null)
+                {
+                    sync.Write(false);
+                }
+                else
+                {
+                    sync.Write(true);
+                    sync.Write(ingredientList.GetValue() as List<Thing>);
+                }
+            }
+            else
+            {
+                building.SetValue(sync.Read<Thing>());
+                if (sync.Read<bool>()) ingredientList.SetValue(sync.Read<List<Thing>>());
+            }
+        }
+
+        #endregion
+
+        #region Abilities
+
+        // CompAbility
+        private static Type compAbilitiesType;
+        private static AccessTools.FieldRef<object, IEnumerable> learnedAbilitiesField;
+        
+        // CompAbilityApparel
+        private static Type compAbilitiesApparelType;
+        private static AccessTools.FieldRef<object, IEnumerable> givenAbilitiesField;
+        private static FastInvokeHandler abilityApparelPawnGetter;
+        
+        // Ability
+        private static FastInvokeHandler abilityInitMethod;
+        private static AccessTools.FieldRef<object, Thing> abilityHolderField;
+        private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
+        private static ISyncField abilityAutoCastField;
+        
+        // AbilityDef
+        private static AccessTools.FieldRef<Def, int> abilityDefTargetCountField;
+
+        private static void PatchAbilities()
+        {
+            // Comp holding ability
+            // CompAbility
+            compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
+            learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
+            // Unlock ability, user-input use by Vanilla Psycasts Expanded
+            MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
+            // CompAbilityApparel
+            compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
+            givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
+            abilityApparelPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn"));
+            //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
+
+            // Ability itself
+            var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
+
+            abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
+            abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
+            abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
+            MP.RegisterSyncMethod(type, "CreateCastJob");
+            MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
+            abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoTargeting"),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoTargeting)));
+
+            type = AccessTools.TypeByName("VFECore.CompShieldField");
+            MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
+            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
+
+            type = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
+            abilityDefTargetCountField = AccessTools.FieldRefAccess<int>(type, "targetCount");
+        }
+
+        private static void SyncVEFAbility(SyncWorker sync, ref ITargetingSource source)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(abilityHolderField(source));
+                sync.Write(source.GetVerb.GetUniqueLoadID());
+            }
+            else
+            {
+                var holder = sync.Read<Thing>();
+                var uid = sync.Read<string>();
+                if (holder is ThingWithComps thing)
+                {
+                    IEnumerable list = null;
+
+                    var compAbilities = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesType);
+                    ThingComp compAbilitiesApparel = null;
+                    if (compAbilities != null)
+                        list = learnedAbilitiesField(compAbilities);
+
+                    if (list == null)
+                    {
+                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesApparelType);
+                        if (compAbilitiesApparel != null)
+                            list = givenAbilitiesField(compAbilitiesApparel);
+                    }
+
+                    if (list != null)
+                    {
+                        foreach (var o in list)
+                        {
+                            var its = o as ITargetingSource;
+                            if (its?.GetVerb.GetUniqueLoadID() == uid)
+                            {
+                                source = its;
+                                break;
+                            }
+                        }
+
+                        if (source != null && compAbilitiesApparel != null)
+                        {
+                            // Set the pawn and initialize the Ability, as it might have been skipped
+                            var pawn = abilityApparelPawnGetter(compAbilitiesApparel, Array.Empty<object>()) as Pawn;
+                            abilityPawnField(source) = pawn;
+                            abilityInitMethod(source, Array.Empty<object>());
+                        }
+                    }
+                    else
+                    {
+                        Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder is missing or of unsupported type");
+                    }
+                }
+                else
+                {
+                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder isn't a ThingWithComps");
+                }
+            }
+        }
+
+        private static void PreAbilityDoAction(object __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchBegin();
+            abilityAutoCastField.Watch(__instance);
+        }
+
+        private static void PostAbilityDoAction()
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchEnd();
+        }
+
+        private static void PostAbilityDoTargeting(ref int ___currentTargetingIndex, Def ___def)
+        {
+            // Normally the method would call CreateCastJob which would set it to -1,
+            // but since we sync that specific method we instead manually set it to -1
+            if (___currentTargetingIndex >= abilityDefTargetCountField(___def))
+                ___currentTargetingIndex = -1;
+        }
+
+        #endregion
+
+        #region Hireable Factions
+
+        // Dialog_Hire
+        private static Type hireDialogType;
+        private static AccessTools.FieldRef<object, Dictionary<PawnKindDef, Pair<int, string>>> hireDataField;
+        private static ISyncField daysAmountField;
+        private static ISyncField currentFactionDefField;
+
+        private static void PatchHireableFactions()
+        {
+            hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
+
+            MP.RegisterSyncMethod(hireDialogType, "OnAcceptKeyPressed");
+            MP.RegisterSyncWorker<Window>(SyncHireDialog, hireDialogType);
+            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedSetHireData));
+            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseHireDialog));
+            hireDataField = AccessTools.FieldRefAccess<Dictionary<PawnKindDef, Pair<int, string>>>(hireDialogType, "hireData");
+            // I don't think daysAmountBuffer needs to be synced, just daysAmount only
+            daysAmountField = MP.RegisterSyncField(hireDialogType, "daysAmount");
+            currentFactionDefField = MP.RegisterSyncField(hireDialogType, "curFaction");
+            MpCompat.harmony.Patch(AccessTools.Method(hireDialogType, "DoWindowContents"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreHireDialogDoWindowContents)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostHireDialogDoWindowContents)));
+        }
+
+        private static void SyncHireDialog(SyncWorker sync, ref Window dialog)
+        {
+            // The dialog should just be open
+            if (!sync.isWriting)
+                dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == hireDialogType);
+        }
+
+        private static void PreHireDialogDoWindowContents(Window __instance, Dictionary<PawnKindDef, Pair<int, string>> ___hireData, ref Dictionary<PawnKindDef, Pair<int, string>> __state)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchBegin();
+            daysAmountField.Watch(__instance);
+            currentFactionDefField.Watch(__instance);
+
+            __state = ___hireData.ToDictionary(x => x.Key, x => x.Value);
+        }
+
+        private static void PostHireDialogDoWindowContents(Window __instance, Dictionary<PawnKindDef, Pair<int, string>> ___hireData, Dictionary<PawnKindDef, Pair<int, string>> __state)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchEnd();
+
+            foreach (var (pawn, value) in __state)
+            {
+                if (value.First != ___hireData[pawn].First)
+                {
+                    hireDataField(__instance) = __state;
+                    SyncedSetHireData(___hireData);
+                    break;
+                }
+            }
+
+            if (!Find.WindowStack.IsOpen(__instance))
+                SyncedCloseHireDialog();
+        }
+
+        private static void SyncedSetHireData(Dictionary<PawnKindDef, Pair<int, string>> hireData)
+        {
+            var dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == hireDialogType);
+
+            if (dialog != null)
+                hireDataField(dialog) = hireData;
+        }
+
+        private static void SyncedCloseHireDialog()
+            => Find.WindowStack.TryRemove(hireDialogType);
+
+        #endregion
+
+        #region Vanilla Furniture Expanded
+
+        // Vanilla Furniture Expanded
+        private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
+        private static Type randomBuildingGraphicCompType;
+        private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
+
+        private static void PatchVanillaFurnitureExpanded()
+        {
+            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
+
+            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
+            MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
+            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+
+            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
+
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
+            setStoneBuildingField = AccessTools.FieldRefAccess<ThingComp>(type, "building");
+            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
+            MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
+            MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
+
+            type = randomBuildingGraphicCompType = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
+            randomBuildingGraphicCompChangeGraphicMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "ChangeGraphic"));
+            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
+
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+            MP.RegisterSyncMethod(type, "SwitchColor");
+
+            // Preferably leave it at the end in case it fails - if it fails all the other stuff here will still get patched
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
+                transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
+            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
+        }
+
+        private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
+        {
+            if (sync.isWriting)
+                sync.Write(setStoneBuildingField(obj));
+            else
+                setStoneBuildingField(obj) = sync.Read<ThingComp>();
+        }
+
+        private static bool Dialog_ChooseGraphic_ReplacementButton(Rect butRect, bool doMouseoverSound, Thing thingToChange, int index, Window window)
+        {
+            var result = Widgets.ButtonInvisible(butRect, doMouseoverSound);
+            if (!MP.IsInMultiplayer || !result)
+                return result;
+
+            window.Close();
+
+            Dialog_ChooseGraphic_SyncChange(index, thingToChange,
+                // Filter the comps before syncing them
+                Find.Selector.SelectedObjects
+                    .OfType<ThingWithComps>()
+                    .Where(thing => thing.def == thingToChange.def)
+                    .Select(thing => thing.AllComps.FirstOrDefault(x => x.GetType() == randomBuildingGraphicCompType))
+                    .Where(comp => comp != null));
+
+            return false;
+        }
+
+        private static void Dialog_ChooseGraphic_SyncChange(int index, Thing thingToChange, IEnumerable<ThingComp> compsToChange)
+        {
+            LongEventHandler.ExecuteWhenFinished(() =>
+            {
+                foreach (var comp in compsToChange)
+                    randomBuildingGraphicCompChangeGraphicMethod(comp, false, index, false);
+            });
+
+            thingToChange.DirtyMapMesh(thingToChange.Map);
+        }
+
+        private static IEnumerable<CodeInstruction> Dialog_ChooseGraphic_ReplaceSelectionButton(IEnumerable<CodeInstruction> instr)
+        {
+            // Technically no need to replace specify the argument types, but including them just in case another method with same name gets added in the future
+            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonInvisible), new[] { typeof(Rect), typeof(bool) });
+            var replacementMethod = AccessTools.DeclaredMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplacementButton));
+
+            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
+            var thingToChangeField = AccessTools.DeclaredField(type, "thingToChange");
+            FieldInfo indexField = null;
+
+            foreach (var ci in instr)
+            {
+                if (indexField == null && (ci.opcode == OpCodes.Ldfld || ci.opcode == OpCodes.Stfld) && ci.operand is FieldInfo { Name: "i" } field)
+                    indexField = field;
+
+                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod && indexField != null)
+                {
+                    ci.operand = replacementMethod;
+
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    yield return new CodeInstruction(OpCodes.Ldfld, thingToChangeField); // Load in the "thingToChange" (Thing) field
+                    yield return new CodeInstruction(OpCodes.Ldloc_S, 5); // Load in the local of type "<>c__DisplayClass9_0"
+                    yield return new CodeInstruction(OpCodes.Ldfld, indexField); // Load in the "i" (int) from the nested type
+                    yield return new CodeInstruction(OpCodes.Ldarg_0); // Load in the instance (Dialog_ChooseGraphic)
+                }
+
+                yield return ci;
+            }
+        }
+
+        #endregion
+
+        #region MVCF
+
+        // MVCF //
+        // Core
+        private static IEnumerable<string> mvcfEnabledFeaturesSet;
+
+        // VerbManager
+        private static FastInvokeHandler mvcfPawnGetter;
+        private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
+
+        // PawnVerbUtility
+        private static AccessTools.FieldRef<object, object> mvcfPawnVerbUtilityField;
+        private delegate object GetManager(Pawn p, bool createIfMissing);
+        private static GetManager mvcfPawnVerbUtilityGetManager;
+
+        // ManagedVerb
+        private static FastInvokeHandler mvcfManagedVerbManagerGetter;
+
+        // VerbWithComps
+        private static AccessTools.FieldRef<object, IList> mvcfVerbWithCompsField;
+
+        // VerbComp
+        private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
+
+        // System //
+        // ConditionalWeakTable
+        private static FastInvokeHandler conditionalWeakTableTryGetValueMethod;
 
         private static void PatchMVCF()
         {
@@ -366,194 +640,28 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaDelegate("MVCF.Features.Feature_RangedAnimals", "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
         }
 
-        private static void PatchExplosiveTrialsEffect()
+        // Initialize the VerbManager early, we expect it to exist on every player.
+        private static void EverybodyGetsVerbManager(Pawn __instance)
         {
-            // RNG
-            PatchingUtilities.PatchPushPopRand("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail");
-        }
+            // No point in doing this out of MP
+            if (!MP.IsInMultiplayer)
+                return;
 
-        private static void PatchVanillaApparelExpanded()
-        {
-            MpCompat.RegisterLambdaMethod("VanillaApparelExpanded.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
-        }
-
-        private static void PatchVanillaWeaponsExpanded()
-        {
-            MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
-        }
-
-        private static void PatchPipeSystem()
-        {
-            // Increase/decrease by 1/10
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompConvertToThing", "PostSpawnSetup", 0, 1, 2, 3);
-            // (Dev) trigger countdown
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompExplosiveContent", "CompGetGizmosExtra", 0).SetDebugOnly();
-            // Choose output
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceProcessor", "PostSpawnSetup", 1);
-            // Extract resource (0), toggle allow manual refill (2), transfer to other containers (3)
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "PostSpawnSetup", 0, 2, 3);
-            // (Dev) fill/add 5/empty
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "CompGetGizmosExtra", 0, 1, 2).SetDebugOnly();
-            // Spawn resource now
-            MpCompat.RegisterLambdaMethod("PipeSystem.CompSpawnerOrNet", "CompGetGizmosExtra", 0).SetDebugOnly();
-        }
-
-        private static void PatchKCSG()
-        {
-            var type = AccessTools.TypeByName("KCSG.SettlementGenUtils");
-            type = AccessTools.Inner(type, "Sampling");
-
-            PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Sample"));
-
-            // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
-            // If not, will need patching
-        }
-
-        private static void PatchFactionDiscovery()
-        {
-            newFactionSpawningDialogType = AccessTools.TypeByName("VFECore.Dialog_NewFactionSpawning");
-            factionDefField = AccessTools.FieldRefAccess<FactionDef>(newFactionSpawningDialogType, "factionDef");
-
-            MP.RegisterSyncMethod(MpMethodUtil.GetLocalFunc(newFactionSpawningDialogType, "SpawnWithBases", localFunc: "SpawnCallback"));
-            MP.RegisterSyncMethod(newFactionSpawningDialogType, "SpawnWithoutBases");
-            MP.RegisterSyncMethod(newFactionSpawningDialogType, "Ignore");
-            MP.RegisterSyncWorker<Window>(SyncFactionDiscoveryDialog, newFactionSpawningDialogType);
-
-            // This will only open the dialog for host only on game load, but will
-            // allow other players to access it from the mod settings.
-            var type = AccessTools.TypeByName("VFECore.Patch_GameComponentUtility");
-            type = AccessTools.Inner(type, "LoadedGame");
-            MpCompat.harmony.Patch(AccessTools.Method(type, "OnGameLoaded"),
-                new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(HostOnlyNewFactionDialog)));
-        }
-
-        private static void PatchVanillaGenesExpanded()
-        {
-            var type = AccessTools.TypeByName("VanillaGenesExpanded.CompHumanHatcher");
-            PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Hatch"));
-            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
-        }
-
-        // Hediffs added in MoodOffset, can be called during alert updates (not synced)
-        private static void PatchVanillaCookingExpanded() => PatchingUtilities.PatchCancelMethodOnUI("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
-
-        private static void PatchDoorTeleporter()
-        {
-            var type = AccessTools.TypeByName("VFECore.DoorTeleporter");
-            // Destroy
-            MpCompat.RegisterLambdaMethod(type, "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
-            // Teleport to x
-            MpCompat.RegisterLambdaDelegate(type, nameof(ThingWithComps.GetFloatMenuOptions), 0);
-
-            renameDoorTeleporterDialogType = AccessTools.TypeByName("VFECore.Dialog_RenameDoorTeleporter");
-            renameDoorTeleporterDialogConstructor = AccessTools.DeclaredConstructor(renameDoorTeleporterDialogType, new[] { type });
-            renameDoorTeleporterDialogThingField = AccessTools.FieldRefAccess<ThingWithComps>(renameDoorTeleporterDialogType, "DoorTeleporter");
-
-            PatchingUtilities.PatchPushPopRand(renameDoorTeleporterDialogConstructor);
-            MP.RegisterSyncWorker<Dialog_Rename>(SyncDialogRenameDoorTeleporter, renameDoorTeleporterDialogType);
-            MP.RegisterSyncMethod(renameDoorTeleporterDialogType, nameof(Dialog_Rename.SetName))
-                // Since we sync the "SetName" method and nothing else, it'll leave the dialog open for
-                // players who didn't click the button to rename it - we need to manually close it.
-                .SetPostInvoke((dialog, _) =>
-                {
-                    if (dialog is Window w)
-                        Find.WindowStack.TryRemove(w);
-                });
-
-            var innerClassMethod = MpMethodUtil.GetLambda(type, nameof(ThingWithComps.GetFloatMenuOptions));
-
-            if (innerClassMethod == null)
-                Log.Error("Couldn't find inner class 1 for door teleporters, they won't work.");
-            else
+            // In the unlikely case the feature set we got is null, we'll let it run anyway just in case.
+            if (mvcfEnabledFeaturesSet == null)
             {
-                var fields = AccessTools.GetDeclaredFields(innerClassMethod.DeclaringType);
-                if (fields.Count != 2)
-                    Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 1) - found: {fields.Count}, expected: 2.");
-
-                foreach (var field in fields)
+                try
                 {
-                    if (field.FieldType == type)
-                        innerClassDoorTeleporterTargetField = AccessTools.FieldRefAccess<object, Thing>(field);
-                    else
-                    {
-                        innerClassDoorTeleporterLocalsType = field.FieldType;
-                        innerClassDoorTeleporterLocalsField = AccessTools.FieldRefAccess<object, object>(field);
-                    }
+                    mvcfPawnVerbUtilityGetManager(__instance, true);
                 }
-
-                if (innerClassDoorTeleporterLocalsType == null)
+                catch (NullReferenceException)
                 {
-                    Log.Error("Couldn't find inner class 0 for door teleporters, they won't work.");
-                }
-                else
-                {
-                    fields = AccessTools.GetDeclaredFields(innerClassDoorTeleporterLocalsType);
-                    if (fields.Count != 2)
-                        Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 0) - found: {fields.Count}, expected: 2.");
-
-                    foreach (var field in fields)
-                    {
-                        if (field.FieldType == type)
-                            innerClassDoorTeleporterThisField = AccessTools.FieldRefAccess<object, ThingWithComps>(field);
-                        else if (field.FieldType == typeof(Pawn))
-                            innerClassDoorTeleporterPawnField = AccessTools.FieldRefAccess<object, Pawn>(field);
-                    }
-
-                    EnsureThingsByIdDictionaryActive();
-                    MP.RegisterSyncWorker<object>(SyncInnerDoorTeleporterClass, innerClassMethod.DeclaringType, shouldConstruct: true);
-                    MP.RegisterSyncMethod(innerClassMethod);
+                    // Ignored
                 }
             }
-        }
-
-        #endregion
-
-        #region SyncWorkers and other sync stuff
-
-        private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
-        {
-            var traverse = Traverse.Create(command);
-            var building = traverse.Field("building");
-
-            if (sync.isWriting)
-                sync.Write(building.GetValue() as Thing);
-            else
-                building.SetValue(sync.Read<Thing>());
-        }
-
-        private static void SyncSetIngredientCommand(SyncWorker sync, ref Command command)
-        {
-            var traverse = Traverse.Create(command);
-            var building = traverse.Field("building");
-            var ingredientList = traverse.Field("things");
-
-            if (sync.isWriting)
-            {
-                sync.Write(building.GetValue() as Thing);
-                var ingredientListValue = ingredientList.GetValue();
-                if (ingredientListValue == null)
-                {
-                    sync.Write(false);
-                }
-                else
-                {
-                    sync.Write(true);
-                    sync.Write(ingredientList.GetValue() as List<Thing>);
-                }
-            }
-            else
-            {
-                building.SetValue(sync.Read<Thing>());
-                if (sync.Read<bool>()) ingredientList.SetValue(sync.Read<List<Thing>>());
-            }
-        }
-
-        private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
-        {
-            if (sync.isWriting)
-                sync.Write(setStoneBuildingField(obj));
-            else
-                setStoneBuildingField(obj) = sync.Read<ThingComp>();
+            // If none of the features is enabled, there's not really any point in using the managers.
+            else if (mvcfEnabledFeaturesSet.Any())
+                mvcfPawnVerbUtilityGetManager(__instance, true);
         }
 
         private static void SyncVerbManager(SyncWorker sync, ref object obj)
@@ -634,164 +742,67 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static void SyncVEFAbility(SyncWorker sync, ref ITargetingSource source)
+        #endregion
+
+        #region Pipe System
+
+        private static Type deconstructPipeDesignatorType;
+        private static AccessTools.FieldRef<Designator_Deconstruct, Def> deconstructPipeDesignatorNetDefField;
+
+        private static void PatchPipeSystem()
+        {
+            // Increase/decrease by 1/10
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompConvertToThing", "PostSpawnSetup", 0, 1, 2, 3);
+            // (Dev) trigger countdown
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompExplosiveContent", "CompGetGizmosExtra", 0).SetDebugOnly();
+            // Choose output
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceProcessor", "PostSpawnSetup", 1);
+            // Extract resource (0), toggle allow manual refill (2), transfer to other containers (3)
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "PostSpawnSetup", 0, 2, 3);
+            // (Dev) fill/add 5/empty
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompResourceStorage", "CompGetGizmosExtra", 0, 1, 2).SetDebugOnly();
+            // Spawn resource now
+            MpCompat.RegisterLambdaMethod("PipeSystem.CompSpawnerOrNet", "CompGetGizmosExtra", 0).SetDebugOnly();
+
+            // Designator
+            var type = deconstructPipeDesignatorType = AccessTools.TypeByName("PipeSystem.Designator_DeconstructPipe");
+            deconstructPipeDesignatorNetDefField = AccessTools.FieldRefAccess<Def>(type, "pipeNetDef");
+            MP.RegisterSyncWorker<Designator_Deconstruct>(SyncDeconstructPipeDesignator, type);
+        }
+
+        private static void SyncDeconstructPipeDesignator(SyncWorker sync, ref Designator_Deconstruct designator)
         {
             if (sync.isWriting)
-            {
-                sync.Write(abilityHolderField(source));
-                sync.Write(source.GetVerb.GetUniqueLoadID());
-            }
+                sync.Write(deconstructPipeDesignatorNetDefField(designator));
             else
-            {
-                var holder = sync.Read<Thing>();
-                var uid = sync.Read<string>();
-                if (holder is ThingWithComps thing)
-                {
-                    IEnumerable list = null;
-
-                    var compAbilities = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesType);
-                    ThingComp compAbilitiesApparel = null;
-                    if (compAbilities != null)
-                        list = learnedAbilitiesField(compAbilities);
-
-                    if (list == null)
-                    {
-                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesApparelType);
-                        if (compAbilitiesApparel != null)
-                            list = givenAbilitiesField(compAbilitiesApparel);
-                    }
-
-                    if (list != null)
-                    {
-                        foreach (var o in list)
-                        {
-                            var its = o as ITargetingSource;
-                            if (its?.GetVerb.GetUniqueLoadID() == uid)
-                            {
-                                source = its;
-                                break;
-                            }
-                        }
-
-                        if (source != null && compAbilitiesApparel != null)
-                        {
-                            // Set the pawn and initialize the Ability, as it might have been skipped
-                            var pawn = abilityApparelPawnGetter(compAbilitiesApparel, Array.Empty<object>()) as Pawn;
-                            abilityPawnField(source) = pawn;
-                            abilityInitMethod(source, Array.Empty<object>());
-                        }
-                    }
-                    else
-                    {
-                        Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder is missing or of unsupported type");
-                    }
-                }
-                else
-                {
-                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder isn't a ThingWithComps");
-                }
-            }
+                designator = (Designator_Deconstruct)Activator.CreateInstance(deconstructPipeDesignatorType, sync.Read<Def>());
         }
 
-        // Initialize the VerbManager early, we expect it to exist on every player.
-        private static void EverybodyGetsVerbManager(Pawn __instance)
+        #endregion
+
+        #region Faction Discovery
+
+        // Dialog_NewFactionSpawning
+        private static Type newFactionSpawningDialogType;
+        private static AccessTools.FieldRef<object, FactionDef> factionDefField;
+
+        private static void PatchFactionDiscovery()
         {
-            // No point in doing this out of MP
-            if (!MP.IsInMultiplayer)
-                return;
+            newFactionSpawningDialogType = AccessTools.TypeByName("VFECore.Dialog_NewFactionSpawning");
+            factionDefField = AccessTools.FieldRefAccess<FactionDef>(newFactionSpawningDialogType, "factionDef");
 
-            // In the unlikely case the feature set we got is null, we'll let it run anyway just in case.
-            if (mvcfEnabledFeaturesSet == null)
-            {
-                try 
-                {
-                    mvcfPawnVerbUtilityGetManager(__instance, true);
-                }
-                catch (NullReferenceException)
-                {
-                    // Ignored
-                }
-            }
-            // If none of the features is enabled, there's not really any point in using the managers.
-            else if (mvcfEnabledFeaturesSet.Any())
-                mvcfPawnVerbUtilityGetManager(__instance, true);
+            MP.RegisterSyncMethod(MpMethodUtil.GetLocalFunc(newFactionSpawningDialogType, "SpawnWithBases", localFunc: "SpawnCallback"));
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "SpawnWithoutBases");
+            MP.RegisterSyncMethod(newFactionSpawningDialogType, "Ignore");
+            MP.RegisterSyncWorker<Window>(SyncFactionDiscoveryDialog, newFactionSpawningDialogType);
+
+            // This will only open the dialog for host only on game load, but will
+            // allow other players to access it from the mod settings.
+            var type = AccessTools.TypeByName("VFECore.Patch_GameComponentUtility");
+            type = AccessTools.Inner(type, "LoadedGame");
+            MpCompat.harmony.Patch(AccessTools.Method(type, "OnGameLoaded"),
+                new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(HostOnlyNewFactionDialog)));
         }
-
-        private static void PreAbilityDoAction(object __instance)
-        {
-            if (!MP.IsInMultiplayer)
-                return;
-
-            MP.WatchBegin();
-            abilityAutoCastField.Watch(__instance);
-        }
-
-        private static void PostAbilityDoAction()
-        {
-            if (!MP.IsInMultiplayer)
-                return;
-
-            MP.WatchEnd();
-        }
-
-        private static void PostAbilityDoTargeting(ref int ___currentTargetingIndex, Def ___def)
-        {
-            // Normally the method would call CreateCastJob which would set it to -1,
-            // but since we sync that specific method we instead manually set it to -1
-            if (___currentTargetingIndex >= abilityDefTargetCountField(___def))
-                ___currentTargetingIndex = -1;
-        }
-
-        private static void SyncHireDialog(SyncWorker sync, ref Window dialog)
-        {
-            // The dialog should just be open
-            if (!sync.isWriting)
-                dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == hireDialogType);
-        }
-
-        private static void PreHireDialogDoWindowContents(Window __instance, Dictionary<PawnKindDef, Pair<int, string>> ___hireData, ref Dictionary<PawnKindDef, Pair<int, string>> __state)
-        {
-            if (!MP.IsInMultiplayer)
-                return;
-
-            MP.WatchBegin();
-            daysAmountField.Watch(__instance);
-            currentFactionDefField.Watch(__instance);
-
-            __state = ___hireData.ToDictionary(x => x.Key, x => x.Value);
-        }
-
-        private static void PostHireDialogDoWindowContents(Window __instance, Dictionary<PawnKindDef, Pair<int, string>> ___hireData, Dictionary<PawnKindDef, Pair<int, string>> __state)
-        {
-            if (!MP.IsInMultiplayer)
-                return;
-
-            MP.WatchEnd();
-
-            foreach (var (pawn, value) in __state)
-            {
-                if (value.First != ___hireData[pawn].First)
-                {
-                    hireDataField(__instance) = __state;
-                    SyncedSetHireData(___hireData);
-                    break;
-                }
-            }
-
-            if (!Find.WindowStack.IsOpen(__instance))
-                SyncedCloseHireDialog();
-        }
-
-        private static void SyncedSetHireData(Dictionary<PawnKindDef, Pair<int, string>> hireData)
-        {
-            var dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == hireDialogType);
-
-            if (dialog != null)
-                hireDataField(dialog) = hireData;
-        }
-
-        private static void SyncedCloseHireDialog()
-            => Find.WindowStack.TryRemove(hireDialogType);
 
         private static void SyncFactionDiscoveryDialog(SyncWorker sync, ref Window window)
         {
@@ -814,6 +825,95 @@ namespace Multiplayer.Compat
                         new object[] { new List<FactionDef>().GetEnumerator() },
                         null);
                     factionDefField(window) = factionDef;
+                }
+            }
+        }
+
+        private static bool HostOnlyNewFactionDialog() => !MP.IsInMultiplayer || MP.IsHosting;
+
+        #endregion
+
+        #region Door Teleporter
+
+        // Dialog_RenameDoorTeleporter
+        private static Type renameDoorTeleporterDialogType;
+        private static ConstructorInfo renameDoorTeleporterDialogConstructor;
+        private static AccessTools.FieldRef<object, ThingWithComps> renameDoorTeleporterDialogThingField;
+
+        // DoorTeleporter.<>c__DisplayClass26_0
+        private static Type innerClassDoorTeleporterLocalsType;
+        private static AccessTools.FieldRef<object, ThingWithComps> innerClassDoorTeleporterThisField;
+        private static AccessTools.FieldRef<object, Pawn> innerClassDoorTeleporterPawnField;
+
+        // DoorTeleporter.<>c__DisplayClass26_1
+        private static AccessTools.FieldRef<object, object> innerClassDoorTeleporterLocalsField;
+        private static AccessTools.FieldRef<object, Thing> innerClassDoorTeleporterTargetField;
+
+        private static void PatchDoorTeleporter()
+        {
+            var type = AccessTools.TypeByName("VFECore.DoorTeleporter");
+            // Destroy
+            MpCompat.RegisterLambdaMethod(type, "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
+            // Teleport to x
+            MpCompat.RegisterLambdaDelegate(type, nameof(ThingWithComps.GetFloatMenuOptions), 0);
+
+            renameDoorTeleporterDialogType = AccessTools.TypeByName("VFECore.Dialog_RenameDoorTeleporter");
+            renameDoorTeleporterDialogConstructor = AccessTools.DeclaredConstructor(renameDoorTeleporterDialogType, new[] { type });
+            renameDoorTeleporterDialogThingField = AccessTools.FieldRefAccess<ThingWithComps>(renameDoorTeleporterDialogType, "DoorTeleporter");
+
+            PatchingUtilities.PatchPushPopRand(renameDoorTeleporterDialogConstructor);
+            MP.RegisterSyncWorker<Dialog_Rename>(SyncDialogRenameDoorTeleporter, renameDoorTeleporterDialogType);
+            MP.RegisterSyncMethod(renameDoorTeleporterDialogType, nameof(Dialog_Rename.SetName))
+                // Since we sync the "SetName" method and nothing else, it'll leave the dialog open for
+                // players who didn't click the button to rename it - we need to manually close it.
+                .SetPostInvoke((dialog, _) =>
+                {
+                    if (dialog is Window w)
+                        Find.WindowStack.TryRemove(w);
+                });
+
+            var innerClassMethod = MpMethodUtil.GetLambda(type, nameof(ThingWithComps.GetFloatMenuOptions));
+
+            if (innerClassMethod == null)
+                Log.Error("Couldn't find inner class 1 for door teleporters, they won't work.");
+            else
+            {
+                var fields = AccessTools.GetDeclaredFields(innerClassMethod.DeclaringType);
+                if (fields.Count != 2)
+                    Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 1) - found: {fields.Count}, expected: 2.");
+
+                foreach (var field in fields)
+                {
+                    if (field.FieldType == type)
+                        innerClassDoorTeleporterTargetField = AccessTools.FieldRefAccess<object, Thing>(field);
+                    else
+                    {
+                        innerClassDoorTeleporterLocalsType = field.FieldType;
+                        innerClassDoorTeleporterLocalsField = AccessTools.FieldRefAccess<object, object>(field);
+                    }
+                }
+
+                if (innerClassDoorTeleporterLocalsType == null)
+                {
+                    Log.Error("Couldn't find inner class 0 for door teleporters, they won't work.");
+                }
+                else
+                {
+                    fields = AccessTools.GetDeclaredFields(innerClassDoorTeleporterLocalsType);
+                    if (fields.Count != 2)
+                        Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 0) - found: {fields.Count}, expected: 2.");
+
+                    foreach (var field in fields)
+                    {
+                        if (field.FieldType == type)
+                            innerClassDoorTeleporterThisField = AccessTools.FieldRefAccess<object, ThingWithComps>(field);
+                        else if (field.FieldType == typeof(Pawn))
+                            innerClassDoorTeleporterPawnField = AccessTools.FieldRefAccess<object, Pawn>(field);
+                    }
+
+                    EnsureThingsByIdDictionaryActive();
+                    MP.RegisterSyncWorker<object>(SyncInnerDoorTeleporterClass, innerClassMethod.DeclaringType, shouldConstruct: true);
+                    MP.RegisterSyncMethod(innerClassMethod);
                 }
             }
         }
@@ -846,7 +946,7 @@ namespace Multiplayer.Compat
             {
                 var locals = innerClassDoorTeleporterLocalsField(obj);
                 var target = innerClassDoorTeleporterTargetField(obj);
-                
+
                 // The target is on a different map, so we can't just sync it as MP does not allow it.
                 // We need to sync the ID number and manually get the target by ID instead.
                 sync.Write(target.thingIDNumber);
@@ -864,68 +964,6 @@ namespace Multiplayer.Compat
                 innerClassDoorTeleporterTargetField(obj) = thingsById.GetValueSafe(sync.Read<int>());
                 innerClassDoorTeleporterThisField(locals) = sync.Read<ThingWithComps>();
                 innerClassDoorTeleporterPawnField(locals) = sync.Read<Pawn>();
-            }
-        }
-
-        private static bool HostOnlyNewFactionDialog() => !MP.IsInMultiplayer || MP.IsHosting;
-
-        private static bool Dialog_ChooseGraphic_ReplacementButton(Rect butRect, bool doMouseoverSound, Thing thingToChange, int index, Window window)
-        {
-            var result = Widgets.ButtonInvisible(butRect, doMouseoverSound);
-            if (!MP.IsInMultiplayer || !result)
-                return result;
-
-            window.Close();
-
-            Dialog_ChooseGraphic_SyncChange(index, thingToChange,
-                // Filter the comps before syncing them
-                Find.Selector.SelectedObjects
-                    .OfType<ThingWithComps>()
-                    .Where(thing => thing.def == thingToChange.def)
-                    .Select(thing => thing.AllComps.FirstOrDefault(x => x.GetType() == randomBuildingGraphicCompType))
-                    .Where(comp => comp != null));
-
-            return false;
-        }
-
-        private static void Dialog_ChooseGraphic_SyncChange(int index, Thing thingToChange, IEnumerable<ThingComp> compsToChange)
-        {
-            LongEventHandler.ExecuteWhenFinished(() =>
-            {
-                foreach (var comp in compsToChange)
-                    randomBuildingGraphicCompChangeGraphicMethod(comp, false, index, false);
-            });
-
-            thingToChange.DirtyMapMesh(thingToChange.Map);
-        }
-
-        private static IEnumerable<CodeInstruction> Dialog_ChooseGraphic_ReplaceSelectionButton(IEnumerable<CodeInstruction> instr)
-        {
-            // Technically no need to replace specify the argument types, but including them just in case another method with same name gets added in the future
-            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonInvisible), new[] { typeof(Rect), typeof(bool) });
-            var replacementMethod = AccessTools.DeclaredMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplacementButton));
-
-            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
-            var thingToChangeField = AccessTools.DeclaredField(type, "thingToChange");
-            FieldInfo indexField = null;
-
-            foreach (var ci in instr)
-            {
-                if (indexField == null && (ci.opcode == OpCodes.Ldfld || ci.opcode == OpCodes.Stfld) && ci.operand is FieldInfo { Name: "i" } field)
-                    indexField = field;
-
-                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod && indexField != null)
-                {
-                    ci.operand = replacementMethod;
-
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Ldfld, thingToChangeField); // Load in the "thingToChange" (Thing) field
-                    yield return new CodeInstruction(OpCodes.Ldloc_S, 5); // Load in the local of type "<>c__DisplayClass9_0"
-                    yield return new CodeInstruction(OpCodes.Ldfld, indexField); // Load in the "i" (int) from the nested type
-                    yield return new CodeInstruction(OpCodes.Ldarg_0); // Load in the instance (Dialog_ChooseGraphic)
-                }
-
-                yield return ci;
             }
         }
 
