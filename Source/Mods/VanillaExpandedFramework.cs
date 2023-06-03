@@ -43,6 +43,7 @@ namespace Multiplayer.Compat
                 (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", false),
                 (PatchDoorTeleporter, "Teleporter Doors", true),
                 (PatchSpecialTerrain, "Special Terrain", false),
+                (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -985,6 +986,41 @@ namespace Multiplayer.Compat
             // The method is limited in updating a max of 1/3 of all active special terrains.
             // If we'd want to work on having a performance option of some sort, we'd have to
             // base it around amount of terrain updates per tick, instead of basing it on actual time.
+        }
+
+        #endregion
+
+        #region Patch Weather Overlay Effects
+
+        private static Type weatherOverlayEffectsType;
+        private static AccessTools.FieldRef<SkyOverlay, int> weatherOverlayEffectsNextDamageTickField;
+
+        private static void PatchWeatherOverlayEffects()
+        {
+            // It'll likely have issues with async time, as there's only 1 timer for all maps.
+            weatherOverlayEffectsType = AccessTools.TypeByName("VFECore.WeatherOverlay_Effects");
+            weatherOverlayEffectsNextDamageTickField = AccessTools.FieldRefAccess<int>(weatherOverlayEffectsType, "nextDamageTick");
+
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(RefreshWeatherOverlayEffectCache)));
+        }
+
+        private static void RefreshWeatherOverlayEffectCache()
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            foreach (var def in DefDatabase<WeatherDef>.AllDefsListForReading)
+            {
+                if (def.Worker.overlays == null)
+                    continue;
+
+                foreach (var overlay in def.Worker.overlays)
+                {
+                    if (weatherOverlayEffectsType.IsInstanceOfType(overlay))
+                        weatherOverlayEffectsNextDamageTickField(overlay) = 0;
+                }
+            }
         }
 
         #endregion
