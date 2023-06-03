@@ -123,6 +123,12 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaDelegate("VanillaPsycastsExpanded.Ability_GuardianSkipBarrier", "GetGizmo", 0);
             }
 
+            // Current map usage
+            {
+                // Already patched on GitHub, this patch should become redundant the next time the mod updates
+                PatchingUtilities.ReplaceCurrentMapUsage("VanillaPsycastsExpanded.Harmonist.HediffComp_MindControl:CompPostPostRemoved");
+            }
+
             LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 

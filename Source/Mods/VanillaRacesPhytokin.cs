@@ -23,9 +23,6 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(type, "Pump").SetDebugOnly(); // Also called while ticking
             // Set next pump time
             MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1).SetDebugOnly();
-            // Fix the mod using Find.CurrentMap instead of parent.Map
-            // Can be safely removed it the following PR is accepted: https://github.com/Vanilla-Expanded/VanillaRacesExpanded-Phytokin/pull/2
-            PatchingUtilities.ReplaceCurrentMapUsage(type, "CompTick");
         }
     }
 }
