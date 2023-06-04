@@ -10,7 +10,6 @@ namespace Multiplayer.Compat
     {
         public VanillaBrewingExpanded(ModContentPack mod)
         {
-            PatchingUtilities.PatchSystemRand("VanillaBrewingExpanded.Plant_AutoProduce:TickLong");
             PatchingUtilities.PatchSystemRandCtor("VanillaBrewingExpanded.Hediff_ConsumedCocktail");
         }
     }

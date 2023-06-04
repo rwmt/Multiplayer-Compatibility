@@ -26,6 +26,8 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<LordJob>(SyncLordJob, isImplicit: true);
             else if (type == typeof(ThingDefCount))
                 MP.RegisterSyncWorker<ThingDefCount>(SyncThingDefCount);
+            else if (type == typeof(GameCondition))
+                MP.RegisterSyncWorker<GameCondition>(SyncGameCondition, isImplicit: true);
             else
                 Log.Error($"Trying to register SyncWorker of type {type}, but it's not supported.\n{new StackTrace(1)}");
         }
@@ -64,6 +66,26 @@ namespace Multiplayer.Compat
                 var count = sync.Read<int>();
 
                 thingDefCount = new ThingDefCount(def, count);
+            }
+        }
+
+        private static void SyncGameCondition(SyncWorker sync, ref GameCondition gameCondition)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(gameCondition.gameConditionManager.ownerMap);
+                sync.Write(gameCondition.uniqueID);
+            }
+            else
+            {
+                var map = sync.Read<Map>();
+                var id = sync.Read<int>();
+
+                var manager = map == null
+                    ? Find.World.GameConditionManager
+                    : map.GameConditionManager;
+
+                gameCondition = manager.ActiveConditions.FirstOrDefault(condition => condition.uniqueID == id);
             }
         }
 
