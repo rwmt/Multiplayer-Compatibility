@@ -325,7 +325,7 @@ namespace Multiplayer.Compat
             if (type == null)
             {
                 Log.Error(methodName == null 
-                    ? "Trying to patch current map usage for null type and null or empty method name." 
+                    ? "Trying to patch current map usage for null type and null or empty method name."
                     : $"Trying to patch current map usage for null type ({methodName}).");
                 return;
             }
@@ -336,7 +336,7 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            var method = AccessTools.DeclaredMethod(methodName) ?? AccessTools.Method(methodName);
+            var method = AccessTools.DeclaredMethod(type, methodName) ?? AccessTools.Method(type, methodName);
             if (method != null)
                 ReplaceCurrentMapUsage(method);
             else
@@ -372,7 +372,6 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> ReplaceCurrentMapUsageTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
             var helper = new CurrentMapPatchHelper(baseMethod);
-            var patched = false;
 
             foreach (var ci in instr)
             {
@@ -380,17 +379,14 @@ namespace Multiplayer.Compat
 
                 // Process current instruction and (if we got new instructions to insert) - yield return them as well.
                 foreach (var newInstr in helper.ProcessCurrentInstruction(ci))
-                {
                     yield return newInstr;
-                    patched = true;
-                }
             }
 
             var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
 
             if (!helper.IsSupported)
                 Log.Warning($"Unsupported type, can't patch current map usage for {name}");
-            else if (!patched)
+            else if (!helper.IsPatched)
                 Log.Warning($"Failed patching current map usage for {name}");
 #if DEBUG
             else
@@ -402,121 +398,204 @@ namespace Multiplayer.Compat
         {
             private enum CurrentMapUserType
             {
+                Thing,
                 ThingComp,
+                Hediff,
                 HediffComp,
                 GameCondition,
-                IncidentParmsArg,
+                MapComponent,
+                IncidentParms,
+
+                // Unsupported
                 UnsupportedType,
             }
 
-            private static readonly MethodInfo targetMethod = AccessTools.PropertyGetter(typeof(Find), nameof(Find.CurrentMap));
+            private static readonly MethodInfo TargetMethodFind = AccessTools.PropertyGetter(typeof(Find), nameof(Find.CurrentMap));
+            private static readonly MethodInfo TargetMethodGame = AccessTools.PropertyGetter(typeof(Game), nameof(Game.CurrentMap));
 
             private readonly CurrentMapUserType currentType;
             private readonly MethodBase baseMethod;
-            private readonly int argIndex;
+            private readonly IReadOnlyList<CodeInstruction> instructions;
 
             public bool IsSupported => currentType != CurrentMapUserType.UnsupportedType;
+            public bool IsPatched { get; private set; } = false;
 
             public CurrentMapPatchHelper(MethodBase baseMethod)
             {
                 this.baseMethod = baseMethod ?? throw new ArgumentNullException(nameof(baseMethod));
-                currentType = GetMapForMethod(this.baseMethod, out argIndex);
+                currentType = GetMapUserForMethod(this.baseMethod, out var earlyInstr);
+                instructions = PrepareInstructions(earlyInstr, currentType);
+
+#if DEBUG
+                Log.Warning($"Current map type: {currentType}. Early instruction {earlyInstr?.opcode.ToStringSafe()} with operand {earlyInstr?.operand.ToStringSafe()}. Created a total of {instructions?.Count.ToStringSafe()} replacement instructions.");
+#endif
             }
 
             public IEnumerable<CodeInstruction> ProcessCurrentInstruction(CodeInstruction ci)
             {
-                if (currentType == CurrentMapUserType.UnsupportedType)
+                if (currentType is >= CurrentMapUserType.UnsupportedType or < 0)
                     yield break;
 
-                if (ci.opcode != OpCodes.Call || ci.operand is not MethodInfo method || method != targetMethod)
+                if (ci.opcode != OpCodes.Call || ci.operand is not MethodInfo method)
                     yield break;
 
-                switch (currentType)
+                var first = true;
+
+                if (method == TargetMethodGame)
                 {
+                    IsPatched = true;
+                    first = false;
+
+                    // Pop the `Game` local
+                    ci.opcode = OpCodes.Pop;
+                    ci.operand = null;
+                }
+                // Unsupported method
+                else if (method != TargetMethodFind)
+                    yield break;
+
+                foreach (var output in instructions)
+                {
+                    // Replace the current instruction with the first we've got
+                    if (first)
+                    {
+                        IsPatched = true;
+                        first = false;
+
+                        ci.opcode = output.opcode;
+                        ci.operand = output.operand;
+                    }
+                    // Return the others as new code instructions. Avoid passing the same CodeInstruction instance
+                    // multiple times in case it'll ever have some unintended side-effects.
+                    else yield return new CodeInstruction(output.opcode, output.operand);
+                }
+            }
+
+            private static IReadOnlyList<CodeInstruction> PrepareInstructions(CodeInstruction earlyInstruction, CurrentMapUserType type)
+            {
+                var instructions = new List<CodeInstruction>();
+
+                if (earlyInstruction != null)
+                    instructions.Add(earlyInstruction);
+
+                switch (type)
+                {
+                    case CurrentMapUserType.Thing:
+                    {
+                        // Call the thing's Map getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map))));
+
+                        break;
+                    }
                     case CurrentMapUserType.ThingComp:
                     {
-                        // Replace the current instruction with call to `this`
-                        ci.opcode = OpCodes.Ldarg_0;
-                        ci.operand = null;
+                        // Load the comps's parent thing field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(ThingComp), nameof(ThingComp.parent))));
+                        // Call the parent thing's Map getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map))));
 
-                        // Get the parent field
-                        yield return new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(ThingComp), nameof(ThingComp.parent)));
-                        // Call the parent's Map getter
-                        yield return new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map)));
+                        break;
+                    }
+                    case CurrentMapUserType.Hediff:
+                    {
+                        // Load the hediff's pawn field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(Hediff), nameof(Hediff.pawn))));
+                        // Call the pawn's Map getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Pawn), nameof(Pawn.Map))));
 
                         break;
                     }
                     case CurrentMapUserType.HediffComp:
                     {
-                        // Replace the current instruction with call to `this`
-                        ci.opcode = OpCodes.Ldarg_0;
-                        ci.operand = null;
-
                         // Call the comp's Pawn getter (which is just short for getting parent field followed by pawn field)
-                        yield return new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(HediffComp), nameof(HediffComp.Pawn)));
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(HediffComp), nameof(HediffComp.Pawn))));
                         // Call the pawn's Map getter
-                        yield return new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Pawn), nameof(Pawn.Map)));
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Pawn), nameof(Pawn.Map))));
+
                         break;
                     }
                     case CurrentMapUserType.GameCondition:
                     {
-                        // Replace the current instruction with call to `this`
-                        ci.opcode = OpCodes.Ldarg_0;
-                        ci.operand = null;
-
                         // Call the `SingleMap` getter
-                        yield return new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(GameCondition), nameof(GameCondition.SingleMap)));
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(GameCondition), nameof(GameCondition.SingleMap))));
+
                         break;
                     }
-                    case CurrentMapUserType.IncidentParmsArg:
+                    case CurrentMapUserType.MapComponent:
                     {
-                        var instr = GetLdargForIndex(method, argIndex);
-                        if (instr != null)
-                        {
-                            // Replace the current instruction with call to the specific argument
-                            ci.opcode = instr.opcode;
-                            ci.operand = instr.operand;
+                        // Access the `map` field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(MapComponent), nameof(MapComponent.map))));
 
-                            // Load the `IncidentParms.target` field
-                            yield return new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(IncidentParms), nameof(IncidentParms.target)));
-
-                            // Cast the IIncidentTarget to Map
-                            yield return new CodeInstruction(OpCodes.Castclass, typeof(Map));
-                        }
+                        break;
+                    }
+                    // Based on method arguments
+                    case CurrentMapUserType.IncidentParms:
+                    {
+                        // Load the `IncidentParms.target` field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(IncidentParms), nameof(IncidentParms.target))));
+                        // Cast the IIncidentTarget to Map
+                        instructions.Add(new CodeInstruction(OpCodes.Castclass, typeof(Map)));
 
                         break;
                     }
                 }
+
+                return instructions.AsReadOnly();
             }
 
-            private static CurrentMapUserType GetMapForMethod(MethodBase method, out int argIndex)
+            private static CurrentMapUserType GetMapUserForMethod(MethodBase method, out CodeInstruction earlyInstr)
             {
-                argIndex = -1;
+                earlyInstr = null;
 
-                if (method.DeclaringType == null)
-                    return CurrentMapUserType.UnsupportedType;
+                // Based on declaring type
+                if (method.DeclaringType != null && !method.IsStatic)
+                {
+                    var type = GetMapUserForType(method.DeclaringType);
+                    if (type != CurrentMapUserType.UnsupportedType)
+                    {
+                        earlyInstr = new CodeInstruction(OpCodes.Ldarg_0); // Call to `this`
+                        return type;
+                    }
+                }
 
-                if (typeof(ThingComp).IsAssignableFrom(method.DeclaringType))
+                // Based on method arguments
+                var parms = method.GetParameters();
+                for (var index = 0; index < parms.Length; index++)
                 {
-                    if (!method.IsStatic)
-                        return CurrentMapUserType.ThingComp;
+                    var param = parms[index];
+                    var type = GetMapUserForType(param.ParameterType);
+                    if (type != CurrentMapUserType.UnsupportedType)
+                    {
+                        earlyInstr = GetLdargForIndex(method, index);
+                        return type;
+                    }
                 }
-                else if (typeof(HediffComp).IsAssignableFrom(method.DeclaringType))
-                {
-                    if (!method.IsStatic)
-                        return CurrentMapUserType.HediffComp;
-                }
-                else if (typeof(GameCondition).IsAssignableFrom(method.DeclaringType))
-                {
-                    if (!method.IsStatic)
-                        return CurrentMapUserType.GameCondition;
-                }
-                else
-                {
-                    argIndex = method.GetParameters().FirstIndexOf(p => typeof(IncidentParms).IsAssignableFrom(p.ParameterType));
-                    if (argIndex >= 0)
-                        return CurrentMapUserType.IncidentParmsArg;
-                }
+
+                return CurrentMapUserType.UnsupportedType;
+            }
+
+            private static CurrentMapUserType GetMapUserForType(Type type)
+            {
+                if (typeof(Thing).IsAssignableFrom(type))
+                    return CurrentMapUserType.Thing;
+                
+                if (typeof(ThingComp).IsAssignableFrom(type))
+                    return CurrentMapUserType.ThingComp;
+
+                if (typeof(Hediff).IsAssignableFrom(type))
+                    return CurrentMapUserType.Hediff;
+
+                if (typeof(HediffComp).IsAssignableFrom(type))
+                    return CurrentMapUserType.HediffComp;
+
+                if (typeof(GameCondition).IsAssignableFrom(type))
+                    return CurrentMapUserType.GameCondition;
+
+                if (typeof(MapComponent).IsAssignableFrom(type))
+                    return CurrentMapUserType.MapComponent;
+
+                if (typeof(IncidentParms).IsAssignableFrom(type))
+                    return CurrentMapUserType.IncidentParms;
 
                 return CurrentMapUserType.UnsupportedType;
             }

@@ -24,13 +24,6 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaMethod("AlphaGenes.Ability_ReactiveArmour", "GetGizmos", 0, 2);
                 MpCompat.RegisterLambdaDelegate("AlphaGenes.CompScorpionCounter", "CompGetGizmosExtra", 0).SetDebugOnly();
             }
-
-            // Current map usage
-            {
-                PatchingUtilities.ReplaceCurrentMapUsage("AlphaGenes.HediffComp_DeleteAfterTime:CompPostTick");
-                // Debug stuff, may get changed or removed.
-                PatchingUtilities.ReplaceCurrentMapUsage("AlphaGenes.CompRandomItemSpawner:CompTick");
-            }
         }
     }
 }

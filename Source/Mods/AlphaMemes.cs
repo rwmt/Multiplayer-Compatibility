@@ -1,4 +1,4 @@
-﻿using Multiplayer.Compat;
+﻿using HarmonyLib;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -17,8 +17,13 @@ namespace Multiplayer.Compat
             // If not, then patching it as well should fix it
             //"AlphaMemes.GameComponent_RandomMood:GameComponentTick",
 
-            // Hediffs added in MoodOffset, can be called during alert updates (not synced)
+            // Hediffs added in MoodOffset, can be called during alert updates (not synced).
+            // Possibly causes https://github.com/rwmt/Multiplayer-Compatibility/issues/302 
             PatchingUtilities.PatchCancelMethodOnUI("AlphaMemes.Thought_Catharsis:MoodOffset");
+
+            // Current map usage
+            var type = AccessTools.TypeByName("AlphaMemes.AlphaMemesIdeo_Notify_Patches");
+            PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.Inner(type, "FuneralFramework_Ideo_MemberCorpseDestroyed"), "Prefix");
         }
     }
 }
