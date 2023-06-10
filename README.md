@@ -6,6 +6,8 @@
 
 Compatibility for random mods, you are encouraged to take it into your own mod
 
+Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=1629973374
+
 Requires latest Zetrith's Multiplayer: [Download](https://github.com/rwmt/Multiplayer)
 
 Support added to these mods | _
@@ -129,14 +131,11 @@ Vanilla Genetics Expanded | [![url][steam]](https://steamcommunity.com/sharedfil
 Vanilla Hair Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1888705256) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaHairExpanded)
 Vanilla Ideology Expanded - Dryads | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2720631512) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaIdeologyExpanded-Dryads)
 Vanilla Ideology Expanded - Memes and Structures | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2636329500) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaIdeologyExpanded-Memes)
- |  
 Vanilla Outposts Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2688941031) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaOutpostsExpanded)
 Vanilla Plants Expanded - Auto Plow Patch | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2497914485) 
 Vanilla Plants Expanded - More Plants | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2748889667) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaPlantsExpanded-MorePlants)
 Vanilla Psycasts Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2842502659) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaPsycastsExpanded)
- |  
 Vanilla Races Expanded - Sanguophage | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2963116383) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaRacesExpanded-Sanguophage)
- |  
 Vanilla Skills Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2854967442) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaSkillsExpanded)
 Vanilla Social Interactions Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2439736083) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaSocialInteractionsExpanded)
 Vanilla Storytellers Expanded - Winston Waves | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2734032569) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaStorytellersExpanded-WinstonWave)
