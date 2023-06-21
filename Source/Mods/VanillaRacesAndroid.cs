@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -38,6 +41,19 @@ namespace Multiplayer.Compat
         // Android creation/modification base
         private static FastInvokeHandler acceptInnerMethod;
         private static AccessTools.FieldRef<GeneCreationDialogBase, List<ThingDefCount>> androidWindowRequiredItemsField;
+
+        // Cache
+        private static AccessTools.FieldRef<IDictionary> canInitiateRandomInteractionCacheField;
+        private static AccessTools.FieldRef<IDictionary> canDoRandomMentalBreakCacheField;
+
+        // Choice letter
+        private static FastInvokeHandler trySetChoicesMethod;
+        private static FastInvokeHandler makeChoicesMethod;
+        private static AccessTools.FieldRef<ChoiceLetter, int> passionChoiceCountField;
+        private static AccessTools.FieldRef<ChoiceLetter, int> passionGainsCountField;
+        private static AccessTools.FieldRef<ChoiceLetter, int> traitChoiceCountField;
+        private static AccessTools.FieldRef<ChoiceLetter, List<SkillDef>> passionChoicesField;
+        private static AccessTools.FieldRef<ChoiceLetter, List<Trait>> traitChoicesField;
 
         public VanillaRacesAndroid(ModContentPack mod)
         {
@@ -151,6 +167,73 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaDelegate(type, nameof(Building.GetGizmos), 4);
                 // Select pawn
                 MpCompat.RegisterLambdaDelegate(type, nameof(Building.GetFloatMenuOptions), 0);
+            }
+
+            // Cache
+            {
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
+                    postfix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ClearCache)));
+
+                var field = AccessTools.DeclaredField("VREAndroids.InteractionUtility_CanInitiateRandomInteraction_Patch:cachedResults");
+                canInitiateRandomInteractionCacheField = AccessTools.StaticFieldRefAccess<IDictionary>(field);
+
+                field = AccessTools.DeclaredField("MentalBreaker_CanDoRandomMentalBreaks_Patch:cachedResults");
+                canDoRandomMentalBreakCacheField = AccessTools.StaticFieldRefAccess<IDictionary>(field);
+            }
+
+            // Choice letter
+            {
+                // Looking at this after making this patch... I don't think most of it is even needed, as the letter never
+                // has the timeout activated... I suppose we'll be safe if the timeout is ever used for this letter then.
+
+                // This is basically the same patch as MP one for ChoiceLetter_GrowthMoment, as the code for android awakening is basically the same.
+                // MP code used as a base for this patch:
+                // https://github.com/rwmt/Multiplayer/blob/c7a673a63178257fbcbbe4812b0d48f0e8df2593/Source/Client/Syncing/Game/SyncDelegates.cs#L277-L279
+                // https://github.com/rwmt/Multiplayer/blob/c7a673a63178257fbcbbe4812b0d48f0e8df2593/Source/Client/Syncing/Game/SyncDelegates.cs#L331-L356
+
+                var type = AccessTools.TypeByName("Multiplayer.Client.Patches.CloseDialogsForExpiredLetters");
+                var registerAction = AccessTools.DeclaredMethod(type, "RegisterDefaultLetterChoice");
+
+                type = AccessTools.TypeByName("VREAndroids.ChoiceLetter_AndroidAwakened");
+
+                var method = AccessTools.DeclaredMethod(type, "MakeChoices");
+                MP.RegisterSyncMethod(method).ExposeParameter(1);
+                makeChoicesMethod = MethodInvoker.GetHandler(method);
+
+                method = AccessTools.DeclaredMethod(type, "TrySetChoices");
+                trySetChoicesMethod = MethodInvoker.GetHandler(method);
+                MpCompat.harmony.Patch(method,
+                    prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PreSetChoices)),
+                    postfix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PostSetChoices)));
+
+                passionChoiceCountField = AccessTools.FieldRefAccess<int>(type, "passionChoiceCount");
+                passionGainsCountField = AccessTools.FieldRefAccess<int>(type, "passionGainsCount");
+                traitChoiceCountField = AccessTools.FieldRefAccess<int>(type, "traitChoiceCount");
+                passionChoicesField = AccessTools.FieldRefAccess<List<SkillDef>>(type, "passionChoices");
+                traitChoicesField = AccessTools.FieldRefAccess<List<Trait>>(type, "traitChoices");
+
+                registerAction.Invoke(
+                    null,
+                    new object[]
+                    {
+                        AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(DefaultDialogSelection)),
+                        type
+                    });
+
+                type = AccessTools.TypeByName("VREAndroids.Dialog_AndroidAwakenedChoices");
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents)),
+                    prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PreAwakeningDraw)),
+                    postfix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PostAwakeningDraw)));
+
+                type = typeof(LetterStack);
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(LetterStack.RemoveLetter)),
+                    prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PreRemoveLetter)));
+            }
+
+            // Flickering thoughts list
+            {
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.Gene_SyntheticBody:Tick"),
+                    transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceNeedsCall)));
             }
         }
 
@@ -303,12 +386,105 @@ namespace Multiplayer.Compat
 
         #endregion
 
+        #region Choice letter
+
+        private static void PreSetChoices(Thing ___pawn, Letter __instance)
+            => Rand.PushState(Gen.HashCombineInt(___pawn.thingIDNumber, __instance.arrivalTick));
+
+        private static void PostSetChoices()
+            => Rand.PopState();
+
+        private static void DefaultDialogSelection(ChoiceLetter letter)
+        {
+            trySetChoicesMethod(letter);
+
+            List<SkillDef> passions = null;
+            Trait trait = null;
+
+            var passionChoices = passionChoicesField(letter);
+            if (passionChoices != null && passionChoiceCountField(letter) > 0)
+                passions = passionChoices.InRandomOrder().Take(passionGainsCountField(letter)).ToList();
+
+            var traitChoices = traitChoicesField(letter);
+            if (traitChoices != null && traitChoiceCountField(letter) > 0)
+                trait = traitChoices.RandomElement();
+
+            makeChoicesMethod(letter, passions, trait);
+            // Close the letter, or it may auto-open for all players.
+            Find.LetterStack.RemoveLetter(letter);
+        }
+
+        // The button to apply the choices from awakening dialog will close the letter right after applying the changes, which puts it into archive.
+        // When reading sync data we check for the letter in the letter stack, and not archive - which fails to read the letter.
+        // On top of that, the letter itself will reject input once it's been archived, which means it would return from the method early for the
+        // person who accepted the choices.
+        private static bool isDrawingAwakeningDialog = false;
+
+        private static bool PreRemoveLetter() => !MP.IsInMultiplayer || !isDrawingAwakeningDialog;
+
+        private static void PreAwakeningDraw() => isDrawingAwakeningDialog = true;
+
+        private static void PostAwakeningDraw() => isDrawingAwakeningDialog = false;
+
+        #endregion
+
+        #region Thoughts flickering fix
+
+        private static void ReplacedNeedsTrackerCall(Pawn_NeedsTracker instance)
+        {
+            // Check once every 6 hours, should prevent flickering and prevent flickering of needs.
+            // In vanilla, this method is called pretty infrequently. In situations like trait or hediffs
+            // being added or removed, ideo changes, etc.
+            // The flickering happens because it triggers this gets called each time:
+            // https://github.com/rwmt/Multiplayer/blob/d7aa398477ae6091f4f5d314bd0331c3933ca525/Source/Client/Patches/SituationalThoughts.cs#L8-L24
+            // Androids just call it every tick. It would probably be smart to look into the mod itself and
+            // check why it's called in the first place. Most likely related to androids becoming awakened?
+            if (instance.pawn.IsHashIntervalTick(GenDate.TicksPerHour * 6))
+                instance.AddOrRemoveNeedsAsAppropriate();
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceNeedsCall(IEnumerable<CodeInstruction> instr, MethodBase original)
+        {
+            var target = AccessTools.DeclaredMethod(typeof(Pawn_NeedsTracker), nameof(Pawn_NeedsTracker.AddOrRemoveNeedsAsAppropriate));
+            var replacement = AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(ReplacedNeedsTrackerCall));
+
+            var patched = false;
+
+            foreach (var ci in instr)
+            {
+                if ((ci.opcode == OpCodes.Call || ci.opcode == OpCodes.Callvirt) && ci.operand is MethodInfo method && method == target)
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+
+                    patched = true;
+                }
+
+                yield return ci;
+            }
+
+            if (!patched)
+                Log.Warning($"Failed patching constant AddOrRemoveNeedsAsAppropriate calls for {original?.FullDescription() ?? "(unknown method)"}");
+#if DEBUG
+            else
+                Log.Error($"Successfully patched AddOrRemoveNeedsAsAppropriate calls for {original?.FullDescription() ?? "(unknown method)"}");
+#endif
+        }
+
+        #endregion
+
         #region Other Patches
 
         // HealthCardUtility:CreateSurgeryBill is a MP sync method. Because of this, when the method is called the execution
         // is cancelled and the result will be null. However, prefixes, postfixes, and finalizers will still run as normal.
         // We need to make sure this one doesn't run as it throws an error (even if harmless).
         private static bool CancelOperationModificationIfResultNull([HarmonyArgument("__result")] Bill_Medical result) => result != null;
+
+        private static void ClearCache()
+        {
+            canInitiateRandomInteractionCacheField().Clear();
+            canDoRandomMentalBreakCacheField().Clear();
+        }
 
         #endregion
 
