@@ -5,6 +5,8 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Races Expanded - Highmate by Oskar Potocki, Taranchuk, Sarg Bjornson</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaRacesExpanded-Highmate"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2995385834"/>
     [MpCompatFor("vanillaracesexpanded.highmate")]
     public class VanillaRacesHighmate
     {
