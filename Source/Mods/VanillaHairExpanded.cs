@@ -12,6 +12,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Hair Expanded by Oskar Potocki, XeoNovaDan, MonteCristo</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1888705256"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaHairExpanded"/>
     [MpCompatFor("VanillaExpanded.VHE")]
     class VanillaHairExpanded
     {

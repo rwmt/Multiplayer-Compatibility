@@ -57,7 +57,7 @@ namespace Multiplayer.Compat
             content.assemblies.loadedAssemblies.Add(loadedAsm);
             // As we're adding the new assembly, the classes added by it aren't included by the MP GenTypes AllSubclasses/AllSubclassesNonAbstract optimization
             // GenTypes.ClearCache() won't work, as MP isn't doing anything when it's called
-            var mpType = AccessTools.TypeByName("Multiplayer.Client.Multiplayer");
+            var mpType = AccessTools.TypeByName("Multiplayer.Client.Util.TypeCache") ?? AccessTools.TypeByName("Multiplayer.Client.Multiplayer");
             ((IDictionary)AccessTools.Field(mpType, "subClasses").GetValue(null)).Clear();
             ((IDictionary)AccessTools.Field(mpType, "subClassesNonAbstract").GetValue(null)).Clear();
             ((IDictionary)AccessTools.Field(mpType, "implementations").GetValue(null)).Clear();

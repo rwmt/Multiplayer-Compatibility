@@ -7,7 +7,7 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>[SYR] Processor Framework by Syrchalis</summary>
+    /// <summary>Processor Framework by Syrchalis</summary>
     /// <see href="https://github.com/Syrchalis/ProcessorFramework"/>
     /// <see href="https://steamcommunity.com/workshop/filedetails/?id=2633514537"/>
     [MpCompatFor("syrchalis.processor.framework")]

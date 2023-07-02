@@ -27,9 +27,6 @@ namespace Multiplayer.Compat
 
             var transpiler = new HarmonyMethod(typeof(ZombieLand), nameof(ReplaceCoroutineCall));
             MpCompat.harmony.Patch(
-                AccessTools.Method(typeof(ZombieGenerator), nameof(ZombieGenerator.SpawnZombie)),
-                transpiler: transpiler);
-            MpCompat.harmony.Patch(
                 AccessTools.Method(typeof(ZombiesRising), nameof(ZombiesRising.TryExecute)),
                 transpiler: transpiler);
             MpCompat.harmony.Patch(
@@ -80,29 +77,37 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        private static IEnumerable<CodeInstruction> ReplaceCoroutineCall(IEnumerable<CodeInstruction> instr)
+        private static IEnumerable<CodeInstruction> ReplaceCoroutineCall(IEnumerable<CodeInstruction> instr, MethodBase original)
         {
             var coroutineMethod = AccessTools.Method(typeof(MonoBehaviour), nameof(MonoBehaviour.StartCoroutine), new[] { typeof(IEnumerator) });
             var coroutineReplacement = AccessTools.Method(typeof(ZombieLand), nameof(RedirectCoroutine));
 
-            var enqueueMethod = AccessTools.Method(typeof(ConcurrentQueue<ZombieCostSpecs>), nameof(ConcurrentQueue<ZombieCostSpecs>.Enqueue));
-            var enqueueReplacement = AccessTools.Method(typeof(ZombieLandMpComponent), nameof(ZombieLandMpComponent.Enqueue)).MakeGenericMethod(typeof(ZombieCostSpecs));
+            var enqueueMethod = AccessTools.Method(typeof(ConcurrentQueue<>).MakeGenericType(typeof(AvoidRequest)), nameof(ConcurrentQueue<ZombieCostSpecs>.Enqueue));
+            var enqueueReplacement = AccessTools.Method(typeof(ZombieLandMpComponent), nameof(ZombieLandMpComponent.Enqueue));
+
+            var patched = false;
 
             foreach (var ci in instr)
             {
                 if (ci.opcode == OpCodes.Callvirt && ci.operand is MethodInfo method)
                 {
                     if (method == coroutineMethod)
+                    {
                         ci.operand = coroutineReplacement;
+                        patched = true;
+                    }
                     else if (method == enqueueMethod)
                     {
                         ci.operand = enqueueReplacement;
                         ci.opcode = OpCodes.Call;
+                        patched = true;
                     }
                 }
 
                 yield return ci;
             }
+
+            if (!patched) Log.Warning($"Failed to patch ZombieLand method: {original.FullDescription()}");
         }
     }
 
@@ -175,19 +180,19 @@ namespace Multiplayer.Compat
                     -434115778);
         }
 
-        public static void Enqueue<T>(IList<T> queue, T item, Func<T, bool> overwritePredicate)
+        public static void Enqueue(ConcurrentQueue<AvoidRequest> queue, AvoidRequest item, Func<AvoidRequest, bool> overwritePredicate)
         {
             if (overwritePredicate == null)
             {
-                queue.Add(item);
+                ReplacementRequestQueue.Add(item);
                 return;
             }
 
-            var index = queue.FirstIndexOf(overwritePredicate);
-            if (index >= 0 && index < queue.Count)
-                queue[index] = item;
+            var index = ReplacementRequestQueue.FirstIndexOf(overwritePredicate);
+            if (index >= 0 && index < ReplacementRequestQueue.Count)
+                ReplacementRequestQueue[index] = item;
             else
-                queue.Add(item);
+                ReplacementRequestQueue.Add(item);
         }
     }
 }

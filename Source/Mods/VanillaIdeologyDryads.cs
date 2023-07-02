@@ -11,7 +11,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Ideology Expanded - Dryads by Oskar Potocki, Sarg Bjornson, Taranchuk, Reann Shepard</summary>
-    /// <see href="https://github.com/juanosarg/VanillaIdeologyExpanded-Dryads"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaIdeologyExpanded-Dryads"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2720631512"/>
     [MpCompatFor("VanillaExpanded.Ideo.Dryads")]
     internal class VanillaIdeologyDryads

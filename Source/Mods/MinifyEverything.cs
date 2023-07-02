@@ -6,7 +6,7 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary></summary>
+    /// <summary>Minify Everything by Erdelf</summary>
     /// <see href="https://github.com/erdelf/MinifyEverything"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=872762753"/>
     [MpCompatFor("erdelf.MinifyEverything")]

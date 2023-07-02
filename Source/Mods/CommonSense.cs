@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using HarmonyLib;
+﻿using HarmonyLib;
 using Multiplayer.API;
 using Verse;
 
@@ -9,7 +8,7 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/catgirlfighter/RimWorld_CommonSense"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1561769193"/>
     [MpCompatFor("avilmask.CommonSense")]
-    class CommonSense
+    internal class CommonSense
     {
         private delegate ThingComp GetChecker(Thing thing, bool initShouldUnload, bool initWasInInventory);
 
@@ -25,31 +24,40 @@ namespace Multiplayer.Compat
             // The GetChecker method either gets an existing, or creates a new comp
             getCompUnlockerCheckerMethod = AccessTools.MethodDelegate<GetChecker>(AccessTools.Method(type, "GetChecker"));
 
-            // Watch unload bool changes
-            MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
-                prefix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPrefix)),
-                postfix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPostix)));
-
             // RNG Patch
             PatchingUtilities.PatchUnityRand("CommonSense.JobGiver_Wander_TryGiveJob_CommonSensePatch:Postfix", false);
 
             // Gizmo patch
             MpCompat.RegisterLambdaMethod("CommonSense.DoCleanComp", "CompGetGizmosExtra", 1);
+
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 
-        private static void CommonSensePatchPrefix(Thing thing)
+        private static void LatePatch()
         {
-            if (MP.IsInMultiplayer)
-            {
-                MP.WatchBegin();
-                var comp = getCompUnlockerCheckerMethod(thing, false, false);
-                shouldUnloadSyncField.Watch(comp);
-            }
+            // Watch unload bool changes
+            MpCompat.harmony.Patch(AccessTools.Method("CommonSense.Utility:DrawThingRow"),
+                prefix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPrefix)),
+                postfix: new HarmonyMethod(typeof(CommonSense), nameof(CommonSensePatchPostfix)));
         }
 
-        private static void CommonSensePatchPostix()
+        private static void CommonSensePatchPrefix(Thing thing, ref bool __state)
         {
-            if (MP.IsInMultiplayer)
+            if (!MP.IsInMultiplayer)
+                return;
+
+            var comp = getCompUnlockerCheckerMethod(thing, false, false);
+            if (comp == null)
+                return;
+
+            __state = true;
+            MP.WatchBegin();
+            shouldUnloadSyncField.Watch(comp);
+        }
+
+        private static void CommonSensePatchPostfix(bool __state)
+        {
+            if (__state)
                 MP.WatchEnd();
         }
 

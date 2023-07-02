@@ -12,7 +12,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Pirates by Oskar Potocki, Sarg Bjornson, erdelf, Roolo, Smash Phil, Taranchuk, xrushha, Kikohi, legodude17</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpanded-Pirates"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Pirates"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2723801948"/>
     [MpCompatFor("OskarPotocki.VFE.Pirates")]
     internal class VanillaFactionsPirates
@@ -224,6 +224,7 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> ReplaceButton(IEnumerable<CodeInstruction> instr)
         {
             var method = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonInvisible));
+            var anythingPatched = false;
 
             foreach (var ci in instr)
             {
@@ -233,16 +234,14 @@ namespace Multiplayer.Compat
                     yield return new CodeInstruction(OpCodes.Ldarg_2);
 
                     ci.operand = AccessTools.Method(typeof(VanillaFactionsPirates), nameof(InjectedButton));
+                    anythingPatched = true;
                 }
 
                 yield return ci;
             }
-        }
 
-        // Once we add non-blocking dialogs to the API
-        // we should apply this only to the map it's used on
-        private static bool PauseIfDialogOpen(Map map)
-            => Find.WindowStack.IsOpen(warcasketDialogType);
+            if (!anythingPatched) Log.Warning("Failed to patch Vanilla Factions Pirates - curse page");
+        }
 
         private static bool PreShieldDetonation(Verb __instance, ref bool __result)
         {

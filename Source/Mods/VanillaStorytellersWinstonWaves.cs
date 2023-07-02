@@ -1,23 +1,25 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
 using UnityEngine;
 using Verse;
-    
+
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Storytellers Expanded - Winston Waves by Oskar Potocki, Kikohi</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2734032569"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaStorytellersExpanded-WinstonWave"/>
     [MpCompatFor("VanillaStorytellersExpanded.WinstonWave")]
     internal class VanillaStorytellersWinstonWaves
     {
-        // Dialogs
         private static Type chooseRewardDialogType;
         private static AccessTools.FieldRef<object, Def> choosenRewardField;
+        private static AccessTools.FieldRef<object, bool> nextRaidInfoSentField;
+        private static bool ignoreCall = false;
 
         public VanillaStorytellersWinstonWaves(ModContentPack mod)
         {
@@ -26,59 +28,90 @@ namespace Multiplayer.Compat
                 PatchingUtilities.PatchSystemRand("VSEWW.Window_ChooseReward:DoWindowContents", false);
             }
 
-            // Dialogs
+            // Dialogs (input)
             {
                 var type = chooseRewardDialogType = AccessTools.TypeByName("VSEWW.Window_ChooseReward");
                 choosenRewardField = AccessTools.FieldRefAccess<Def>(type, "choosenReward");
+                DialogUtilities.RegisterPauseLock(type);
+                MpCompat.harmony.Patch(AccessTools.DeclaredConstructor(type, new[] { typeof(int), typeof(float), typeof(Map) }),
+                    postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(VanillaStorytellersWinstonWaves), nameof(PostRewardDialogCreated))));
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents)),
+                    prefix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(VanillaStorytellersWinstonWaves), nameof(PreRewardDoWindowContents))));
 
                 type = AccessTools.TypeByName("VSEWW.RewardDef");
-                MpCompat.harmony.Patch(AccessTools.Method(type, "DrawCard"),
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DrawCard"),
                     transpiler: new HarmonyMethod(typeof(VanillaStorytellersWinstonWaves), nameof(ReplaceButton)));
                 MP.RegisterSyncMethod(typeof(VanillaStorytellersWinstonWaves), nameof(SyncedChooseReward));
 
-                // The window is always visible and its default position covers MP chat button
-                // This patch will move it under the button (if MP is on),
-                // especially considering that it'll move up on autosave/joinstate creation
-                type = AccessTools.TypeByName("VSEWW.Window_WaveCounter");
-                MpCompat.harmony.Patch(AccessTools.Method(type, "SetInitialSizeAndPosition"),
-                    postfix: new HarmonyMethod(typeof(VanillaStorytellersWinstonWaves), nameof(PostSetInitialSizeAndPosition)));
+                type = AccessTools.TypeByName("VSEWW.MapComponent_Winston");
+                var method = AccessTools.DeclaredMethod(type, "StartRaid");
+                MP.RegisterSyncMethod(method); // Called during ticking and from button inside Window_WaveCounter (we only care for the button)
+                MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VanillaStorytellersWinstonWaves), nameof(StopDuplicateRaidStart)));
 
-                MP.RegisterPauseLock(PauseIfDialogOpen);
+                type = AccessTools.TypeByName("VSEWW.NextRaidInfo");
+                nextRaidInfoSentField = AccessTools.FieldRefAccess<bool>(type, "sent");
             }
-
-            LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 
-        private static void LatePatch()
-        {
-            var types = new[]
-            {
-                "VSEWW.MapComponent_Winston:SetNextNormalRaidInfo",
-                "VSEWW.MapComponent_Winston:SetNextBossRaidInfo",
-                "VSEWW.NextRaidInfo:WavePawns",
-                "VSEWW.NextRaidInfo:ChooseAndApplyModifier",
-            };
-
-            PatchingUtilities.PatchSystemRand(types, false);
-            
-            var type = AccessTools.TypeByName("VSEWW.MapComponent_Winston");
-            MP.RegisterSyncMethod(type, "ExecuteRaid");
-        }
-
-        private static void PostSetInitialSizeAndPosition(Window __instance)
+        private static void PostRewardDialogCreated(Window __instance, IList ___rewards)
         {
             if (!MP.IsInMultiplayer)
                 return;
 
-            // With dev mode and multiplayer debug settings enabled it covers them too,
-            // but since the API doesn't let us check if MP debug settings are on,
-            // we ignore it.
-            __instance.windowRect.y = 30f;
+            // No rewards chosen yet, call DoWindowContents to generate them.
+            // It won't draw anything until those are generated first, so there's no issue calling this method.
+            // It would naturally generate them inside of the first call to DoWindowContents, but the issue is
+            // that it doesn't happen during ticking - causing each player to generate different rewards.
+            if (___rewards is not { Count: > 0 })
+            {
+                try
+                {
+                    ignoreCall = true;
+                    __instance.DoWindowContents(Rect.zero);
+                }
+                finally
+                {
+                    ignoreCall = false;
+                }
+            }
+
+            // Potential alternative approach - patch DoWindowContents with seeded push/pop.
+            // As for the seed itself - wave number combined with Find.World.ConstantRandSeed and/or Find.World.info.Seed?
+            // The current approach will allow (just like the mod itself) for reloading the game for better rewards.
         }
 
-        private static bool InjectedButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, Def instance)
+        private static bool PreRewardDoWindowContents(Window __instance, IList ___rewards, Def ___choosenReward)
         {
-            if (Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active))
+            // Ignore if not in MP, or if MP but the method was specifically called from our patch to generate rewards.
+            if (!MP.IsInMultiplayer || ignoreCall)
+                return true;
+
+            // A reward has been chosen (random reward mod option), close the dialog so it can be received by players.
+            // Closing during constructor doesn't work, as the dialog is not yet in the WindowStack.
+            if (___choosenReward != null)
+            {
+                __instance.Close();
+                return false;
+            }
+
+            // Rewards list is empty or null, which means it failed generating rewards. Display an error and close the dialog,
+            // as trying to generate them now would end up causing issues.
+            if (___rewards is not { Count: > 0 })
+            {
+                __instance.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        // If the method was called multiple times in a row (like spamming the button in MP) - prevent it from
+        // attempting to start another one if there's one already going on. Will prevent some errors in logs from happening.
+        private static bool StopDuplicateRaidStart(object ___nextRaidInfo) => ___nextRaidInfo != null && !nextRaidInfoSentField(___nextRaidInfo);
+
+        private static bool InjectedButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? anchor, Def instance)
+        {
+            if (Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, anchor))
             {
                 if (MP.IsInMultiplayer)
                     SyncedChooseReward(instance);
@@ -101,23 +134,27 @@ namespace Multiplayer.Compat
 
         private static IEnumerable<CodeInstruction> ReplaceButton(IEnumerable<CodeInstruction> instr)
         {
-            var method = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool) });
+            var target = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
+            var replacement = AccessTools.Method(typeof(VanillaStorytellersWinstonWaves), nameof(InjectedButton));
+            var replacedCount = 0;
 
             foreach (var ci in instr)
             {
-                if (ci.Calls(method))
+                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == target)
                 {
                     // Inject another argument (instance)
                     yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    ci.operand = replacement;
 
-                    ci.operand = AccessTools.Method(typeof(VanillaStorytellersWinstonWaves), nameof(InjectedButton));
+                    replacedCount++;
                 }
 
                 yield return ci;
             }
-        }
 
-        private static bool PauseIfDialogOpen(Map map)
-            => Find.WindowStack.IsOpen(chooseRewardDialogType);
+            const int expectedReplacements = 1;
+            if (replacedCount != expectedReplacements)
+                Log.Warning($"Patched incorrect number of button calls inside of RewardDef.DrawCard: patched {replacedCount} methods, expected {expectedReplacements}");
+        }
     }
 }

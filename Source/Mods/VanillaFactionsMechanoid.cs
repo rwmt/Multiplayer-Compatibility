@@ -6,8 +6,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Traits Expanded by Oskar Potocki, ISOREX, Sarg Bjornson, erdelf, Kikohi, Taranchuk, Kentington, Chowder</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpanded-Mechanoid"/>
+    /// <summary>Vanilla Factions Expanded - Mechanoids by Oskar Potocki, ISOREX, Sarg Bjornson, erdelf, Kikohi, Taranchuk, Kentington, Chowder</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Mechanoid"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2329011599"/>
     [MpCompatFor("OskarPotocki.VFE.Mechanoid")]
     public class VanillaFactionsMechanoid

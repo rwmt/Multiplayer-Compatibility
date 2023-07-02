@@ -5,7 +5,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Genetics Expanded by Sarg, erdelf, Oskar Potocki, Luizi, Reann Shepard</summary>
-    /// <see href="https://github.com/juanosarg/VanillaGeneticsExpanded"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaGeneticsExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2801160906"/>
     [MpCompatFor("VanillaExpanded.VGeneticsE")]
     internal class VanillaGeneticsExpanded
@@ -31,6 +31,7 @@ namespace Multiplayer.Compat
                 {
                     "GeneticRim.CompExploder",
                     "GeneticRim.HediffComp_PeriodicWounds",
+                    "GeneticRim.CompElectroWomb",
                 };
 
                 PatchingUtilities.PatchSystemRandCtor(constructors, false);

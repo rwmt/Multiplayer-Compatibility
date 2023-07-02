@@ -11,8 +11,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Factions Expanded - Ancients</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpandedAncients"/>
+    /// <summary>Vanilla Factions Expanded - Ancients by Kikohi, legodude17, Oskar Potocki, Reann Shepard, xrushha</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Ancients"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2654846754"/>
     [MpCompatFor("VanillaExpanded.VFEA")]
     internal class VanillaFactionsAncients
@@ -95,9 +95,9 @@ namespace Multiplayer.Compat
 
         #region Dialog
 
-        private static bool ChoosePower(Rect rect, string text, bool drawBackground, bool doMouseoverSound, bool active, Def power, Def weakness)
+        private static bool ChoosePower(Rect rect, string text, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor, Def power, Def weakness)
         {
-            var buttonResult = Widgets.ButtonText(rect, text, drawBackground, doMouseoverSound, active);
+            var buttonResult = Widgets.ButtonText(rect, text, drawBackground, doMouseoverSound, active, overrideTextAnchor);
 
             if (!MP.IsInMultiplayer || !buttonResult)
                 return buttonResult;
@@ -117,8 +117,10 @@ namespace Multiplayer.Compat
 
         private static IEnumerable<CodeInstruction> ReplaceButtons(IEnumerable<CodeInstruction> instr)
         {
-            var target = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool) });
+            var target = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
             var replacement = AccessTools.Method(typeof(VanillaFactionsAncients), nameof(ChoosePower));
+
+            var anythingPatched = false;
 
             foreach (var ci in instr)
             {
@@ -128,10 +130,13 @@ namespace Multiplayer.Compat
 
                     yield return new CodeInstruction(OpCodes.Ldloc_1); // Power
                     yield return new CodeInstruction(OpCodes.Ldloc_2); // Weakness
+                    anythingPatched = true;
                 }
 
                 yield return ci;
             }
+            
+            if (!anythingPatched) Log.Warning("Failed to sync choose power for Vanilla Factions Ancients");
         }
 
         private static CallOnChosen CompileCallOnChosen(Type powerDefType, Type tupleType)

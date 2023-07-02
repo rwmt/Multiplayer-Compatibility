@@ -9,7 +9,7 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Misc. Robots by HaploX1</summary>
+    /// <summary>Follow Me by Fluffy</summary>
     /// <see href="https://github.com/fluffy-mods/FollowMe"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=715759739"/>
     [MpCompatFor("Fluffy.FollowMe")]

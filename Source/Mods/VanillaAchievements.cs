@@ -12,7 +12,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Achievements Expanded by Oskar Potocki, Smash Phil</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaAchievementsExpanded"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaAchievementsExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2288125657"/>
     [MpCompatFor("vanillaexpanded.achievements")]
     class VanillaAchievements

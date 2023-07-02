@@ -1,14 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
+using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
 {
     public static class PatchingUtilities
     {
+        #region RNG Patching
+
         static void FixRNGPre() => Rand.PushState();
         static void FixRNGPos() => Rand.PopState();
 
@@ -143,10 +147,12 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(method, transpiler: transpiler);
         }
 
+        #endregion
+
         #region System RNG transpiler
-        private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Array.Empty<Type>());
+        private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Type.EmptyTypes);
         private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(System.Random).GetConstructor(new[] { typeof(int) });
-        private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Array.Empty<Type>());
+        private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Type.EmptyTypes);
         private static readonly ConstructorInfo RandRedirectorSeededConstructor = typeof(RandRedirector).GetConstructor(new[] { typeof(int) });
 
         /// <summary>Transpiler that replaces all calls to <see cref="System.Random"/> constructor with calls to <see cref="RandRedirector"/> constructor</summary>
@@ -252,6 +258,370 @@ namespace Multiplayer.Compat
 
             if (!anythingPatched) Log.Warning($"No Unity RNG was patched for method: {original?.FullDescription() ?? "(unknown method)"}");
         }
+        #endregion
+
+        #region Cancel on UI
+
+        /// <summary>
+        /// <para>Returns <see langword="true"/> during ticking and synced commands.</para>
+        /// <para>Should be used to prevent any gameplay-related changes from being executed from UI or other unsafe contexts.</para>
+        /// <para>Requires calling <see cref="InitCancelOnUI"/> or any <see cref="PatchCancelMethodOnUI"/> method, otherwise it will always be <see langword="false"/>.</para>
+        /// </summary>
+        public static bool ShouldCancel => (bool)(shouldCancelUiMethod?.Invoke(null) ?? false);
+
+        private static FastInvokeHandler shouldCancelUiMethod;
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void PatchCancelMethodOnUI(params string[] methodNames) => PatchCancelMethodOnUI(methodNames as IEnumerable<string>);
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void PatchCancelMethodOnUI(IEnumerable<string> methodNames)
+            => PatchCancelMethodOnUI(methodNames
+                .Select(m =>
+                {
+                    var method = AccessTools.DeclaredMethod(m) ?? AccessTools.Method(m);
+                    if (method == null)
+                        Log.Error($"({nameof(PatchingUtilities)}) Could not find method {m}");
+                    return method;
+                })
+                .Where(m => m != null));
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void PatchCancelMethodOnUI(params MethodBase[] methods) => PatchCancelMethodOnUI(methods as IEnumerable<MethodBase>);
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void PatchCancelMethodOnUI(IEnumerable<MethodBase> methods)
+        {
+            InitCancelOnUI();
+            foreach (var method in methods)
+                Patch(method);
+        }
+
+        private static void Patch(MethodBase method)
+        {
+            MpCompat.harmony.Patch(method,
+                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelDuringAlerts)));
+        }
+
+        /// <summary>
+        /// <para>Gets access to Multiplayer.Client.AppendMoodThoughtsPatch:Cancel getter to check if execution should be cancelled during alerts.</para>
+        /// <para>Called automatically from any <see cref="PatchCancelMethodOnUI"/> method.</para>
+        /// </summary>
+        public static void InitCancelOnUI()
+            => shouldCancelUiMethod ??= MethodInvoker.GetHandler(AccessTools.PropertyGetter("Multiplayer.Client.AppendMoodThoughtsPatch:Cancel"));
+
+        private static bool CancelDuringAlerts() => !ShouldCancel;
+
+        #endregion
+
+        #region Find.CurrentMap replacer
+
+        public static void ReplaceCurrentMapUsage(Type type, string methodName)
+        {
+            if (type == null)
+            {
+                Log.Error(methodName == null 
+                    ? "Trying to patch current map usage for null type and null or empty method name."
+                    : $"Trying to patch current map usage for null type ({methodName}).");
+                return;
+            }
+
+            if (methodName.NullOrEmpty())
+            {
+                Log.Error($"Trying to patch current map usage for null or empty method name ({type.FullName}).");
+                return;
+            }
+
+            var method = AccessTools.DeclaredMethod(type, methodName) ?? AccessTools.Method(type, methodName);
+            if (method != null)
+                ReplaceCurrentMapUsage(method);
+            else
+            {
+                var name = type.Namespace.NullOrEmpty() ? methodName : $"{type.Name}:{methodName}";
+                Log.Warning($"Trying to patch current map usage for null method ({name}). Was the method removed or renamed?");
+            }
+        }
+
+        public static void ReplaceCurrentMapUsage(string typeColonName)
+        {
+            if (typeColonName.NullOrEmpty())
+            {
+                Log.Error("Trying to patch current map usage for null or empty method name.");
+                return;
+            }
+
+            var method = AccessTools.DeclaredMethod(typeColonName) ?? AccessTools.Method(typeColonName);
+            if (method != null)
+                ReplaceCurrentMapUsage(method);
+            else
+                Log.Warning($"Trying to patch current map usage for null method ({typeColonName}). Was the method removed or renamed?");
+        }
+
+        public static void ReplaceCurrentMapUsage(MethodBase method)
+        {
+            if (method != null)
+                MpCompat.harmony.Patch(method, transpiler: new HarmonyMethod(typeof(PatchingUtilities), nameof(ReplaceCurrentMapUsageTranspiler)));
+            else
+                Log.Warning("Trying to patch current map usage for null method. Was the method removed or renamed?");
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceCurrentMapUsageTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var helper = new CurrentMapPatchHelper(baseMethod);
+
+            foreach (var ci in instr)
+            {
+                yield return ci;
+
+                // Process current instruction and (if we got new instructions to insert) - yield return them as well.
+                foreach (var newInstr in helper.ProcessCurrentInstruction(ci))
+                    yield return newInstr;
+            }
+
+            var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+
+            if (!helper.IsSupported)
+                Log.Warning($"Unsupported type, can't patch current map usage for {name}");
+            else if (!helper.IsPatched)
+                Log.Warning($"Failed patching current map usage for {name}");
+#if DEBUG
+            else
+                Log.Warning($"Successfully patched the current map usage for {name}");
+#endif
+        }
+
+        private class CurrentMapPatchHelper
+        {
+            private enum CurrentMapUserType
+            {
+                Thing,
+                ThingComp,
+                Hediff,
+                HediffComp,
+                GameCondition,
+                MapComponent,
+                IncidentParms,
+
+                // Unsupported
+                UnsupportedType,
+            }
+
+            private static readonly MethodInfo TargetMethodFind = AccessTools.PropertyGetter(typeof(Find), nameof(Find.CurrentMap));
+            private static readonly MethodInfo TargetMethodGame = AccessTools.PropertyGetter(typeof(Game), nameof(Game.CurrentMap));
+
+            private readonly CurrentMapUserType currentType;
+            private readonly MethodBase baseMethod;
+            private readonly IReadOnlyList<CodeInstruction> instructions;
+
+            public bool IsSupported => currentType != CurrentMapUserType.UnsupportedType;
+            public bool IsPatched { get; private set; } = false;
+
+            public CurrentMapPatchHelper(MethodBase baseMethod)
+            {
+                this.baseMethod = baseMethod ?? throw new ArgumentNullException(nameof(baseMethod));
+                currentType = GetMapUserForMethod(this.baseMethod, out var earlyInstr);
+                instructions = PrepareInstructions(earlyInstr, currentType);
+
+#if DEBUG
+                Log.Warning($"Current map type: {currentType}. Early instruction {earlyInstr?.opcode.ToStringSafe()} with operand {earlyInstr?.operand.ToStringSafe()}. Created a total of {instructions?.Count.ToStringSafe()} replacement instructions.");
+#endif
+            }
+
+            public IEnumerable<CodeInstruction> ProcessCurrentInstruction(CodeInstruction ci)
+            {
+                if (currentType is >= CurrentMapUserType.UnsupportedType or < 0)
+                    yield break;
+
+                if (ci.opcode != OpCodes.Call || ci.operand is not MethodInfo method)
+                    yield break;
+
+                var first = true;
+
+                if (method == TargetMethodGame)
+                {
+                    IsPatched = true;
+                    first = false;
+
+                    // Pop the `Game` local
+                    ci.opcode = OpCodes.Pop;
+                    ci.operand = null;
+                }
+                // Unsupported method
+                else if (method != TargetMethodFind)
+                    yield break;
+
+                foreach (var output in instructions)
+                {
+                    // Replace the current instruction with the first we've got
+                    if (first)
+                    {
+                        IsPatched = true;
+                        first = false;
+
+                        ci.opcode = output.opcode;
+                        ci.operand = output.operand;
+                    }
+                    // Return the others as new code instructions. Avoid passing the same CodeInstruction instance
+                    // multiple times in case it'll ever have some unintended side-effects.
+                    else yield return new CodeInstruction(output.opcode, output.operand);
+                }
+            }
+
+            private static IReadOnlyList<CodeInstruction> PrepareInstructions(CodeInstruction earlyInstruction, CurrentMapUserType type)
+            {
+                var instructions = new List<CodeInstruction>();
+
+                if (earlyInstruction != null)
+                    instructions.Add(earlyInstruction);
+
+                switch (type)
+                {
+                    case CurrentMapUserType.Thing:
+                    {
+                        // Call the thing's Map getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map))));
+
+                        break;
+                    }
+                    case CurrentMapUserType.ThingComp:
+                    {
+                        // Load the comps's parent thing field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(ThingComp), nameof(ThingComp.parent))));
+                        // Call the parent thing's Map getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map))));
+
+                        break;
+                    }
+                    case CurrentMapUserType.Hediff:
+                    {
+                        // Load the hediff's pawn field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(Hediff), nameof(Hediff.pawn))));
+                        // Call the pawn's Map getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Pawn), nameof(Pawn.Map))));
+
+                        break;
+                    }
+                    case CurrentMapUserType.HediffComp:
+                    {
+                        // Call the comp's Pawn getter (which is just short for getting parent field followed by pawn field)
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(HediffComp), nameof(HediffComp.Pawn))));
+                        // Call the pawn's Map getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(Pawn), nameof(Pawn.Map))));
+
+                        break;
+                    }
+                    case CurrentMapUserType.GameCondition:
+                    {
+                        // Call the `SingleMap` getter
+                        instructions.Add(new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(GameCondition), nameof(GameCondition.SingleMap))));
+
+                        break;
+                    }
+                    case CurrentMapUserType.MapComponent:
+                    {
+                        // Access the `map` field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(MapComponent), nameof(MapComponent.map))));
+
+                        break;
+                    }
+                    // Based on method arguments
+                    case CurrentMapUserType.IncidentParms:
+                    {
+                        // Load the `IncidentParms.target` field
+                        instructions.Add(new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(IncidentParms), nameof(IncidentParms.target))));
+                        // Cast the IIncidentTarget to Map
+                        instructions.Add(new CodeInstruction(OpCodes.Castclass, typeof(Map)));
+
+                        break;
+                    }
+                }
+
+                return instructions.AsReadOnly();
+            }
+
+            private static CurrentMapUserType GetMapUserForMethod(MethodBase method, out CodeInstruction earlyInstr)
+            {
+                earlyInstr = null;
+
+                // Based on declaring type
+                if (method.DeclaringType != null && !method.IsStatic)
+                {
+                    var type = GetMapUserForType(method.DeclaringType);
+                    if (type != CurrentMapUserType.UnsupportedType)
+                    {
+                        earlyInstr = new CodeInstruction(OpCodes.Ldarg_0); // Call to `this`
+                        return type;
+                    }
+                }
+
+                // Based on method arguments
+                var parms = method.GetParameters();
+                for (var index = 0; index < parms.Length; index++)
+                {
+                    var param = parms[index];
+                    var type = GetMapUserForType(param.ParameterType);
+                    if (type != CurrentMapUserType.UnsupportedType)
+                    {
+                        earlyInstr = GetLdargForIndex(method, index);
+                        return type;
+                    }
+                }
+
+                return CurrentMapUserType.UnsupportedType;
+            }
+
+            private static CurrentMapUserType GetMapUserForType(Type type)
+            {
+                if (typeof(Thing).IsAssignableFrom(type))
+                    return CurrentMapUserType.Thing;
+                
+                if (typeof(ThingComp).IsAssignableFrom(type))
+                    return CurrentMapUserType.ThingComp;
+
+                if (typeof(Hediff).IsAssignableFrom(type))
+                    return CurrentMapUserType.Hediff;
+
+                if (typeof(HediffComp).IsAssignableFrom(type))
+                    return CurrentMapUserType.HediffComp;
+
+                if (typeof(GameCondition).IsAssignableFrom(type))
+                    return CurrentMapUserType.GameCondition;
+
+                if (typeof(MapComponent).IsAssignableFrom(type))
+                    return CurrentMapUserType.MapComponent;
+
+                if (typeof(IncidentParms).IsAssignableFrom(type))
+                    return CurrentMapUserType.IncidentParms;
+
+                return CurrentMapUserType.UnsupportedType;
+            }
+
+            private static CodeInstruction GetLdargForIndex(MethodBase method, int index)
+            {
+                if (index < 0)
+                    return null;
+
+                // For non-static method, arg 0 is `this`
+                if (!method.IsStatic)
+                    index++;
+
+                return index switch
+                {
+                    0 => new CodeInstruction(OpCodes.Ldarg_0),
+                    1 => new CodeInstruction(OpCodes.Ldarg_1),
+                    2 => new CodeInstruction(OpCodes.Ldarg_2),
+                    3 => new CodeInstruction(OpCodes.Ldarg_3),
+                    <= byte.MaxValue => new CodeInstruction(OpCodes.Ldarg_S, index),
+                    <= ushort.MaxValue => new CodeInstruction(OpCodes.Ldarg, index),
+                    _ => null
+                };
+            }
+        }
+
         #endregion
     }
 }

@@ -7,6 +7,8 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Skills Expanded by legodude17, Oskar Potocki</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaSkillsExpanded"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2854967442"/>
     [MpCompatFor("vanillaexpanded.skills")]
     public class VanillaSkillsExpanded
     {

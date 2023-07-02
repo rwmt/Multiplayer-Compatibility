@@ -23,6 +23,11 @@ namespace Multiplayer.Compat
             MP.RegisterSyncWorker<ITab_Pawn_Gear>(SyncITab, type);
             MP.RegisterSyncMethod(type, "InterfaceDrop").SetContext(SyncContext.MapSelected);
             MP.RegisterSyncMethod(type, "InterfaceIngest").SetContext(SyncContext.MapSelected);
+
+            // Remove/add forced apparel
+            if (mod.PackageId == "Sandy.RPGStyleInventory.avilmask.Revamped".ToLower()) {
+                MpCompat.RegisterLambdaDelegate(type, "PopupMenu", 1, 2);
+            }
         }
 
         private static void SyncITab(SyncWorker sync, ref ITab_Pawn_Gear gearITab)

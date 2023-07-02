@@ -2,8 +2,8 @@
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Animals Expanded — Caves by Oskar Potocki, Sarg Bjornson, Aquiles</summary>
-    /// <see href="https://github.com/juanosarg/VanillaAnimalsExpanded-Caves"/>
+    /// <summary>Vanilla Animals Expanded - Caves by Oskar Potocki, Sarg Bjornson, Aquiles</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaAnimalsExpanded-Caves"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2576512001"/>
     [MpCompatFor("VanillaExpanded.VAECaves")]
     internal class VanillaAnimalsCaves

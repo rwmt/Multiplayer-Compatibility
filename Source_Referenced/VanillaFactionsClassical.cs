@@ -17,7 +17,7 @@ using VFEC.Senators;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Classical by Oskar Potocki, ISOREX, xrushha, legodude17, Chowder</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpanded-Classical"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Classical"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2787850474"/>
     [MpCompatFor("OskarPotocki.VFE.Classical")]
     class VanillaFactionsClassical
@@ -88,10 +88,10 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static bool QuestButtonReplacement(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, Dialog_SenatorInfo.AllSenatorInfo senatorInfo,
+        private static bool QuestButtonReplacement(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor? overrideTextAnchor, Dialog_SenatorInfo.AllSenatorInfo senatorInfo,
             Dialog_SenatorInfo dialog)
         {
-            var buttonResult = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active);
+            var buttonResult = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active, overrideTextAnchor);
 
             if (!MP.IsInMultiplayer || !buttonResult)
                 return buttonResult;
@@ -102,10 +102,10 @@ namespace Multiplayer.Compat
             return false; // Don't let the mod handle this case
         }
 
-        private static bool BribeButtonReplacement(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, Dialog_SenatorInfo.AllSenatorInfo senatorInfo,
+        private static bool BribeButtonReplacement(Rect rect, string label, bool drawBackground, bool doMouseoverSounds, bool active, TextAnchor? overrideTextAnchor, Dialog_SenatorInfo.AllSenatorInfo senatorInfo,
             Dialog_SenatorInfo dialog)
         {
-            var buttonResult = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active);
+            var buttonResult = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSounds, active, overrideTextAnchor);
 
             if (!MP.IsInMultiplayer || !buttonResult)
                 return buttonResult;
@@ -197,8 +197,9 @@ namespace Multiplayer.Compat
 
         private static IEnumerable<CodeInstruction> ReplaceSenatorButtons(IEnumerable<CodeInstruction> instr)
         {
-            var targetMethod = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool) });
+            var targetMethod = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
             MethodInfo replacementMethod = null;
+            var patchedCount = 0;
 
             foreach (var ci in instr)
             {
@@ -217,10 +218,14 @@ namespace Multiplayer.Compat
                     replacementMethod = null;
                     yield return new CodeInstruction(OpCodes.Ldarg_1); // Include parameter Dialog_SenatorInfo.AllSenatorInfo in the method
                     yield return new CodeInstruction(OpCodes.Ldarg_0); // Include self
+                    patchedCount++;
                 }
 
                 yield return ci;
             }
+            
+            if (patchedCount == 0) Log.Warning("Failed to patch Vanilla Factions - Classical senator buttons");
+            else if (patchedCount == 1) Log.Warning("Failed to fully patch Vanilla Factions - Classical senator buttons (only single patch was applied)");
         }
 
         private static void PreDialogCreated()
