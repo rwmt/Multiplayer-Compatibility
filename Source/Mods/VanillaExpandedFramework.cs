@@ -388,22 +388,43 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, Dictionary<PawnKindDef, Pair<int, string>>> hireDataField;
         private static ISyncField daysAmountField;
         private static ISyncField currentFactionDefField;
+        // Dialog_ContractInfo
+        private static Type contractInfoDialogType;
+        // HireableSystemStaticInitialization
+        private static AccessTools.FieldRef<IList> hireablesList;
 
         private static void PatchHireableFactions()
         {
             hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
 
-            MP.RegisterSyncMethod(hireDialogType, "OnAcceptKeyPressed");
+            DialogUtilities.RegisterDialogCloseSync(hireDialogType, true);
+            MP.RegisterSyncMethod(hireDialogType, nameof(Window.OnAcceptKeyPressed));
             MP.RegisterSyncWorker<Window>(SyncHireDialog, hireDialogType);
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedSetHireData));
-            MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(SyncedCloseHireDialog));
             hireDataField = AccessTools.FieldRefAccess<Dictionary<PawnKindDef, Pair<int, string>>>(hireDialogType, "hireData");
+
             // I don't think daysAmountBuffer needs to be synced, just daysAmount only
             daysAmountField = MP.RegisterSyncField(hireDialogType, "daysAmount");
             currentFactionDefField = MP.RegisterSyncField(hireDialogType, "curFaction");
-            MpCompat.harmony.Patch(AccessTools.Method(hireDialogType, "DoWindowContents"),
+            MpCompat.harmony.Patch(AccessTools.Method(hireDialogType, nameof(Window.DoWindowContents)),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreHireDialogDoWindowContents)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostHireDialogDoWindowContents)));
+
+            // There seems to be a 50/50 chance trying to open hiring window will fail and cause an error
+            // this is here to fix that issue
+            var type = AccessTools.TypeByName("VFECore.Misc.Hireable");
+            MP.RegisterSyncWorker<object>(SyncHireable, type);
+            MpCompat.RegisterLambdaDelegate(type, "CommFloatMenuOption", 0);
+
+            hireablesList = AccessTools.StaticFieldRefAccess<IList>(AccessTools.Field(AccessTools.TypeByName("VFECore.Misc.HireableSystemStaticInitialization"), "Hireables"));
+
+            contractInfoDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_ContractInfo");
+
+            DialogUtilities.RegisterDialogCloseSync(contractInfoDialogType, true);
+            MP.RegisterSyncWorker<Window>(SyncContractInfoDialog, contractInfoDialogType);
+            MpCompat.RegisterLambdaMethod(contractInfoDialogType, "DoWindowContents", 0);
+
+            MpCompat.RegisterLambdaDelegate("VFECore.HiringContractTracker", "CommFloatMenuOption", 0);
         }
 
         private static void SyncHireDialog(SyncWorker sync, ref Window dialog)
@@ -441,9 +462,6 @@ namespace Multiplayer.Compat
                     break;
                 }
             }
-
-            if (!Find.WindowStack.IsOpen(__instance))
-                SyncedCloseHireDialog();
         }
 
         private static void SyncedSetHireData(Dictionary<PawnKindDef, Pair<int, string>> hireData)
@@ -454,8 +472,19 @@ namespace Multiplayer.Compat
                 hireDataField(dialog) = hireData;
         }
 
-        private static void SyncedCloseHireDialog()
-            => Find.WindowStack.TryRemove(hireDialogType);
+        private static void SyncContractInfoDialog(SyncWorker sync, ref Window window)
+        {
+            if (!sync.isWriting)
+                window = Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == contractInfoDialogType);
+        }
+
+        private static void SyncHireable(SyncWorker sync, ref object obj)
+        {
+            if (sync.isWriting)
+                sync.Write(hireablesList().IndexOf(obj));
+            else
+                obj = hireablesList()[sync.Read<int>()];
+        }
 
         #endregion
 
