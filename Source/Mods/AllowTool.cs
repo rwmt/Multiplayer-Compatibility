@@ -120,6 +120,9 @@ namespace Multiplayer.Compat
 
             // Recache haul urgently deterministically (currently uses Time.unscaledTime)
             {
+                // Used by DeterministicallyHandleReCaching
+                PatchingUtilities.InitCancelOnUI();
+
                 var type = AccessTools.TypeByName("AllowTool.HaulUrgentlyCacheHandler");
                 MpCompat.harmony.Patch(AccessTools.Method(type, "RecacheIfNeeded"),
                     prefix: new HarmonyMethod(typeof(AllowTool), nameof(DeterministicallyHandleReCaching)));
@@ -223,10 +226,16 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        private static void DeterministicallyHandleReCaching(ref float currentTime)
+        private static bool DeterministicallyHandleReCaching(ref float currentTime)
         {
-            if (MP.IsInMultiplayer)
-                currentTime = Find.TickManager.TicksGame;
+            if (!MP.IsInMultiplayer)
+                return true;
+            // Can be called from MonoBehaviour.FixedUpdate and operates on a single map only, cancel in such cases
+            if (PatchingUtilities.ShouldCancel)
+                return false;
+
+            currentTime = Find.TickManager.TicksGame;
+            return true;
         }
 
         private static bool ScaleReCachingTimerToTickSpeed(float currentTime, float ___createdTime, ref bool __result)
@@ -235,7 +244,7 @@ namespace Multiplayer.Compat
                 return true;
 
             var mult = Find.TickManager.TickRateMultiplier;
-            if (mult > 0)
+            if (mult <= 0.15f)
                 mult = 0.15f;
             // The original method re-caches once a second. We check every 60 ticks multiplied by tick rate multiplier, so it will end up roughly every second no matter the game speed.
             // Also handle the situation of the game being paused by assuming the multiplier is 0.15 (small value to potentially force re-cache)
