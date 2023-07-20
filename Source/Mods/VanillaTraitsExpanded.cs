@@ -15,15 +15,7 @@ namespace Multiplayer.Compat
         
         public VanillaTraitsExpanded(ModContentPack mod)
         {
-            // Stop doing stuff with absent minded/rebel/submissive pawns outside of synced context
-            {
-                // Basically, this method adds/removes slow work speed hediff to/from rebel/submissive pawns.
-                // On top of that, it also adds the current job to the list of forced jobs for absent minded pawns.
-                // This can cause issues when the mod operates and does stuff based on those, but they are in different state for all players.
-                // The issue is that a sync method catches this call, but all prefixes/postfixes/etc. still run.
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VanillaTraitsExpanded.TryTakeOrderedJob_Patch:Postfix"),
-                    prefix: new HarmonyMethod(typeof(VanillaTraitsExpanded), nameof(CancelUnlessSynced)));
-            }
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
 
             // Clear cache
             {
@@ -33,6 +25,19 @@ namespace Multiplayer.Compat
 
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
                     postfix: new HarmonyMethod(typeof(VanillaTraitsExpanded), nameof(ClearCache)));
+            }
+        }
+
+        private static void LatePatch()
+        {
+            // Stop doing stuff with absent minded/rebel/submissive pawns outside of synced context
+            {
+                // Basically, this method adds/removes slow work speed hediff to/from rebel/submissive pawns.
+                // On top of that, it also adds the current job to the list of forced jobs for absent minded pawns.
+                // This can cause issues when the mod operates and does stuff based on those, but they are in different state for all players.
+                // The issue is that a sync method catches this call, but all prefixes/postfixes/etc. still run.
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VanillaTraitsExpanded.TryTakeOrderedJob_Patch:Postfix"),
+                    prefix: new HarmonyMethod(typeof(VanillaTraitsExpanded), nameof(CancelUnlessSynced)));
             }
         }
 
