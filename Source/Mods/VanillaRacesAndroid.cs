@@ -133,6 +133,13 @@ namespace Multiplayer.Compat
             {
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.HealthCardUtility_CreateSurgeryBill_Patch:Postfix"),
                     prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(CancelOperationModificationIfResultNull)));
+
+                // NeutroCasket calling Building_Bed.Medical setter in GetInspectString.
+                // Causes a sync method to be called ~2 times per frame, as well as inspector string issues.
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.Building_NeutroCasket:GetInspectString"),
+                    prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(NeutrocasketGetInspectStringPrefix)),
+                    transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceSetMedicalCall)),
+                    finalizer: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(NeutrocasketGetInspectStringFinalizer)));
             }
         }
 
@@ -484,6 +491,52 @@ namespace Multiplayer.Compat
         {
             canInitiateRandomInteractionCacheField().Clear();
             canDoRandomMentalBreakCacheField().Clear();
+        }
+
+        private static void ReplacedSetMedicalCall(Building_Bed instance, bool value)
+        {
+            // Replace the call to `.Medical` property, which has a bunch of other
+            // side effects and calls a bunch of other methods as well.
+            instance.medicalInt = value;
+        }
+
+        private static void NeutrocasketGetInspectStringPrefix(Building_Bed __instance, out bool __state)
+        {
+            __state = __instance.medicalInt;
+        }
+
+        private static void NeutrocasketGetInspectStringFinalizer(Building_Bed __instance, bool __state)
+        {
+            // Cleanup the value if the method failed to do so itself (exception or something).
+            // Ensures there'll be no desync in MP.
+            __instance.medicalInt = __state;
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceSetMedicalCall(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var target = AccessTools.DeclaredPropertySetter(typeof(Building_Bed), nameof(Building_Bed.Medical));
+            var replacement = AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(ReplacedSetMedicalCall));
+
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                if ((ci.opcode == OpCodes.Call || ci.opcode == OpCodes.Callvirt) && ci.operand is MethodInfo method && method == target)
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+                    replacedCount++;
+                }
+
+                yield return ci;
+            }
+
+            const int expected = 2;
+            if (replacedCount != expected)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Patched incorrect number of Building_Bed.Medical calls (patched {replacedCount}, expected {expected}) for method {name}");
+            }
         }
 
         #endregion
