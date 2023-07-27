@@ -46,7 +46,7 @@ namespace Multiplayer.Compat
             CurrentMap,
             Selector,
             Stopwatch,
-            GameComponentUpdate,
+            NonTickingUpdate,
             TimeManager,
             GetHashCode,
         }
@@ -55,8 +55,21 @@ namespace Multiplayer.Compat
 
         private static readonly MethodInfo FindCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Find), nameof(Find.CurrentMap));
         private static readonly MethodInfo GameCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Game), nameof(Game.CurrentMap));
-        private static readonly MethodInfo GameComponentUpdate = AccessTools.DeclaredMethod(typeof(GameComponent), nameof(GameComponent.GameComponentUpdate));
         private static readonly MethodInfo GetHashCodeMethod = AccessTools.DeclaredMethod(typeof(object), nameof(GetHashCode));
+
+        private static readonly HashSet<MethodInfo> NonTickingUpdateMethodsOverrides = new[] 
+        {
+            AccessTools.DeclaredMethod(typeof(GameComponent), nameof(GameComponent.GameComponentUpdate)),
+            AccessTools.DeclaredMethod("HugsLib.ModBase:Update"),
+            AccessTools.DeclaredMethod("HugsLib.ModBase:FixedUpdate"),
+            AccessTools.DeclaredMethod("HugsLib.ModBase:OnGUI"),
+        }.Where(x => x != null).ToHashSet();
+
+        private static readonly HashSet<MethodInfo> NonTickingUpdateMethodCalls = new[]
+        {
+            AccessTools.DeclaredMethod("HugsLib.Utils.DoLaterScheduler:DoNextUpdate"),
+            AccessTools.DeclaredMethod("HugsLib.Utils.DoLaterScheduler:DoNextOnGUI"),
+        }.Where(x => x != null).ToHashSet();
 
         [DebugAction(CategoryName, "Log unsafe stuff", allowedGameStates = AllowedGameStates.Entry)]
         public static void LogUnpatchedStuff() => LogUnpatchedStuff(false);
@@ -190,11 +203,11 @@ namespace Multiplayer.Compat
                     Log.Message(log[StuffToSearch.Stopwatch].Append("\n").Join(delimiter: "\n"));
                 }
 
-                if (log[StuffToSearch.GameComponentUpdate].Any())
+                if (log[StuffToSearch.NonTickingUpdate].Any())
                 {
-                    Log.Warning("== GameComponent.Update usage found: ==");
-                    Log.Warning("== It can be called while the game is paused, and is not called once per tick. Depending on what it's used for, it may cause issues. ==");
-                    Log.Message(log[StuffToSearch.GameComponentUpdate].Append("\n").Join(delimiter: "\n"));
+                    Log.Warning("== Non-ticking update call usage found: ==");
+                    Log.Warning("== Those can be called while the game is paused, and are not called once per tick (instead can be called once per frame, etc.). Depending on what it's used for, it may cause issues. ==");
+                    Log.Message(log[StuffToSearch.NonTickingUpdate].Append("\n").Join(delimiter: "\n"));
                 }
 
                 if (log[StuffToSearch.TimeManager].Any())
@@ -255,7 +268,7 @@ namespace Multiplayer.Compat
                 {
                     try
                     {
-                        foreach (var found in FindRng(method))
+                        foreach (var found in FindRng(type, method))
                         {
                             lock (log[found])
                                 log[found].Add($"{type.FullName}:{method.Name} ({type.Assembly.GetName().Name})");
@@ -273,13 +286,13 @@ namespace Multiplayer.Compat
             }
         }
 
-        internal static HashSet<StuffToSearch> FindRng(MethodBase baseMethod)
+        internal static HashSet<StuffToSearch> FindRng(Type baseType, MethodBase baseMethod)
         {
             var instr = PatchProcessor.GetCurrentInstructions(baseMethod);
             var foundStuff = new HashSet<StuffToSearch>();
 
-            if (baseMethod == GameComponentUpdate)
-                foundStuff.Add(StuffToSearch.GameComponentUpdate);
+            if (baseType != baseMethod.DeclaringType && NonTickingUpdateMethodsOverrides.Contains(baseMethod))
+                foundStuff.Add(StuffToSearch.NonTickingUpdate);
 
             foreach (var ci in instr)
             {
@@ -325,6 +338,9 @@ namespace Multiplayer.Compat
                     // Calls .GetHashCode, unless it's the method we're currently checking
                     case MethodInfo method when method == GetHashCodeMethod && baseMethod != GetHashCodeMethod:
                         foundStuff.Add(StuffToSearch.GetHashCode);
+                        break;
+                    case MethodInfo method when NonTickingUpdateMethodCalls.Contains(method):
+                        foundStuff.Add(StuffToSearch.NonTickingUpdate);
                         break;
                 }
 
