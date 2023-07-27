@@ -1,4 +1,6 @@
 ﻿using HarmonyLib;
+using Multiplayer.API;
+using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -24,6 +26,29 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaMethod("AlphaGenes.Ability_ReactiveArmour", "GetGizmos", 0, 2);
                 MpCompat.RegisterLambdaDelegate("AlphaGenes.CompScorpionCounter", "CompGetGizmosExtra", 0).SetDebugOnly();
             }
+
+            // Randomizer gene
+            {
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AlphaGenes.Gene_Randomizer:PostAdd"),
+                    prefix: new HarmonyMethod(typeof(AlphaGenes), nameof(PrePostAddRandomizerGene)));
+            }
+        }
+
+        private static bool PrePostAddRandomizerGene(Gene __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            // Restore the pawn to baseliner if they had the randomizer gene.
+            // Alpha Genes does this before applying random xenotype loaded from player's files.
+            var pawn = __instance.pawn;
+            pawn.genes.SetXenotype(XenotypeDefOf.Baseliner);
+            pawn.genes.RemoveGene(__instance);
+
+            // If we're to patch it so the xenotype is random from player's files, it would make it
+            // easily possible if sync methods could be synced from gameplay code (like sync fields).
+
+            return false;
         }
     }
 }
