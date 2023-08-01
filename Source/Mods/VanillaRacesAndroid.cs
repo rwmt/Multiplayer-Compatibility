@@ -54,6 +54,9 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<ChoiceLetter, int> traitChoiceCountField;
         private static AccessTools.FieldRef<ChoiceLetter, List<SkillDef>> passionChoicesField;
         private static AccessTools.FieldRef<ChoiceLetter, List<Trait>> traitChoicesField;
+        
+        // Utils
+        private static FastInvokeHandler recipeForAndroidMethod;
 
         public VanillaRacesAndroid(ModContentPack mod)
         {
@@ -241,6 +244,17 @@ namespace Multiplayer.Compat
             {
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.Gene_SyntheticBody:Tick"),
                     transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceNeedsCall)));
+            }
+
+            // Compat
+            var dubsMintMenuGenerateListingMethod = AccessTools.DeclaredMethod("DubsMintMenus.Patch_HealthCardUtility:GenerateListing");
+            if (dubsMintMenuGenerateListingMethod != null)
+            {
+                // VRE-Android handling of medical recipe defs (copy and modify them, but keep the same defName) causes issues with syncing the def.
+                recipeForAndroidMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("VREAndroids.Utils:RecipeForAndroid"));
+                MP.RegisterSyncMethod(typeof(VanillaRacesAndroid), nameof(SyncedAddBill));
+                MpCompat.harmony.Patch(dubsMintMenuGenerateListingMethod,
+                    transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceAddBillCall)));
             }
         }
 
@@ -606,6 +620,58 @@ namespace Multiplayer.Compat
 
                 // VFE dialog values
                 androidWindowRequiredItemsField(window) = sync.Read<List<ThingDefCount>>();
+            }
+        }
+
+        #endregion
+
+        #region Compat
+
+        private static void SyncedAddBill(BillStack billStack, RecipeDef recipe, BodyPartRecord part, bool isAndroid)
+        {
+            // The recipe is cloned and modified, but keeps defName. Syncing will result in non-android recipe. Fix this.
+            if (isAndroid && recipe.workSkill != SkillDefOf.Crafting)
+                recipe = (RecipeDef)recipeForAndroidMethod(null, recipe);
+
+            var bill = new Bill_Medical(recipe, new List<Thing>())
+            {
+                Part = part
+            };
+            billStack.AddBill(bill);
+        }
+
+        private static void ReplacedAddBillCall(BillStack billStack, Bill_Medical bill)
+        {
+            if (MP.IsInMultiplayer)
+                SyncedAddBill(billStack, bill.recipe, bill.part, bill.recipe.workSkill == SkillDefOf.Crafting);
+            else
+                billStack.AddBill(bill);
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceAddBillCall(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var target = AccessTools.DeclaredMethod(typeof(BillStack), nameof(BillStack.AddBill));
+            var replacement = AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(ReplacedAddBillCall));
+
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                if ((ci.opcode == OpCodes.Call || ci.opcode == OpCodes.Callvirt) && ci.operand is MethodInfo method && method == target)
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+                    replacedCount++;
+                }
+
+                yield return ci;
+            }
+
+            const int expected = 1;
+            if (replacedCount != expected)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Patched incorrect number of AddBill calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
         }
 
