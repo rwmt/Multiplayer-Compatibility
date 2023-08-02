@@ -303,12 +303,13 @@ namespace Multiplayer.Compat
             if (vassal.Lord == null)
                 return;
 
+            var lord = vassal.Lord;
             // Cleanup data before syncing
             vassal.Lord = null;
             if (vassal.Setting != TitheSetting.Special)
                 vassal.Setting = TitheSetting.Never;
 
-            SyncedVassalizeSettlement(vassal.Lord, vassal.Settlement);
+            SyncedVassalizeSettlement(lord, vassal.Settlement);
         }
 
         private static void SyncedVassalizeSettlement(Pawn pawn, Settlement settlement)
