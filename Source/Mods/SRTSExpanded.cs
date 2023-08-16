@@ -53,6 +53,7 @@ namespace Multiplayer.Compat
             var tryLaunch = AccessTools.Method(type, "TryLaunch");
             tryLaunchMethod = MethodInvoker.GetHandler(tryLaunch);
 
+            PatchingUtilities.InitCancelInInterface();
             MpCompat.harmony.Patch(tryLaunch, prefix: new HarmonyMethod(typeof(SRTSExpanded), nameof(PreTryLaunch)));
             MP.RegisterSyncMethod(typeof(SRTSExpanded), nameof(SyncedLaunch)).ExposeParameter(2);
 
@@ -79,7 +80,7 @@ namespace Multiplayer.Compat
         private static bool PreTryLaunch(ThingComp __instance, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan cafr = null)
         {
             // Let the method run only if it's synced call
-            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand)
+            if (PatchingUtilities.ShouldCancel)
                 return true;
 
             var caravanFieldValue = caravanField(__instance);
@@ -138,7 +139,7 @@ namespace Multiplayer.Compat
         private static bool PreAddPawns(ThingComp __instance, List<Pawn> ___tmpAllowedPawns)
         {
             // Let the method run only if it's synced call
-            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand)
+            if (PatchingUtilities.ShouldCancel)
                 return true;
 
             SyncedAddPawns(__instance, ___tmpAllowedPawns);

@@ -36,12 +36,9 @@ namespace Multiplayer.Compat
                 // On top of that, it also adds the current job to the list of forced jobs for absent minded pawns.
                 // This can cause issues when the mod operates and does stuff based on those, but they are in different state for all players.
                 // The issue is that a sync method catches this call, but all prefixes/postfixes/etc. still run.
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VanillaTraitsExpanded.TryTakeOrderedJob_Patch:Postfix"),
-                    prefix: new HarmonyMethod(typeof(VanillaTraitsExpanded), nameof(CancelUnlessSynced)));
+                PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod("VanillaTraitsExpanded.TryTakeOrderedJob_Patch:Postfix"));
             }
         }
-
-        private static bool CancelUnlessSynced() => !MP.IsInMultiplayer || MP.IsExecutingSyncCommand;
 
         private static void ClearCache() => mapPawnsAnimalListField().Clear();
     }

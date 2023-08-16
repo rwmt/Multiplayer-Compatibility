@@ -23,6 +23,15 @@ namespace Multiplayer.Compat
                 // Motes
                 PatchingUtilities.PatchPushPopRand("VFESecurity.ExtendedMoteMaker:SearchlightEffect");
             }
+
+            // Patched sync methods
+            {
+                // When picking a new target the old one is (supposed to be) cleared.
+                // Could cause issues if the player is behind on ticks.
+                var type = AccessTools.TypeByName("VFESecurity.Patch_Building_TurretGun");
+                type = AccessTools.Inner(type, "OrderAttack");
+                PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(type, "Postfix"));
+            }
         }
 
         private static void LateSyncMethods()

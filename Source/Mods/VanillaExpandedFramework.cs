@@ -120,7 +120,7 @@ namespace Multiplayer.Compat
 
         // Hediffs added in MoodOffset, can be called during alert updates (not synced)
         private static void PatchVanillaCookingExpanded()
-            => PatchingUtilities.PatchCancelMethodOnUI("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
+            => PatchingUtilities.PatchCancelInInterface("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
 
         private static void PatchVanillaFactionMechanoids()
         {
@@ -523,6 +523,10 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
                 transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
+
+            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+            type = AccessTools.Inner(type, "CompGlower_SetGlowColorInternal_Patch");
+            PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(type, "Postfix"));
         }
 
         private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
@@ -668,6 +672,9 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaDelegate(type, "GetAttackGizmos_Postfix", 4); // Interrupt Attack
 
             MpCompat.RegisterLambdaDelegate("MVCF.Features.Feature_RangedAnimals", "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
+
+            // Changes the verb, so when called before syncing (especially if the original method is canceled by another mod) - will cause issues.
+            PatchingUtilities.PatchCancelInInterfaceSetResultToTrue("MVCF.Features.PatchSets.PatchSet_Base:Prefix_OrderForceTarget");
         }
 
         // Initialize the VerbManager early, we expect it to exist on every player.

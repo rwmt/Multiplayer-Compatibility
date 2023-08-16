@@ -81,6 +81,15 @@ namespace Multiplayer.Compat
                     getSmartMedicinePriorityCareDictionary = MethodInvoker.GetHandler(AccessTools.Method(type, "Get"));
                 }
             }
+
+            // Patched sync methods
+            {
+                // When ordering a pawn to drop something, it'll try to stop them from stocking up on it.
+                // Will cause desyncs if this happened to be something they were stocking up
+                // if the pawn decides to unload the things they were stocking up on.
+                // Used for both vanilla and RPG style inventory InterfaceDrop method.
+                PatchingUtilities.PatchCancelInInterface("SmartMedicine.InterfaceDrop_Patch:Postfix");
+            }
         }
 
         private static bool PreSetStockCount(Pawn pawn, ThingDef thingDef, int count)
