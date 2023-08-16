@@ -121,7 +121,7 @@ namespace Multiplayer.Compat
             // Recache haul urgently deterministically (currently uses Time.unscaledTime)
             {
                 // Used by DeterministicallyHandleReCaching
-                PatchingUtilities.InitCancelOnUI();
+                PatchingUtilities.InitCancelInInterface();
 
                 var type = AccessTools.TypeByName("AllowTool.HaulUrgentlyCacheHandler");
                 MpCompat.harmony.Patch(AccessTools.Method(type, "RecacheIfNeeded"),

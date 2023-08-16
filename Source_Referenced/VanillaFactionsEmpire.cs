@@ -8,6 +8,7 @@ using RimWorld.Planet;
 using Verse;
 using Verse.AI.Group;
 using VFEEmpire;
+using VFEEmpire.HarmonyPatches;
 
 namespace Multiplayer.Compat
 {
@@ -120,6 +121,13 @@ namespace Multiplayer.Compat
                 // Grant all honors
                 MpCompat.RegisterLambdaMethod(typeof(HonorsTracker), nameof(HonorsTracker.GetGizmos), 4).SetDebugOnly();
                 MP.RegisterSyncWorker<HonorsTracker>(SyncHonorsTracker);
+            }
+
+            // Patched sync methods
+            {
+                // Basically when called, it removes the pawns from list with pawns with titles, and if they still have them - they get re-added.
+                // Causes the order to change, which could cause issues before the method is synced.
+                PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(typeof(ColonistTitleCache.RoyaltyTracker), nameof(ColonistTitleCache.RoyaltyTracker.Postfix)));
             }
         }
 

@@ -19,7 +19,7 @@ namespace Multiplayer.Compat
 
             // Hediffs added in MoodOffset, can be called during alert updates (not synced).
             // Possibly causes https://github.com/rwmt/Multiplayer-Compatibility/issues/302 
-            PatchingUtilities.PatchCancelMethodOnUI("AlphaMemes.Thought_Catharsis:MoodOffset");
+            PatchingUtilities.PatchCancelInInterface("AlphaMemes.Thought_Catharsis:MoodOffset");
 
             // Current map usage
             var type = AccessTools.TypeByName("AlphaMemes.AlphaMemesIdeo_Notify_Patches");

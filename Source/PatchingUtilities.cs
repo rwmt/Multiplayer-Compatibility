@@ -260,25 +260,27 @@ namespace Multiplayer.Compat
         }
         #endregion
 
-        #region Cancel on UI
+        #region Cancel in interface
 
         /// <summary>
         /// <para>Returns <see langword="true"/> during ticking and synced commands.</para>
         /// <para>Should be used to prevent any gameplay-related changes from being executed from UI or other unsafe contexts.</para>
-        /// <para>Requires calling <see cref="InitCancelOnUI"/> or any <see cref="PatchCancelMethodOnUI"/> method, otherwise it will always be <see langword="false"/>.</para>
+        /// <para>Requires calling <see cref="InitCancelInInterface"/> or any <see cref="PatchCancelInInterface"/> method, otherwise it will always be <see langword="false"/>.</para>
         /// </summary>
-        public static bool ShouldCancel => (bool)(shouldCancelUiMethod?.Invoke(null) ?? false);
+        public static bool ShouldCancel => inInterfaceMethod();
 
-        private static FastInvokeHandler shouldCancelUiMethod;
-
-        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
-        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
-        public static void PatchCancelMethodOnUI(params string[] methodNames) => PatchCancelMethodOnUI(methodNames as IEnumerable<string>);
+        private delegate bool InInterfaceDelegate();
+        private static InInterfaceDelegate inInterfaceMethod = () => false;
+        private static bool inInterfaceMethodInitialized = false;
 
         /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
         /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
-        public static void PatchCancelMethodOnUI(IEnumerable<string> methodNames)
-            => PatchCancelMethodOnUI(methodNames
+        public static void PatchCancelInInterface(params string[] methodNames) => PatchCancelInInterface(methodNames as IEnumerable<string>);
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void PatchCancelInInterface(IEnumerable<string> methodNames)
+            => PatchCancelInInterface(methodNames
                 .Select(m =>
                 {
                     var method = AccessTools.DeclaredMethod(m) ?? AccessTools.Method(m);
@@ -290,31 +292,92 @@ namespace Multiplayer.Compat
 
         /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
         /// <param name="methods">Methods to patch</param>
-        public static void PatchCancelMethodOnUI(params MethodBase[] methods) => PatchCancelMethodOnUI(methods as IEnumerable<MethodBase>);
+        public static void PatchCancelInInterface(params MethodBase[] methods) => PatchCancelInInterface(methods as IEnumerable<MethodBase>);
 
         /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
         /// <param name="methods">Methods to patch</param>
-        public static void PatchCancelMethodOnUI(IEnumerable<MethodBase> methods)
+        public static void PatchCancelInInterface(IEnumerable<MethodBase> methods)
         {
-            InitCancelOnUI();
+            InitCancelInInterface();
+            var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelInInterface));
             foreach (var method in methods)
-                Patch(method);
+                PatchCancelInInterfaceInternal(method, patch);
         }
 
-        private static void Patch(MethodBase method)
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI and set __result to true (for patching prefixes to let the original run)</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void PatchCancelInInterfaceSetResultToTrue(params string[] methodNames) => PatchCancelInInterfaceSetResultToTrue(methodNames as IEnumerable<string>);
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI and set __result to true (for patching prefixes to let the original run)</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void PatchCancelInInterfaceSetResultToTrue(IEnumerable<string> methodNames)
+            => PatchCancelInInterfaceSetResultToTrue(methodNames
+                .Select(m =>
+                {
+                    var method = AccessTools.DeclaredMethod(m) ?? AccessTools.Method(m);
+                    if (method == null)
+                        Log.Error($"({nameof(PatchingUtilities)}) Could not find method {m}");
+                    return method;
+                })
+                .Where(m => m != null));
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI and set __result to true (for patching prefixes to let the original run)</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void PatchCancelInInterfaceSetResultToTrue(params MethodBase[] methods) => PatchCancelInInterfaceSetResultToTrue(methods as IEnumerable<MethodBase>);
+
+        /// <summary>Patches the method to cancel the call if it ends up being called from the UI and set __result to true (for patching prefixes to let the original run)</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void PatchCancelInInterfaceSetResultToTrue(IEnumerable<MethodBase> methods)
         {
-            MpCompat.harmony.Patch(method,
-                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelDuringAlerts)));
+            InitCancelInInterface();
+            var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelInInterfaceSetResultToTrue));
+            foreach (var method in methods)
+                PatchCancelInInterfaceInternal(method, patch);
         }
+
+        private static void PatchCancelInInterfaceInternal(MethodBase method, HarmonyMethod patch) 
+            => MpCompat.harmony.Patch(method, prefix: patch);
 
         /// <summary>
-        /// <para>Gets access to Multiplayer.Client.AppendMoodThoughtsPatch:Cancel getter to check if execution should be cancelled during alerts.</para>
-        /// <para>Called automatically from any <see cref="PatchCancelMethodOnUI"/> method.</para>
+        /// <para>Gets access to Multiplayer.Client.Multiplayer:InInterface getter to check if execution should be cancelled.</para>
+        /// <para>Called automatically from any <see cref="PatchCancelInInterface"/> method.</para>
         /// </summary>
-        public static void InitCancelOnUI()
-            => shouldCancelUiMethod ??= MethodInvoker.GetHandler(AccessTools.PropertyGetter("Multiplayer.Client.AppendMoodThoughtsPatch:Cancel"));
+        public static void InitCancelInInterface()
+        {
+            if (inInterfaceMethodInitialized)
+                return;
 
-        private static bool CancelDuringAlerts() => !ShouldCancel;
+            // Stop repeated attempts to initialize when finished or failed
+            inInterfaceMethodInitialized = true;
+
+            var inInterface = AccessTools.PropertyGetter("Multiplayer.Client.Multiplayer:InInterface");
+            if (inInterface == null)
+            {
+                Log.Error("Failed getting InInterface getter, was its location changed in MP?");
+                return;
+            }
+
+            try
+            {
+                inInterfaceMethod = AccessTools.MethodDelegate<InInterfaceDelegate>(inInterface);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Failed setting up InInterface delegate with exception:\n{e}");
+            }
+        }
+
+        private static bool CancelInInterface() => !ShouldCancel;
+
+        private static bool CancelInInterfaceSetResultToTrue(ref bool __result)
+        {
+            if (!ShouldCancel)
+                return true;
+
+            __result = true;
+            return false;
+
+        }
 
         #endregion
 

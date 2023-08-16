@@ -75,6 +75,15 @@ namespace Multiplayer.Compat
 
                 MP.RegisterSyncWorker<object>(SyncWorkerForThingDefStuffDefPair, type);
             }
+            
+            // Patched sync methods
+            {
+                // When undrafted, the pawns will remove their temporary forced weapon.
+                // Could cause issues when drafting pawns, as they'll be considered undrafted when the postfix runs.
+                PatchingUtilities.PatchCancelInInterface("PeteTimesSix.SimpleSidearms.Intercepts.Pawn_DraftController_Drafted_Setter_Postfix:DraftedSetter");
+                // When dropping a weapon, it'll cause the pawn to about preferences towards them.
+                PatchingUtilities.PatchCancelInInterface("PeteTimesSix.SimpleSidearms.Intercepts.ITab_Pawn_Gear_InterfaceDrop_Prefix:InterfaceDrop");
+            }
         }
 
         #region ThingDefStuffDefPair

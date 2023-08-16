@@ -40,7 +40,14 @@ namespace Multiplayer.Compat
             // Gamplay logic during UI code
             {
                 // Hediffs added in MoodOffset, can be called during alert updates (not synced)
-                PatchingUtilities.PatchCancelMethodOnUI("VanillaMemesExpanded.Thought_DisableFirstDefeatThought:MoodOffset");
+                PatchingUtilities.PatchCancelInInterface("VanillaMemesExpanded.Thought_DisableFirstDefeatThought:MoodOffset");
+            }
+
+            // Patched sync methods
+            {
+                // Resets timer for the last time a settlement was abandoned. If called before syncing it
+                // will cause pawns to temporarily lose specific thoughts related to them for the player syncing.
+                PatchingUtilities.PatchCancelInInterface("VanillaMemesExpanded.VanillaMemesExpanded_SettlementAbandonUtility_Abandon_Patch:SetAbandonedTimeToZero");
             }
         }
     }
