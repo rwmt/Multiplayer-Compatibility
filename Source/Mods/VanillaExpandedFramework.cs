@@ -171,6 +171,12 @@ namespace Multiplayer.Compat
 
             // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
             // If not, will need patching
+
+            PatchingUtilities.PatchPushPopRand(new[]
+            {
+                "KCSG.KCSG_Skyfaller:SaveImpact",
+                "KCSG.KCSG_Skyfaller:Tick",
+            });
         }
 
         private static void PatchVanillaGenesExpanded()
