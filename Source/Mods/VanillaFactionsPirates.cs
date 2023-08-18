@@ -246,7 +246,7 @@ namespace Multiplayer.Compat
 
         private static bool PreShieldDetonation(Verb __instance, ref bool __result)
         {
-            if (PatchingUtilities.ShouldCancel)
+            if (!MP.IsInMultiplayer || PatchingUtilities.ShouldCancel)
                 return true;
 
             // We need to sync as ThingComp, as MP only supports 2 comps - CompEquippable and CompReloadable
