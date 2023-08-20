@@ -11,15 +11,18 @@ namespace Multiplayer.Compat
     /// <summary>
     /// <para>SRTS Expanded by Smash Phil, Aquamarine, Neceros, more</para>
     /// <para>Carryalls | Intercontinental Transport by Nephlite</para>
+    /// <para>Transport Shuttle Standalone by Azazellz</para>
     /// </summary>
     /// <see href="https://github.com/Neceros/SRTS-Expanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1845423808"/>
     /// <see href="https://github.com/RealTelefonmast/RWCarryall"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2901034783"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2834132683"/>
     [MpCompatFor("smashphil.srtsexpanded")]
     [MpCompatFor("smashphil.neceros.srtsexpanded")]
     [MpCompatFor("Shashlichnik.srtsexpanded")]
     [MpCompatFor("Nephlite.Carryalls")]
+    [MpCompatFor("Azazellz.TransportShuttleStandalone")]
     class SRTSExpanded
     {
         private static FastInvokeHandler tryLaunchMethod;
