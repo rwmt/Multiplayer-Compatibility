@@ -673,14 +673,14 @@ namespace Multiplayer.Compat
             var innerMethod = MpMethodUtil.GetLambda(type, "AmmoOptions", MethodType.Getter, null, 1);
             MP.RegisterSyncDelegate(type, innerMethod.DeclaringType.Name, innerMethod.Name);
 
-            type = AccessTools.TypeByName("MVCF.Features.Feature_Humanoid");
-            MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 1); // Fire at will
+            type = AccessTools.TypeByName("MVCF.PatchSets.PatchSet_HumanoidGizmos");
+            MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 3); // Toggle fire at will
             MpCompat.RegisterLambdaDelegate(type, "GetAttackGizmos_Postfix", 4); // Interrupt Attack
 
-            MpCompat.RegisterLambdaDelegate("MVCF.Features.Feature_RangedAnimals", "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
+            MpCompat.RegisterLambdaDelegate("MVCF.PatchSets.PatchSet_Animals", "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
 
             // Changes the verb, so when called before syncing (especially if the original method is canceled by another mod) - will cause issues.
-            PatchingUtilities.PatchCancelInInterfaceSetResultToTrue("MVCF.Features.PatchSets.PatchSet_Base:Prefix_OrderForceTarget");
+            PatchingUtilities.PatchCancelInInterfaceSetResultToTrue("MVCF.PatchSets.PatchSet_MultiVerb:Prefix_OrderForceTarget");
         }
 
         // Initialize the VerbManager early, we expect it to exist on every player.
