@@ -653,7 +653,7 @@ namespace Multiplayer.Compat
             mvcfPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
             mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
 
-            var conditionalWeakTableType = typeof(ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), type);
+            var conditionalWeakTableType = typeof(ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), typeof(StrongBox<>).MakeGenericType(type));
             conditionalWeakTableTryGetValueMethod = MethodInvoker.GetHandler(AccessTools.Method(conditionalWeakTableType, "TryGetValue"));
 
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
@@ -668,6 +668,10 @@ namespace Multiplayer.Compat
             type = AccessTools.TypeByName("MVCF.VerbComps.VerbComp");
             mvcfVerbCompParentField = AccessTools.FieldRefAccess<object>(type, "parent");
             MP.RegisterSyncWorker<object>(SyncVerbComp, type, isImplicit: true);
+
+            type = AccessTools.TypeByName("MVCF.VerbComps.VerbComp_Switch");
+            // Switch used verb
+            MP.RegisterSyncMethod(type, "Enable");
 
             type = AccessTools.TypeByName("MVCF.Reloading.Comps.VerbComp_Reloadable_ChangeableAmmo");
             var innerMethod = MpMethodUtil.GetLambda(type, "AmmoOptions", MethodType.Getter, null, 1);
@@ -722,7 +726,7 @@ namespace Multiplayer.Compat
 
                 // Either try getting the VerbManager from the comp, or create it if it's missing
                 if ((bool)conditionalWeakTableTryGetValueMethod(weakTable, outParam))
-                    obj = outParam[1];
+                    obj = ((IStrongBox)outParam[1]).Value;
                 else
                     throw new Exception($"MpCompat :: VerbManager of {pawn} isn't initialized! NO WAY!");
             }
