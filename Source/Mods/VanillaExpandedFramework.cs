@@ -316,14 +316,14 @@ namespace Multiplayer.Compat
                 {
                     IEnumerable list = null;
 
-                    var compAbilities = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesType);
+                    var compAbilities = thing.AllComps.FirstOrDefault(c => compAbilitiesType.IsInstanceOfType(c));
                     ThingComp compAbilitiesApparel = null;
                     if (compAbilities != null)
                         list = learnedAbilitiesField(compAbilities);
 
                     if (list == null)
                     {
-                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesApparelType);
+                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => compAbilitiesApparelType.IsInstanceOfType(c));
                         if (compAbilitiesApparel != null)
                             list = givenAbilitiesField(compAbilitiesApparel);
                     }
