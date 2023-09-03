@@ -629,10 +629,6 @@ namespace Multiplayer.Compat
         // VerbComp
         private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
 
-        // System //
-        // ConditionalWeakTable
-        private static FastInvokeHandler conditionalWeakTableTryGetValueMethod;
-
         private static void PatchMVCF()
         {
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.SpawnSetup)),
@@ -652,9 +648,6 @@ namespace Multiplayer.Compat
             MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
             mvcfPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
             mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
-
-            var conditionalWeakTableType = typeof(ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), typeof(StrongBox<>).MakeGenericType(type));
-            conditionalWeakTableTryGetValueMethod = MethodInvoker.GetHandler(AccessTools.Method(conditionalWeakTableType, "TryGetValue"));
 
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
             mvcfManagedVerbManagerGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Manager"));
@@ -720,14 +713,9 @@ namespace Multiplayer.Compat
             {
                 var pawn = sync.Read<Pawn>();
 
-                var weakTable = mvcfPawnVerbUtilityField(null);
-
-                var outParam = new object[] { pawn, null };
-
                 // Either try getting the VerbManager from the comp, or create it if it's missing
-                if ((bool)conditionalWeakTableTryGetValueMethod(weakTable, outParam))
-                    obj = ((IStrongBox)outParam[1]).Value;
-                else
+                obj = mvcfPawnVerbUtilityGetManager(pawn, true);
+                if (obj == null)
                     throw new Exception($"MpCompat :: VerbManager of {pawn} isn't initialized! NO WAY!");
             }
         }
