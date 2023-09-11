@@ -240,12 +240,6 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PreRemoveLetter)));
             }
 
-            // Flickering thoughts list
-            {
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.Gene_SyntheticBody:Tick"),
-                    transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceNeedsCall)));
-            }
-
             // Compat
             var dubsMintMenuGenerateListingMethod = AccessTools.DeclaredMethod("DubsMintMenus.Patch_HealthCardUtility:GenerateListing");
             if (dubsMintMenuGenerateListingMethod != null)
@@ -446,51 +440,6 @@ namespace Multiplayer.Compat
         private static void PreAwakeningDraw() => isDrawingAwakeningDialog = true;
 
         private static void PostAwakeningDraw() => isDrawingAwakeningDialog = false;
-
-        #endregion
-
-        #region Thoughts flickering fix
-
-        private static void ReplacedNeedsTrackerCall(Pawn_NeedsTracker instance)
-        {
-            // Check once every 6 hours, should prevent flickering and prevent flickering of needs.
-            // In vanilla, this method is called pretty infrequently. In situations like trait or hediffs
-            // being added or removed, ideo changes, etc.
-            // The flickering happens because it triggers this gets called each time:
-            // https://github.com/rwmt/Multiplayer/blob/d7aa398477ae6091f4f5d314bd0331c3933ca525/Source/Client/Patches/SituationalThoughts.cs#L8-L24
-            // Androids just call it every tick. It would probably be smart to look into the mod itself and
-            // check why it's called in the first place. Most likely related to androids becoming awakened?
-            if (instance.pawn.IsHashIntervalTick(GenDate.TicksPerHour * 6))
-                instance.AddOrRemoveNeedsAsAppropriate();
-        }
-
-        private static IEnumerable<CodeInstruction> ReplaceNeedsCall(IEnumerable<CodeInstruction> instr, MethodBase original)
-        {
-            var target = AccessTools.DeclaredMethod(typeof(Pawn_NeedsTracker), nameof(Pawn_NeedsTracker.AddOrRemoveNeedsAsAppropriate));
-            var replacement = AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(ReplacedNeedsTrackerCall));
-
-            var patched = false;
-
-            foreach (var ci in instr)
-            {
-                if ((ci.opcode == OpCodes.Call || ci.opcode == OpCodes.Callvirt) && ci.operand is MethodInfo method && method == target)
-                {
-                    ci.opcode = OpCodes.Call;
-                    ci.operand = replacement;
-
-                    patched = true;
-                }
-
-                yield return ci;
-            }
-
-            if (!patched)
-                Log.Warning($"Failed patching constant AddOrRemoveNeedsAsAppropriate calls for {original?.FullDescription() ?? "(unknown method)"}");
-#if DEBUG
-            else
-                Log.Error($"Successfully patched AddOrRemoveNeedsAsAppropriate calls for {original?.FullDescription() ?? "(unknown method)"}");
-#endif
-        }
 
         #endregion
 

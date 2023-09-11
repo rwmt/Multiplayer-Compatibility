@@ -83,7 +83,7 @@ namespace Multiplayer.Compat
         private static bool PreTryLaunch(ThingComp __instance, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan cafr = null)
         {
             // Let the method run only if it's synced call
-            if (!MP.IsInMultiplayer || !PatchingUtilities.ShouldCancel)
+            if (!PatchingUtilities.ShouldCancel)
                 return true;
 
             var caravanFieldValue = caravanField(__instance);
@@ -142,7 +142,7 @@ namespace Multiplayer.Compat
         private static bool PreAddPawns(ThingComp __instance, List<Pawn> ___tmpAllowedPawns)
         {
             // Let the method run only if it's synced call
-            if (!MP.IsInMultiplayer || !PatchingUtilities.ShouldCancel)
+            if (!PatchingUtilities.ShouldCancel)
                 return true;
 
             SyncedAddPawns(__instance, ___tmpAllowedPawns);

@@ -20,11 +20,7 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            if (type == typeof(IGeneResourceDrain))
-                MP.RegisterSyncWorker<IGeneResourceDrain>(SyncIGeneResourceDrain);
-            else if (type == typeof(LordJob))
-                MP.RegisterSyncWorker<LordJob>(SyncLordJob, isImplicit: true);
-            else if (type == typeof(ThingDefCount))
+            if (type == typeof(ThingDefCount))
                 MP.RegisterSyncWorker<ThingDefCount>(SyncThingDefCount);
             else if (type == typeof(GameCondition))
                 MP.RegisterSyncWorker<GameCondition>(SyncGameCondition, isImplicit: true);
@@ -32,27 +28,6 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<SocialCardUtility.CachedSocialTabEntry>(SyncCachedSocialTabEntry);
             else
                 Log.Error($"Trying to register SyncWorker of type {type}, but it's not supported.\n{new StackTrace(1)}");
-        }
-
-        private static void SyncIGeneResourceDrain(SyncWorker sync, ref IGeneResourceDrain resourceDrain)
-        {
-            if (sync.isWriting)
-            {
-                if (resourceDrain is Gene gene)
-                    sync.Write(gene);
-                else
-                    throw new Exception($"Unsupported {nameof(IGeneResourceDrain)} type: {resourceDrain.GetType()}");
-            }
-            else
-                resourceDrain = sync.Read<Gene>() as IGeneResourceDrain;
-        }
-
-        private static void SyncLordJob(SyncWorker sync, ref LordJob job)
-        {
-            if (sync.isWriting)
-                sync.Write(job.lord);
-            else
-                job = sync.Read<Lord>()?.LordJob;
         }
 
         private static void SyncThingDefCount(SyncWorker sync, ref ThingDefCount thingDefCount)
