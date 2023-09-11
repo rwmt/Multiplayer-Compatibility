@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -284,7 +285,8 @@ namespace Multiplayer.Compat
             abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
             abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
-            MP.RegisterSyncMethod(type, "CreateCastJob");
+            // There's another method taking LocalTargetInfo. Harmony grabs the one we need, but just in case specify the types to avoid ambiguity.
+            MP.RegisterSyncMethod(type, "CreateCastJob", new SyncType[] { typeof(GlobalTargetInfo[]) });
             MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
             abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
