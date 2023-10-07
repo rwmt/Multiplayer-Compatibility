@@ -109,41 +109,57 @@ namespace Multiplayer.Compat
 
         private static bool SyncMechanitorControlGroup(SyncWorker sync, ref MechanitorControlGroup group)
         {
+            // A cleaner approach would be to first sync a bool value to determine if we should handle the syncing,
+            // and then return false if we aren't. The issue with this is that if we return false, anything we tried
+            // to sync will get overwritten by MP sync worker instead (the reader/writer get reset when returning false).
+            // This means that when trying to read data, we will instead be reading the data from the MP sync worker was
+            // writing instead of this one.
+
             if (sync.isWriting)
             {
                 var targetPawn = group.tracker.Pawn;
-                // We know our target is not a spawned pawn, so let MP handle it
+                // We know dummy pawn is not a spawned pawn, so we sync it.
                 if (targetPawn.Spawned)
                 {
-                    sync.Write(false);
-                    return false;
+                    sync.Write(true);
+                    sync.Write(targetPawn);
                 }
-
-                var comp = gestaltEnginesField().Cast<ThingComp>().FirstOrDefault(c => gestaltEngineDummyPawnField(c) == targetPawn);
-                // If we didn't find a comp with a matching pawn, let MP handle it
-                if (comp == null)
+                else
                 {
-                    sync.Write(false);
-                    return false;
+                    var comp = gestaltEnginesField().Cast<ThingComp>().FirstOrDefault(c => gestaltEngineDummyPawnField(c) == targetPawn);
+                    // If we found a match with a dummy gestalt engine pawn, sync the comp instead.
+                    if (comp != null)
+                    {
+                        sync.Write(false);
+                        sync.Write(comp);
+                    }
+                    // If we didn't find a comp with a matching pawn, sync as a pawn.
+                    else
+                    {
+                        sync.Write(true);
+                        sync.Write(targetPawn);
+                    }
                 }
 
-                sync.Write(true);
-                sync.Write(comp);
+                // Sync the control group index as normal.
                 sync.Write(group.tracker.controlGroups.IndexOf(group));
             }
             else
             {
-                // Ignore if we weren't supposed to handle this value
-                if (!sync.Read<bool>())
-                    return false;
+                Pawn pawn;
+                // Read the pawn as normal
+                if (sync.Read<bool>())
+                    pawn = sync.Read<Pawn>();
+                // Read the gestalt engine and get its dummy pawn
+                else
+                    pawn = gestaltEngineDummyPawnField(sync.Read<ThingComp>());
 
-                var comp = sync.Read<ThingComp>();
+                // Read the index and get it from the mechanitor control groups
                 var index = sync.Read<int>();
-
-                var pawn = gestaltEngineDummyPawnField(comp);
                 group = pawn.mechanitor.controlGroups[index];
             }
 
+            // Since we fully replace the MP sync worker, just return true and don't let MP sync it itself.
             return true;
         }
     }
