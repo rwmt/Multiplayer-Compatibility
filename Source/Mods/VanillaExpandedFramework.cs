@@ -261,9 +261,6 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, Thing> abilityHolderField;
         private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
         private static ISyncField abilityAutoCastField;
-        
-        // AbilityDef
-        private static AccessTools.FieldRef<Def, int> abilityDefTargetCountField;
 
         private static void PatchAbilities()
         {
@@ -296,9 +293,6 @@ namespace Multiplayer.Compat
             type = AccessTools.TypeByName("VFECore.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
-
-            type = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
-            abilityDefTargetCountField = AccessTools.FieldRefAccess<int>(type, "targetCount");
         }
 
         private static void SyncVEFAbility(SyncWorker sync, ref ITargetingSource source)
