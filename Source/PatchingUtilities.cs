@@ -686,5 +686,53 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+        
+        #region TryGainMemory early thought init
+
+        public delegate bool TryHandleGainMemory(Thought_Memory thought);
+        private static List<TryHandleGainMemory> tryGainMemoryHandlers;
+        private static bool patchedVanillaMethod = false;
+
+        public static void PatchTryGainMemory(TryHandleGainMemory memoryGainHandler)
+        {
+            if (memoryGainHandler == null)
+            {
+                Log.Error("Trying to patch TryGainMemory, but delegate is null.");
+                return;
+            }
+
+            tryGainMemoryHandlers ??= new List<TryHandleGainMemory>();
+            tryGainMemoryHandlers.Add(memoryGainHandler);
+
+            if (patchedVanillaMethod)
+                return;
+
+            // Mods sometimes initialize unsafe stuff during MoodOffset, which is not called during ticking (but alert updates).
+            // We can't easily patch those classes to initialize their stuff earlier (like during a constructor or Init() call),
+            // as those are called while the pawn field is still not set (so the initialization will fail/error out).
+            // The earliest place I could find was `MemoryThoughtHandler.TryGainMemory` call, as that's where the pawn field is initialized.
+            var targetMethod = AccessTools.DeclaredMethod(
+                typeof(MemoryThoughtHandler),
+                nameof(MemoryThoughtHandler.TryGainMemory),
+                new[] { typeof(Thought_Memory), typeof(Pawn) });
+            MpCompat.harmony.Patch(targetMethod, postfix: new HarmonyMethod(typeof(PatchingUtilities), nameof(PostTryGainMemory)));
+            patchedVanillaMethod = true;
+        }
+
+        private static void PostTryGainMemory(Thought_Memory newThought)
+        {
+            // Only do something if the pawn is set (the call wasn't cancelled)
+            if (newThought.pawn == null)
+                return;
+
+            // No need to check for tryGainMemoryHandlers being null, it's instantiated before the patch is applied
+            for (var i = 0; i < tryGainMemoryHandlers.Count; i++)
+            {
+                if (tryGainMemoryHandlers[i](newThought))
+                    return;
+            }
+        }
+
+        #endregion
     }
 }

@@ -41,7 +41,7 @@ namespace Multiplayer.Compat
                 (PatchKCSG, "KCSG (custom structure generation)", false),
                 (PatchFactionDiscovery, "Faction Discovery", false),
                 (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
-                (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", false),
+                (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", true),
                 (PatchDoorTeleporter, "Teleporter Doors", true),
                 (PatchSpecialTerrain, "Special Terrain", false),
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
@@ -118,10 +118,6 @@ namespace Multiplayer.Compat
 
         private static void PatchVanillaWeaponsExpanded() 
             => MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
-
-        // Hediffs added in MoodOffset, can be called during alert updates (not synced)
-        private static void PatchVanillaCookingExpanded()
-            => PatchingUtilities.PatchCancelInInterface("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
 
         private static void PatchVanillaFactionMechanoids()
         {
@@ -1057,6 +1053,38 @@ namespace Multiplayer.Compat
                         weatherOverlayEffectsNextDamageTickField(overlay) = 0;
                 }
             }
+        }
+
+        #endregion
+
+        #region Vanilla Cooking Expanded
+
+        private static Type thoughtHediffType;
+
+        private static void PatchVanillaCookingExpanded()
+        {
+            // Hediff is added the fist time MoodOffset is called, called during alert updates (not synced).
+            thoughtHediffType = AccessTools.TypeByName("VanillaCookingExpanded.Thought_Hediff");
+            if (thoughtHediffType != null)
+            {
+                // Only apply the patch if there's actually any ThoughtDef that uses this specific hediff type.
+                // No point applying a patch and having it run if it'll never actually do anything useful.
+                // An example of a mod using it would be Vanilla Cooking Expanded (used for gourmet meals).
+                // This also required us to run this patch late, as otherwise the DefDatabase wouldn't be initialized yet.
+                if (DefDatabase<ThoughtDef>.AllDefsListForReading.Any(def => thoughtHediffType.IsAssignableFrom(def.thoughtClass)))
+                    PatchingUtilities.PatchTryGainMemory(TryGainThoughtHediff);
+            }
+            else Log.Error("Trying to patch `VanillaCookingExpanded.Thought_Hediff`, but the type is null. Did it get moved, renamed, or removed?");
+        }
+
+        private static bool TryGainThoughtHediff(Thought_Memory thought)
+        {
+            if (!thoughtHediffType.IsInstanceOfType(thought))
+                return false;
+
+            // Call MoodOffset to cause the method to add hediffs, etc.
+            thought.MoodOffset();
+            return true;
         }
 
         #endregion
