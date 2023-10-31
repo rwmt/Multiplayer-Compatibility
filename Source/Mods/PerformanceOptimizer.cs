@@ -167,6 +167,9 @@ namespace Multiplayer.Compat
 
         private static IDictionary ReturnCorrectCache(IDictionary simulationCache)
         {
+            if (simulationCache == null)
+                return null;
+
             // If simulation, return normal cache
             if (!PatchingUtilities.ShouldCancel)
                 return simulationCache;
@@ -176,6 +179,7 @@ namespace Multiplayer.Compat
                 return interfaceCache;
 
             // This shouldn't ever run, but is here just in case something breaks.
+            Log.Warning($"Trying to get interface cache for dictionary of type: {simulationCache.GetType()}");
             interfaceCache = Activator.CreateInstance(simulationCache.GetType()) as IDictionary;
             SimulationToInterfaceCaches[simulationCache] = interfaceCache;
             return interfaceCache;
