@@ -4,7 +4,6 @@ using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using Verse;
-using Verse.AI.Group;
 
 namespace Multiplayer.Compat
 {
@@ -24,8 +23,6 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<ThingDefCount>(SyncThingDefCount);
             else if (type == typeof(GameCondition))
                 MP.RegisterSyncWorker<GameCondition>(SyncGameCondition, isImplicit: true);
-            else if (type == typeof(SocialCardUtility.CachedSocialTabEntry))
-                MP.RegisterSyncWorker<SocialCardUtility.CachedSocialTabEntry>(SyncCachedSocialTabEntry);
             else
                 Log.Error($"Trying to register SyncWorker of type {type}, but it's not supported.\n{new StackTrace(1)}");
         }
@@ -63,23 +60,6 @@ namespace Multiplayer.Compat
                     : map.GameConditionManager;
 
                 gameCondition = manager.ActiveConditions.FirstOrDefault(condition => condition.uniqueID == id);
-            }
-        }
-
-        private static void SyncCachedSocialTabEntry(SyncWorker sync, ref SocialCardUtility.CachedSocialTabEntry entry)
-        {
-            // Pretty low importance sync worker. Honestly, skipping all the other data - we don't
-            // need it, and I doubt other mods will require a sync worker for a private vanilla class.
-            // Once we get API upgrade, just replace this sync worker with a call to `ISyncDelegate.TransformField`.
-
-            if (sync.isWriting)
-                sync.Write(entry.otherPawn);
-            else
-            {
-                entry = new SocialCardUtility.CachedSocialTabEntry
-                {
-                    otherPawn = sync.Read<Pawn>(),
-                };
             }
         }
 
