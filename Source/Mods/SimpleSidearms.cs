@@ -84,6 +84,24 @@ namespace Multiplayer.Compat
                 // When dropping a weapon, it'll cause the pawn to about preferences towards them.
                 PatchingUtilities.PatchCancelInInterface("PeteTimesSix.SimpleSidearms.Intercepts.ITab_Pawn_Gear_InterfaceDrop_Prefix:InterfaceDrop");
             }
+
+            // Stop verb init in interface
+            {
+                type = AccessTools.TypeByName("PeteTimesSix.SimpleSidearms.Utilities.GettersFilters");
+
+                var methods = new[]
+                {
+                    AccessTools.DeclaredMethod(type, "isManualUse"),
+                    AccessTools.DeclaredMethod(type, "isDangerousWeapon"),
+                    AccessTools.DeclaredMethod(type, "isEMPWeapon"),
+                    MpMethodUtil.GetLambda(type, "findBestRangedWeapon", lambdaOrdinal: 8)
+                };
+
+                foreach (var method in methods)
+                    MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(PrePrimaryVerbMethodCall)));
+
+                MP.RegisterSyncMethod(typeof(SimpleSidearmsCompat), nameof(SyncInitVerbsForComp));
+            }
         }
 
         #region ThingDefStuffDefPair
@@ -120,6 +138,38 @@ namespace Multiplayer.Compat
         {
             if (MP.IsInMultiplayer)
                 MP.WatchEnd();
+        }
+
+        #endregion
+
+        #region Stop verb init in interface
+
+        private static bool PrePrimaryVerbMethodCall(ThingWithComps __0, ref bool __result)
+        {
+            if (!PatchingUtilities.ShouldCancel)
+                return true;
+
+            var comp = __0.GetComp<CompEquippable>();
+            // Let the mod handle non-existent CompEquippable
+            if (comp == null)
+                return true;
+
+            // If verbs are initialized, let the mod handle it as it wants
+            if (comp.verbTracker.verbs != null)
+                return true;
+
+            // If verbs are null, assume false (is EMP, is dangerous, etc.)
+            __result = false;
+            // Initialize the verb
+            SyncInitVerbsForComp(comp);
+            // Prevent the method from running
+            return false;
+        }
+
+        private static void SyncInitVerbsForComp(CompEquippable comp)
+        {
+            if (comp.verbTracker.verbs == null)
+                comp.verbTracker.InitVerbsFromZero();
         }
 
         #endregion
