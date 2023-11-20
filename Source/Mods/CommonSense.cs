@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using System;
+using HarmonyLib;
 using Multiplayer.API;
 using Verse;
 
@@ -14,6 +15,7 @@ namespace Multiplayer.Compat
 
         private static ISyncField shouldUnloadSyncField;
         private static GetChecker getCompUnlockerCheckerMethod;
+        private static Type rpgStyleInventoryTabType;
 
         public CommonSense(ModContentPack mod)
         {
@@ -29,6 +31,22 @@ namespace Multiplayer.Compat
 
             // Gizmo patch
             MpCompat.RegisterLambdaMethod("CommonSense.DoCleanComp", "CompGetGizmosExtra", 1);
+
+            // RPG Style Inventory patch sync (popup menu)
+            rpgStyleInventoryTabType = AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab");
+            // If the type doesn't exist (no RPG style inventory active), skip syncing and patching the relevant parts
+            if (rpgStyleInventoryTabType != null)
+            {
+                type = AccessTools.TypeByName("CommonSense.RPGStyleInventory_PopupMenu_CommonSensePatch");
+                var method = MpMethodUtil.GetLambda(type, "Postfix");
+                // Unload - skip the `object __instance` field, as we can't exactly sync it (without sync transformers, which aren't in API yet)
+                MP.RegisterSyncDelegate(type, method.DeclaringType!.Name, method.Name, new[] { "pawn", "thing", "c" })
+                    .SetContext(SyncContext.MapSelected);
+                // Can't really sync fields of type `object`, so init it before we run the method
+                MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(CommonSense), nameof(RpgStyleCompatPrefix)));
+                // Cancel unload - only sync the CompUnloadCheker field, this method doesn't use anything else
+                MpCompat.RegisterLambdaDelegate("CommonSense.RPGStyleInventory_PopupMenu_CommonSensePatch", "Postfix", new[] { "c" }, 1);
+            }
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
@@ -59,6 +77,14 @@ namespace Multiplayer.Compat
         {
             if (__state)
                 MP.WatchEnd();
+        }
+
+        private static void RpgStyleCompatPrefix(ref object _____instance)
+        {
+            // Yes, it should have 5 `_` symbols. The field has 2 in name, and we need to add 3 to access it through harmony argument
+            // The __instance field used by the mod 
+            if (MP.IsInMultiplayer)
+                _____instance ??= Activator.CreateInstance(rpgStyleInventoryTabType);
         }
 
         private static void SyncComp(SyncWorker sync, ref ThingComp thing)
