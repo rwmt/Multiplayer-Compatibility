@@ -45,6 +45,7 @@ namespace Multiplayer.Compat
                 (PatchDoorTeleporter, "Teleporter Doors", true),
                 (PatchSpecialTerrain, "Special Terrain", false),
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
+                (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -181,6 +182,14 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("VanillaGenesExpanded.CompHumanHatcher");
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Hatch"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
+        }
+
+        private static void PatchExtraPregnancyApproaches()
+        {
+            MpCompat.RegisterLambdaDelegate(
+                "VFECore.SocialCardUtility_DrawPregnancyApproach_Patch", 
+                "AddPregnancyApproachOptions",
+                0, 1); // Disable extra approaches (0), set extra approach (1)
         }
 
         #endregion
