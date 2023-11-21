@@ -4,10 +4,13 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Dubs Bad Hygiene by Dubwise</summary>
+    /// <summary>Dubs Bad Hygiene and Dubs Bad Hygiene Lite by Dubwise</summary>
     /// <see href="https://github.com/Dubwise56/Dubs-Bad-Hygiene"/>
+    /// <see href="https://github.com/Dubwise56/Dubs-Bad-Hygiene-Lite"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=836308268"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2570319432"/>
     [MpCompatFor("Dubwise.DubsBadHygiene")]
+    [MpCompatFor("Dubwise.DubsBadHygiene.Lite")]
     public class BadHygiene
     {
         private static AccessTools.FieldRef<Designator, ThingDef> removePlumbingRemovalModeField;
