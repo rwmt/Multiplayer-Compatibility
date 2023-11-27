@@ -492,6 +492,11 @@ namespace Multiplayer.Compat
         private static Type randomBuildingGraphicCompType;
         private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
 
+        // Glowers
+        private static Type dummyGlowerType;
+        private static AccessTools.FieldRef<ThingComp, CompGlower> compGlowerExtendedGlowerField;
+        private static AccessTools.FieldRef<ThingWithComps, ThingComp> dummyGlowerParentCompField;
+
         private static void PatchVanillaFurnitureExpanded()
         {
             MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
@@ -512,18 +517,35 @@ namespace Multiplayer.Compat
             randomBuildingGraphicCompChangeGraphicMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "ChangeGraphic"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
-            MP.RegisterSyncMethod(type, "SwitchColor");
-
             // Preferably leave it at the end in case it fails - if it fails all the other stuff here will still get patched
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
                 transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
 
+            // Glowers
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+            MP.RegisterSyncMethod(type, "SwitchColor");
+            compGlowerExtendedGlowerField = AccessTools.FieldRefAccess<CompGlower>(type, "compGlower");
+            // Inner method of CompGlowerExtended
             type = AccessTools.Inner(type, "CompGlower_SetGlowColorInternal_Patch");
             PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(type, "Postfix"));
+
+            type = dummyGlowerType = AccessTools.TypeByName("VanillaFurnitureExpanded.DummyGlower");
+            dummyGlowerParentCompField = AccessTools.FieldRefAccess<ThingComp>(type, "parentComp");
+
+            // Syncing of wall-light type of glower doesn't work with MP, as what they do
+            // is spawning a dummy thing, attaching the glower to it, followed by despawning
+            // the dummy thing. If something is not spawned and doesn't have a holder MP won't
+            // be able to sync it properly due to it missing parent/map it's attached to,
+            // and will report it as inaccessible. This works as a workaround to all of this.
+            // 
+            // We normally sync CompGlower as ThingComp. If we add an explicit sync worker
+            // for it, then we'll (basically) replace the vanilla worker for it. It'll be
+            // used in situations where we're trying to sync CompGlower directly instead of ThingComp.
+            // Can't be synced with `isImplicit: true`, as it'll cause it to sync it with ThingComp
+            // sync worker first before syncing it using this specific sync worker.
+            MP.RegisterSyncWorker<CompGlower>(SyncCompGlower);
         }
 
         private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
@@ -591,6 +613,35 @@ namespace Multiplayer.Compat
                 }
 
                 yield return ci;
+            }
+        }
+
+        private static void SyncCompGlower(SyncWorker sync, ref CompGlower glower)
+        {
+            if (sync.isWriting)
+            {
+                // Check if the glower's parent thing is of DummyGlower type
+                if (dummyGlowerType.IsInstanceOfType(glower.parent))
+                {
+                    sync.Write(true);
+                    // Sync the CompGlowerExtended
+                    sync.Write(dummyGlowerParentCompField(glower.parent));
+                }
+                else
+                {
+                    // Handle this as normal ThingComp, letting MP sync it
+                    sync.Write(false);
+                    sync.Write<ThingComp>(glower);
+                }
+            }
+            else
+            {
+                // Check if we're reading a normal glower or a glower
+                // with a VFE dummy parent and handle appropriately.
+                if (sync.Read<bool>())
+                    glower = compGlowerExtendedGlowerField(sync.Read<ThingComp>());
+                else
+                    glower = sync.Read<ThingComp>() as CompGlower;
             }
         }
 
