@@ -23,8 +23,11 @@ namespace Multiplayer.Compat
             {
                 var doTimeControlsHotkeys = AccessTools.DeclaredMethod("Multiplayer.Client.AsyncTime.TimeControlPatch:DoTimeControlsHotkeys");
                 if (doTimeControlsHotkeys != null)
+                {
+                    doTimeControlsHotkeysMethod = MethodInvoker.GetHandler(doTimeControlsHotkeys);
                     MpCompat.harmony.Patch(AccessTools.DeclaredMethod("PerformanceOptimizer.Optimization_DoPlaySettings_DoTimespeedControls:DoTimeControlsGUI"),
-                        prefix: new HarmonyMethod(doTimeControlsHotkeys));
+                        prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PreDoTimeControlsGUI)));
+                }
                 else Log.Error("Could not find TimeControlPatch:DoTimeControlsHotkeys, speed control hot keys won't work with disabled/hidden speed control UI.");
             }
 
@@ -211,6 +214,21 @@ namespace Multiplayer.Compat
 
             // A lot of postfixes don't access the cache (they have the value out of cache passed as __state from prefix),
             // so don't really bother logging if we haven't patched anything (unless debugging).
+        }
+
+        #endregion
+
+        #region Time controls
+
+        private static FastInvokeHandler doTimeControlsHotkeysMethod;
+
+        private static bool PreDoTimeControlsGUI()
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            doTimeControlsHotkeysMethod(null);
+            return false;
         }
 
         #endregion
