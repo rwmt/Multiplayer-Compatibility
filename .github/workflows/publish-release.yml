@@ -22,7 +22,7 @@ jobs:
         dotnet-version: 7.0.x
       
     - name: Run workshop bundler
-      run: ./workshop_bundler.sh
+      run: ./release_bundler.sh
 
     - uses: "marvinpinto/action-automatic-releases@latest"
       with:
