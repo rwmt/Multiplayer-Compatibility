@@ -15,7 +15,6 @@ namespace Multiplayer.Compat
         private static FastInvokeHandler getParentStoreSettingsMethod;
 
         private static Type nutritionRefuelableType;
-        private static HemogenExtractorContext hemogenExtractorFilter;
 
         public HemogenExtractor(ModContentPack mod)
         {
@@ -24,12 +23,10 @@ namespace Multiplayer.Compat
             var type = nutritionRefuelableType = AccessTools.TypeByName("HemogenExtractor.CompNutritionRefuelable");
             getStoreSettingsMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "GetStoreSettings"));
             getParentStoreSettingsMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "GetParentStoreSettings"));
-            MP.ThingFilters.RegisterThingFilterTarget(type);
-            MP.ThingFilters.RegisterThingFilterListener(GetHemogenExtractorFilter);
 
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod("HemogenExtractor.ITab_CustomNutrition:FillTab"),
                 prefix: new HarmonyMethod(typeof(HemogenExtractor), nameof(PreFillTab)),
-                postfix: new HarmonyMethod(typeof(HemogenExtractor), nameof(PostFillTab)));
+                finalizer: new HarmonyMethod(typeof(HemogenExtractor), nameof(PostFillTab)));
         }
 
         private static void PreFillTab()
@@ -38,13 +35,12 @@ namespace Multiplayer.Compat
                 return;
 
             if (thing.comps.FirstOrDefault(c => c.GetType() == nutritionRefuelableType) is CompRefuelable comp)
-                hemogenExtractorFilter = new HemogenExtractorContext(comp);
+                MP.SetThingFilterContext(new HemogenExtractorContext(comp));
         }
 
-        private static void PostFillTab() => hemogenExtractorFilter = null;
+        private static void PostFillTab() => MP.SetThingFilterContext(null);
 
-        private static ThingFilterContext GetHemogenExtractorFilter() => hemogenExtractorFilter;
-
+        [MpCompatRequireMod("Uveren.HemogenExtractor")]
         public record HemogenExtractorContext(CompRefuelable Obj) : ThingFilterContext
         {
             public CompRefuelable Obj { get; } = Obj;
