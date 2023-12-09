@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using CashRegister;
 using Gastronomy.Dining;
 using Gastronomy.Restaurant;
 using HarmonyLib;
@@ -13,19 +14,15 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/OrionFive/Gastronomy"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2279786905"/>
     [MpCompatFor("Orion.Gastronomy")]
-    class Gastronomy
+    internal class Gastronomy
     {
         // RestaurantController
-        private static FastInvokeHandler linkRegisterMethod;
         private static ISyncField openForBusinessField;
         private static ISyncField allowGuestsField;
         private static ISyncField allowColonistsField;
         private static ISyncField allowPrisonersField;
         private static ISyncField allowSlavesField;
         private static ISyncField guestPricePercentageField;
-
-        // ITab_Register_Restaurant
-        private static AccessTools.FieldRef<object, object> iTabRestaurantField;
 
         public Gastronomy(ModContentPack mod)
         {
@@ -36,15 +33,14 @@ namespace Multiplayer.Compat
         private static void LatePatch()
         {
             var type = typeof(RestaurantController);
-            linkRegisterMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "LinkRegister"));
             openForBusinessField = MP.RegisterSyncField(type, nameof(RestaurantController.openForBusiness));
             allowGuestsField = MP.RegisterSyncField(type, nameof(RestaurantController.allowGuests));
             allowColonistsField = MP.RegisterSyncField(type, nameof(RestaurantController.allowColonists));
             allowPrisonersField = MP.RegisterSyncField(type, nameof(RestaurantController.allowPrisoners));
             allowSlavesField = MP.RegisterSyncField(type, nameof(RestaurantController.allowSlaves));
             guestPricePercentageField = MP.RegisterSyncField(type, nameof(RestaurantController.guestPricePercentage));
-            MP.RegisterSyncMethod(AccessTools.PropertySetter(type, nameof(RestaurantController.Name)));
-            MP.RegisterSyncMethod(type, "LinkRegister");
+            MP.RegisterSyncMethod(type, nameof(RestaurantController.Name));
+            MP.RegisterSyncMethod(type, nameof(RestaurantController.LinkRegister));
             MP.RegisterSyncWorker<RestaurantController>(SyncRestaurantController, type);
 
             type = typeof(RestaurantsManager);
@@ -55,76 +51,57 @@ namespace Multiplayer.Compat
                 postfix: new HarmonyMethod(typeof(Gastronomy), nameof(PostAddRestaurant)));
 
             type = typeof(ITab_Register_Restaurant);
-            iTabRestaurantField = AccessTools.FieldRefAccess<object>(type, nameof(ITab_Register_Restaurant.restaurant));
-            MpCompat.harmony.Patch(AccessTools.Method(type, "FillTab"),
+            MpCompat.harmony.Patch(AccessTools.Method(type, nameof(ITab_Register_Restaurant.FillTab)),
                 prefix: new HarmonyMethod(typeof(Gastronomy), nameof(PreFillTab)),
-                postfix: new HarmonyMethod(typeof(Gastronomy), nameof(PostFillTab)));
-            MpCompat.harmony.Patch(AccessTools.Method(type, "SetRestaurant"),
+                finalizer: new HarmonyMethod(typeof(Gastronomy), nameof(PostFillTab)));
+            MpCompat.harmony.Patch(AccessTools.Method(type, nameof(ITab_Register_Restaurant.SetRestaurant)),
                 prefix: new HarmonyMethod(typeof(Gastronomy), nameof(PreSetRestaurant)));
-            MP.ThingFilters.RegisterThingFilterListener(GetThingFilter);
-            MP.ThingFilters.RegisterThingFilterTarget<RestaurantWrapper>();
 
             type = typeof(CompCanDineAt);
             MP.RegisterSyncMethod(type, nameof(CompCanDineAt.ToggleDining));
             MP.RegisterSyncMethod(type, nameof(CompCanDineAt.ChangeDeco));
 
-            type = typeof(RestaurantMenu);
-            MP.RegisterSyncWorker<RestaurantMenu>(SyncRestaurantMenu, type);
-            MpCompat.harmony.Patch(AccessTools.Constructor(type),
+            // Ensure filters always initialized
+            MpCompat.harmony.Patch(AccessTools.Constructor(typeof(RestaurantMenu)),
                 postfix: new HarmonyMethod(typeof(Gastronomy), nameof(PostRestaurantMenuConstructor)));
         }
 
         private static void SyncRestaurantController(SyncWorker sync, ref RestaurantController controller)
         {
-            var comp = Find.CurrentMap.GetComponent<RestaurantsManager>();
-
             if (sync.isWriting)
             {
-                var index = comp.restaurants.IndexOf(controller);
+                var comp = controller.Map?.GetComponent<RestaurantsManager>();
+                var index = comp?.restaurants.IndexOf(controller) ?? -1;
+
                 sync.Write(index);
+                if (index >= 0)
+                    sync.Write(comp);
             }
             else
             {
                 var index = sync.Read<int>();
                 if (index >= 0)
-                    controller = comp.restaurants[index];
-            }
-        }
-
-        private static void SyncRestaurantMenu(SyncWorker sync, ref RestaurantMenu menu)
-        {
-            var comp = Find.CurrentMap.GetComponent<RestaurantsManager>();
-
-            if (sync.isWriting)
-            {
-                var index = -1;
-
-                for (var i = 0; i < comp.restaurants.Count; i++)
                 {
-                    if (comp.restaurants[i].menu == menu)
-                    {
-                        index = i;
-                        break;
-                    }
+                    var manager = sync.Read<RestaurantsManager>();
+                    if (manager.restaurants.Count > index)
+                        controller = manager.restaurants[index];
                 }
-
-                sync.Write(index);
-            }
-            else
-            {
-                var index = sync.Read<int>();
-
-                if (index >= 0)
-                    menu = comp.restaurants[index].menu;
             }
         }
 
-        private static void PreFillTab(ITab_Register_Restaurant __instance)
+        private static void PreFillTab(ITab_Register_Restaurant __instance, out bool __state)
         {
-            if (!MP.IsInMultiplayer || __instance.restaurant == null) // ___restaurant field is set up on first open tick
+            if (!MP.IsInMultiplayer)
+            {
+                __state = false;
                 return;
+            }
 
-            restaurantFilter = new(__instance.restaurant.menu);
+            // Set up restaurant, as it'll cause issues if it's incorrect/missing
+            __instance.restaurant = __instance.Register.GetRestaurant();
+            __instance.restaurant ??= __instance.Register.GetAllRestaurants().First();
+
+            MP.SetThingFilterContext(new RestaurantWrapper(__instance.restaurant));
 
             MP.WatchBegin();
             openForBusinessField.Watch(__instance.restaurant);
@@ -133,14 +110,16 @@ namespace Multiplayer.Compat
             allowPrisonersField.Watch(__instance.restaurant);
             allowSlavesField.Watch(__instance.restaurant);
             guestPricePercentageField.Watch(__instance.restaurant);
+
+            __state = true;
         }
 
-        private static void PostFillTab()
+        private static void PostFillTab(bool __state)
         {
-            if (!MP.IsInMultiplayer)
+            if (!__state)
                 return;
 
-            restaurantFilter = null;
+            MP.SetThingFilterContext(null);
             MP.WatchEnd();
         }
 
@@ -149,18 +128,17 @@ namespace Multiplayer.Compat
 
         private static void PostAddRestaurant(ref bool __state, RestaurantController __result)
         {
-            if (!__state)
+            if (!__state || __result == null)
                 return;
 
-            var register = Find.Selector.SingleSelectedThing;
-            linkRegisterMethod(__result, register);
+            __result.LinkRegister((Building_CashRegister)Find.Selector.SingleSelectedThing);
 
             if (MP.IsExecutingSyncCommandIssuedBySelf && Find.MainTabsRoot.OpenTab == MainButtonDefOf.Inspect)
             {
                 var mainTabWindow_Inspect = (MainTabWindow_Inspect)Find.MainTabsRoot.OpenTab.TabWindow;
-                var tab = mainTabWindow_Inspect.CurTabs?.FirstOrDefault(x => x.GetType() == typeof(ITab_Register_Restaurant));
+                var tab = mainTabWindow_Inspect.CurTabs?.OfType<ITab_Register_Restaurant>().FirstOrDefault();
                 if (tab != null)
-                    iTabRestaurantField(tab) = __result;
+                    tab.restaurant = __result;
             }
         }
 
@@ -170,19 +148,17 @@ namespace Multiplayer.Compat
         private static void PostRestaurantMenuConstructor(RestaurantMenu __instance)
             => __instance.GetMenuFilters(out _, out _);
 
-        private static ThingFilterContext GetThingFilter() => restaurantFilter;
-
-        private static RestaurantWrapper restaurantFilter;
-
-        private record RestaurantWrapper(RestaurantMenu Menu) : ThingFilterContext
+        public record RestaurantWrapper(RestaurantController Controller) : ThingFilterContext
         {
-            public override ThingFilter Filter => Menu.menuFilter;
-            public override ThingFilter ParentFilter => Menu.menuGlobalFilter;
+            public override ThingFilter Filter => Controller.Menu.menuFilter;
+            public override ThingFilter ParentFilter => Controller.Menu.menuGlobalFilter;
 
             public override IEnumerable<SpecialThingFilterDef> HiddenFilters
             {
                 get { yield return SpecialThingFilterDefOf.AllowFresh; }
             }
+
+            public RestaurantController Controller { get; } = Controller;
         }
     }
 }
