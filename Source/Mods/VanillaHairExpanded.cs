@@ -50,6 +50,7 @@ namespace Multiplayer.Compat
             beardDefField = AccessTools.Field(type, "beardDef");
             hairColourField = AccessTools.Field(type, "hairColour");
 
+            PatchingUtilities.InitCancelInInterface();
             MpCompat.harmony.Patch(AccessTools.Method(typeof(WindowStack), nameof(WindowStack.TryRemove), new[] { typeof(Window), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(VanillaHairExpanded), nameof(PreTryRemoveWindow)));
 
@@ -76,7 +77,7 @@ namespace Multiplayer.Compat
         private static bool PreTryRemoveWindow(Window window)
         {
             // Let the method run only if it's synced call
-            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand || window.GetType() != changeHairstyleDialogType)
+            if (!PatchingUtilities.ShouldCancel || window.GetType() != changeHairstyleDialogType)
                 return true;
 
             SyncedTryRemoveWindow();

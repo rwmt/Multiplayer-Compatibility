@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Reflection.Emit;
-using HarmonyLib;
+﻿using HarmonyLib;
+using Multiplayer.API;
+using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>
-    /// Alpha Genes by Allie, Sarg
+    /// <summary>Alpha Genes by Allie, Sarg</summary>
     /// <see href="https://github.com/juanosarg/AlphaGenes"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2891845502"/>
-    /// </summary>
     [MpCompatFor("sarg.alphagenes")]
     internal class AlphaGenes
     {
@@ -32,47 +27,28 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaDelegate("AlphaGenes.CompScorpionCounter", "CompGetGizmosExtra", 0).SetDebugOnly();
             }
 
-            // Current map usage
+            // Randomizer gene
             {
-                // Debug stuff, may get changed or removed. And we don't fully care if it fails.
-                try
-                {
-                    MpCompat.harmony.Patch(
-                        AccessTools.DeclaredMethod("AlphaGenes.CompRandomItemSpawner:CompTick"),
-                        transpiler: new HarmonyMethod(typeof(AlphaGenes), nameof(UseParentMap)));
-                }
-                catch (Exception e)
-                {
-                    Log.Warning($"Failed to patch method AlphaGenes.CompRandomItemSpawner:CompTick for dev mode item, the rest of the patch should still work.\n{e}");
-                }
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AlphaGenes.Gene_Randomizer:PostAdd"),
+                    prefix: new HarmonyMethod(typeof(AlphaGenes), nameof(PrePostAddRandomizerGene)));
             }
         }
 
-        private static IEnumerable<CodeInstruction> UseParentMap(IEnumerable<CodeInstruction> instr)
+        private static bool PrePostAddRandomizerGene(Gene __instance)
         {
-            var instrArr = instr.ToArray();
-            var patched = false;
+            if (!MP.IsInMultiplayer)
+                return true;
 
-            var targetMethod = AccessTools.PropertyGetter(typeof(Find), nameof(Find.CurrentMap));
+            // Restore the pawn to baseliner if they had the randomizer gene.
+            // Alpha Genes does this before applying random xenotype loaded from player's files.
+            var pawn = __instance.pawn;
+            pawn.genes.SetXenotype(XenotypeDefOf.Baseliner);
+            pawn.genes.RemoveGene(__instance);
 
-            foreach (var ci in instrArr)
-            {
-                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod)
-                {
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(typeof(ThingComp), nameof(ThingComp.parent)));
+            // If we're to patch it so the xenotype is random from player's files, it would make it
+            // easily possible if sync methods could be synced from gameplay code (like sync fields).
 
-                    ci.opcode = OpCodes.Callvirt;
-                    ci.operand = AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Map));
-
-                    patched = true;
-                }
-                
-                yield return ci;
-            }
-
-            if (!patched)
-                throw new Exception("Method was not patched");
+            return false;
         }
     }
 }

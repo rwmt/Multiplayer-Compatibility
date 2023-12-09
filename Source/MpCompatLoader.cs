@@ -17,6 +17,8 @@ namespace Multiplayer.Compat
 
             foreach (var asm in content.assemblies.loadedAssemblies)
                 InitCompatInAsm(asm);
+
+            ClearCaches();
         }
         
         static void LoadConditional(ModContentPack content)
@@ -55,13 +57,6 @@ namespace Multiplayer.Compat
 
             var loadedAsm = AppDomain.CurrentDomain.Load(stream.ToArray());
             content.assemblies.loadedAssemblies.Add(loadedAsm);
-            // As we're adding the new assembly, the classes added by it aren't included by the MP GenTypes AllSubclasses/AllSubclassesNonAbstract optimization
-            // GenTypes.ClearCache() won't work, as MP isn't doing anything when it's called
-            var mpType = AccessTools.TypeByName("Multiplayer.Client.Multiplayer");
-            ((IDictionary)AccessTools.Field(mpType, "subClasses").GetValue(null)).Clear();
-            ((IDictionary)AccessTools.Field(mpType, "subClassesNonAbstract").GetValue(null)).Clear();
-            ((IDictionary)AccessTools.Field(mpType, "implementations").GetValue(null)).Clear();
-            AccessTools.Method(mpType, "CacheTypeHierarchy").Invoke(null, Array.Empty<object>());
         }
 
         static void InitCompatInAsm(Assembly asm)
@@ -86,6 +81,25 @@ namespace Multiplayer.Compat
                     Log.Error($"MPCompat :: Exception loading {action.mod.PackageId}: {e.InnerException ?? e}");
                 }
             }
+        }
+
+        static void ClearCaches()
+        {
+            // Clear the GenTypes cache first, as MP will use it to create its own cache (built through GenTypes.AllTypes call if null)
+            GenTypes.ClearCache();
+
+            // As we're adding the new assembly, the classes added by it aren't included by the MP GenTypes AllSubclasses/AllSubclassesNonAbstract optimization
+            // GenTypes.ClearCache() on its own won't work, as MP isn't doing anything when it's called.
+            var mpType = AccessTools.TypeByName("Multiplayer.Client.Util.TypeCache") ?? AccessTools.TypeByName("Multiplayer.Client.Multiplayer");
+            ((IDictionary)AccessTools.Field(mpType, "subClasses").GetValue(null)).Clear();
+            ((IDictionary)AccessTools.Field(mpType, "subClassesNonAbstract").GetValue(null)).Clear();
+            ((IDictionary)AccessTools.Field(mpType, "implementations").GetValue(null)).Clear();
+            AccessTools.Method(mpType, "CacheTypeHierarchy").Invoke(null, Array.Empty<object>());
+
+            // Clear/re-init the list of ISyncSimple implementations.
+            AccessTools.Method("Multiplayer.Client.ImplSerialization:Init").Invoke(null, Array.Empty<object>());
+            // Clear/re-init the localDefInfos dictionary so it contains the classes added from referenced assembly.
+            AccessTools.Method("Multiplayer.Client.MultiplayerData:CollectDefInfos").Invoke(null, Array.Empty<object>());
         }
     }
 }

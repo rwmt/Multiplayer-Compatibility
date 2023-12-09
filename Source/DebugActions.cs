@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -46,15 +47,31 @@ namespace Multiplayer.Compat
             CurrentMap,
             Selector,
             Stopwatch,
-            GameComponentUpdate,
+            NonTickingUpdate,
             TimeManager,
+            GetHashCode,
+            PatchedSyncMethods,
         }
 
         private static readonly int MaxFoundStuff = Enum.GetNames(typeof(StuffToSearch)).Length;
 
         private static readonly MethodInfo FindCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Find), nameof(Find.CurrentMap));
         private static readonly MethodInfo GameCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Game), nameof(Game.CurrentMap));
-        private static readonly MethodInfo GameComponentUpdate = AccessTools.DeclaredMethod(typeof(GameComponent), nameof(GameComponent.GameComponentUpdate));
+        private static readonly MethodInfo GetHashCodeMethod = AccessTools.DeclaredMethod(typeof(object), nameof(GetHashCode));
+
+        private static readonly HashSet<MethodInfo> NonTickingUpdateMethodsOverrides = new[] 
+        {
+            AccessTools.DeclaredMethod(typeof(GameComponent), nameof(GameComponent.GameComponentUpdate)),
+            AccessTools.DeclaredMethod("HugsLib.ModBase:Update"),
+            AccessTools.DeclaredMethod("HugsLib.ModBase:FixedUpdate"),
+            AccessTools.DeclaredMethod("HugsLib.ModBase:OnGUI"),
+        }.Where(x => x != null).ToHashSet();
+
+        private static readonly HashSet<MethodInfo> NonTickingUpdateMethodCalls = new[]
+        {
+            AccessTools.DeclaredMethod("HugsLib.Utils.DoLaterScheduler:DoNextUpdate"),
+            AccessTools.DeclaredMethod("HugsLib.Utils.DoLaterScheduler:DoNextOnGUI"),
+        }.Where(x => x != null).ToHashSet();
 
         [DebugAction(CategoryName, "Log unsafe stuff", allowedGameStates = AllowedGameStates.Entry)]
         public static void LogUnpatchedStuff() => LogUnpatchedStuff(false);
@@ -117,6 +134,7 @@ namespace Multiplayer.Compat
                 logAllClasses = new List<string>();
 
             Parallel.ForEach(types, t => FindUnpatchedInType(t, unsupportedTypes, log, logAllClasses));
+            FindPatchedSyncMethods(log);
 
             if (log.Any(x => x.Value.Any()))
             {
@@ -188,11 +206,11 @@ namespace Multiplayer.Compat
                     Log.Message(log[StuffToSearch.Stopwatch].Append("\n").Join(delimiter: "\n"));
                 }
 
-                if (log[StuffToSearch.GameComponentUpdate].Any())
+                if (log[StuffToSearch.NonTickingUpdate].Any())
                 {
-                    Log.Warning("== GameComponent.Update usage found: ==");
-                    Log.Warning("== It can be called while the game is paused, and is not called once per tick. Depending on what it's used for, it may cause issues. ==");
-                    Log.Message(log[StuffToSearch.GameComponentUpdate].Append("\n").Join(delimiter: "\n"));
+                    Log.Warning("== Non-ticking update call usage found: ==");
+                    Log.Warning("== Those can be called while the game is paused, and are not called once per tick (instead can be called once per frame, etc.). Depending on what it's used for, it may cause issues. ==");
+                    Log.Message(log[StuffToSearch.NonTickingUpdate].Append("\n").Join(delimiter: "\n"));
                 }
 
                 if (log[StuffToSearch.TimeManager].Any())
@@ -200,6 +218,20 @@ namespace Multiplayer.Compat
                     Log.Warning("== TimeManager usage found: ==");
                     Log.Warning("== TimeManager uses timing functions that won't be synced across players. Unless used for UI, sounds, etc. then it will cause desyncs. ==");
                     Log.Message(log[StuffToSearch.TimeManager].Append("\n").Join(delimiter: "\n"));
+                }
+
+                if (log[StuffToSearch.GetHashCode].Any())
+                {
+                    Log.Warning("== GetHashCode usage found: ==");
+                    Log.Warning("== A lot of those will likely be false positives. However, depending on what the mod does with it - it can cause issues. Especially if the object has not implemented, or has non-deterministic .GetHashCode() implementation. ==");
+                    Log.Message(log[StuffToSearch.GetHashCode].Append("\n").Join(delimiter: "\n"));
+                }
+
+                if (log[StuffToSearch.PatchedSyncMethods].Any())
+                {
+                    Log.Warning("== Harmony patched SyncMethods found: ==");
+                    Log.Warning("== SyncMethod normally is synchronized to all players and called only then - however, if it contains any Harmony patches (skipping transpilers, as those are likely least disruptive) then they still run before the method is synchronized, which may cause issues. ==");
+                    Log.Message(log[StuffToSearch.PatchedSyncMethods].Append("\n").Join(delimiter: "\n"));
                 }
             }
             else Log.Warning("== No unpatched RNG or potentially unsafe methods found ==");
@@ -226,7 +258,7 @@ namespace Multiplayer.Compat
             if (logAllClasses != null)
             {
                 lock (logAllClasses)
-                    logAllClasses.Add(type.FullName);
+                    logAllClasses.Add($"{type.FullName} ({type.Assembly.GetName().Name})");
             }
 
             const string monoFunctionPointerClass = "System.MonoFNPtrFakeClass";
@@ -246,10 +278,10 @@ namespace Multiplayer.Compat
                 {
                     try
                     {
-                        foreach (var found in FindRng(method))
+                        foreach (var found in FindRng(type, method))
                         {
                             lock (log[found])
-                                log[found].Add($"{type.FullName}:{method.Name}");
+                                log[found].Add($"{type.FullName}:{method.Name} ({type.Assembly.GetName().Name})");
                         }
                     }
                     catch (Exception)
@@ -264,13 +296,13 @@ namespace Multiplayer.Compat
             }
         }
 
-        internal static HashSet<StuffToSearch> FindRng(MethodBase baseMethod)
+        internal static HashSet<StuffToSearch> FindRng(Type baseType, MethodBase baseMethod)
         {
             var instr = PatchProcessor.GetCurrentInstructions(baseMethod);
             var foundStuff = new HashSet<StuffToSearch>();
 
-            if (baseMethod == GameComponentUpdate)
-                foundStuff.Add(StuffToSearch.GameComponentUpdate);
+            if (baseType != baseMethod.DeclaringType && NonTickingUpdateMethodsOverrides.Contains(baseMethod))
+                foundStuff.Add(StuffToSearch.NonTickingUpdate);
 
             foreach (var ci in instr)
             {
@@ -313,12 +345,72 @@ namespace Multiplayer.Compat
                     case MethodInfo method when method.DeclaringType == typeof(Time):
                         foundStuff.Add(StuffToSearch.TimeManager);
                         break;
+                    // Calls .GetHashCode, unless it's the method we're currently checking
+                    case MethodInfo method when method == GetHashCodeMethod && baseMethod != GetHashCodeMethod:
+                        foundStuff.Add(StuffToSearch.GetHashCode);
+                        break;
+                    case MethodInfo method when NonTickingUpdateMethodCalls.Contains(method):
+                        foundStuff.Add(StuffToSearch.NonTickingUpdate);
+                        break;
                 }
 
                 if (foundStuff.Count == MaxFoundStuff) break;
             }
 
             return foundStuff;
+        }
+
+        internal static void FindPatchedSyncMethods(Dictionary<StuffToSearch, List<string>> log)
+        {
+            var syncedMethodsToIdDictionaryField = AccessTools.DeclaredField("Multiplayer.Client.Sync:methodBaseToInternalId");
+
+            const string errorMessage = "Failed to search for patched sync methods:";
+
+            if (syncedMethodsToIdDictionaryField == null)
+            {
+                Log.Error($"{errorMessage} could not find sync handlers.");
+                return;
+            }
+
+            if (!syncedMethodsToIdDictionaryField.IsStatic)
+            {
+                Log.Error($"{errorMessage} sync methods are stored in a non-static fields");
+                return;
+            }
+
+            if (syncedMethodsToIdDictionaryField.GetValue(null) is not Dictionary<MethodBase, int> methodsDict)
+            {
+                Log.Error($"{errorMessage} sync methods field does not implement {nameof(IDictionary)} interface or is null");
+                return;
+            }
+
+            if (!methodsDict.Any())
+            {
+                Log.Error($"{errorMessage} no registered sync methods found");
+                return;
+            }
+
+            Parallel.ForEach(methodsDict.Keys, method =>
+            {
+                var patchInfo = Harmony.GetPatchInfo(method);
+                var patches = patchInfo
+                    .Prefixes
+                    .Concat(patchInfo.Postfixes)
+                    .Concat(patchInfo.Finalizers)
+                    // Transpilers shouldn't need checking, as MP transpiler should stop them from executing.
+                    // Potentially if they add code before MP's syncing they could cause trouble, but seems unlikely.
+                    .Distinct()
+                    // Not excluding MP Compat patches, as I found 1 that I made that had issues
+                    .Where(patch => patch.owner is not "multiplayer")
+                    .ToList();
+
+                if (patches.Any())
+                {
+                    var type = method.DeclaringType;
+                    lock (log[StuffToSearch.PatchedSyncMethods])
+                        log[StuffToSearch.PatchedSyncMethods].Add($"{type?.FullName}:{method.Name} ({type?.Assembly.GetName().Name}) (patched by: {patches.Select(p => p.owner).ToStringSafeEnumerable()})");
+                }
+            });
         }
 
         #endregion

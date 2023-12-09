@@ -2,11 +2,9 @@
 
 namespace Multiplayer.Compat
 {
-    /// <summary>
-    /// Vanilla Nutrient Paste Expanded by Oskar Potocki, Kikohi
-    /// Seems it's not on GitHub anymore?
+    /// <summary>Vanilla Nutrient Paste Expanded by Oskar Potocki, Kikohi</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaNutrientPasteExpanded"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2920385763"/>
-    /// </summary>
     [MpCompatFor("VanillaExpanded.VNutrientE")]
     public class VanillaNutrientPasteExpanded
     {

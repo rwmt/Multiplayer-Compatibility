@@ -15,11 +15,14 @@ namespace Multiplayer.Compat
     [MpCompatFor("UnlimitedHugs.AllowTool")]
     public class AllowTool
     {
+        #region Fields
+
         // Drafted hunt
         private static FastInvokeHandler partyHuntWorldSettingsGetter;
 
         // Right-click designator options
-        private static FastInvokeHandler activationResultShowMessage;
+        private static FastInvokeHandler activationResultMessageGetter;
+        private static FastInvokeHandler activationResultMessageTypeGetter;
 
         // WorkGiver_FinishOff
         private static FastInvokeHandler createWorkGiverInstance;
@@ -38,9 +41,14 @@ namespace Multiplayer.Compat
         private static bool? controlHeldState = null;
         private static CellRect? visibleMapRectState = null;
 
+        #endregion
+
+        #region Main patch
+
         public AllowTool(ModContentPack mod)
         {
-            // Gizmos
+            #region Gizmos
+
             {
                 // Drafted hunt
                 var getter = AccessTools.PropertyGetter("AllowTool.Command_PartyHunt:WorldSettings");
@@ -54,7 +62,10 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<object>(SyncDraftedHuntSettings, type);
             }
 
-            // Right-click designator options
+            #endregion
+
+            #region Right-click designator options
+
             {
                 var type = AccessTools.TypeByName("AllowTool.Context.BaseContextMenuEntry");
                 // All of them either handle client-only interactions, or use camera position (which would break) but are synced indirectly through CompForbiddable.
@@ -95,10 +106,15 @@ namespace Multiplayer.Compat
                     MP.RegisterSyncWorker<object>(ShiftControlCameraStateOnlySyncWorker, usesCameraType, shouldConstruct: true);
 
                 // Since we're syncing Activate instead of ActivateAndHandleResult, we need to manually display success/failure message
-                activationResultShowMessage = MethodInvoker.GetHandler(AccessTools.Method("AllowTool.Context.ActivationResult:ShowMessage"));
+                type = AccessTools.TypeByName("AllowTool.Context.ActivationResult");
+                activationResultMessageGetter = MethodInvoker.GetHandler(AccessTools.DeclaredPropertyGetter(type, "Message"));
+                activationResultMessageTypeGetter = MethodInvoker.GetHandler(AccessTools.DeclaredPropertyGetter(type, "MessageType"));
             }
 
-            // Designators
+            #endregion
+
+            #region Designators
+
             {
                 // AllowAll doesn't use the normal designator methods, sync the method directly.
                 // Not necessary, but we're syncing the AllowAllTheThings as otherwise we'll end up with a spam of synced commands for CompForbiddable
@@ -116,10 +132,20 @@ namespace Multiplayer.Compat
                 foreach (var method in methods)
                     MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, method),
                         prefix: new HarmonyMethod(typeof(AllowTool), nameof(StopDesignatorSyncing)));
+
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Designator), nameof(Designator.Finalize)),
+                    prefix: new HarmonyMethod(typeof(AllowTool), nameof(PostDesignatorFinalize)));
             }
+
+            #endregion
+
+            #region Cache
 
             // Recache haul urgently deterministically (currently uses Time.unscaledTime)
             {
+                // Used by DeterministicallyHandleReCaching
+                PatchingUtilities.InitCancelInInterface();
+
                 var type = AccessTools.TypeByName("AllowTool.HaulUrgentlyCacheHandler");
                 MpCompat.harmony.Patch(AccessTools.Method(type, "RecacheIfNeeded"),
                     prefix: new HarmonyMethod(typeof(AllowTool), nameof(DeterministicallyHandleReCaching)));
@@ -127,6 +153,10 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(AccessTools.Method(type, "IsValid"),
                     prefix: new HarmonyMethod(typeof(AllowTool), nameof(ScaleReCachingTimerToTickSpeed)));
             }
+
+            #endregion
+
+            #region Float menu option
 
             // Finish off from right-click.
             // Right now, syncing fails as syncing the job as IExposable fails to sync the verb to use.
@@ -150,6 +180,10 @@ namespace Multiplayer.Compat
                 parentInnerClassTargetField = AccessTools.FieldRefAccess<Thing>(innerParentType, "target");
             }
 
+            #endregion
+
+            #region Temporary state overrides
+
             // Override current state returned from HugsLib and AllowTool methods
             {
                 var type = AccessTools.TypeByName("HugsLib.Utils.HugsLibUtility");
@@ -162,6 +196,17 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(AllowTool), nameof(ReplaceCurrentMapRect)));
             }
 
+            #endregion
+
+            #region Fogged error fix
+
+            {
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AllowTool.Designator_HaulUrgently:ThingIsRelevant"),
+                    prefix: new HarmonyMethod(typeof(AllowTool), nameof(PreThingIsRelevant)));
+            }
+
+            #endregion
+
             LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 
@@ -171,19 +216,25 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(AccessTools.Method("AllowTool.Designator_StripMine:DesignateCells"));
         }
 
-        private static void ClearTemporaryState(object instance, object[] args)
-        {
-            shiftHeldState = null;
-            controlHeldState = null;
-            visibleMapRectState = null;
-        }
+        #endregion
+
+        #region Designator
 
         // By syncing the Activate method, we'll be returning the default (null) value. The base method will be
         // unable to show success/failure message because of that. We're displaying it for the person who used it.
         private static void ShowActivationResultSelf(object __result)
         {
-            if (MP.IsInMultiplayer && MP.IsExecutingSyncCommandIssuedBySelf && __result != null)
-                activationResultShowMessage(__result);
+            // It could be one big if statement, but I feel it's more readable this way.
+            if (!MP.IsInMultiplayer || !MP.IsExecutingSyncCommandIssuedBySelf || __result == null)
+                return;
+            if (activationResultMessageGetter(__result) is not string message)
+                return;
+            if (activationResultMessageTypeGetter(__result) is not MessageTypeDef messageType)
+                return;
+
+            // We can't call ActivationResult.ShowMessage(), as it has historical: true
+            // which causes issues due to the message getting a global ID (and we're calling it locally).
+            Messages.Message(message, messageType, false);
         }
 
         private static bool StopDesignatorSyncing([HarmonyArgument("__instance")] Designator instance, ref bool __result)
@@ -193,6 +244,29 @@ namespace Multiplayer.Compat
 
             __result = true;
             return false;
+        }
+
+        private static void PostDesignatorFinalize(Designator __instance, bool somethingSucceeded)
+        {
+            // Only continue our method if the original was cancelled by MP.
+            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand || !somethingSucceeded)
+                return;
+
+            // In MP outside of synced commands we cancel the `Finalize` call, which means we also cancel `FinalizeDesignationSucceeded`.
+            // This means that selecting the "select similar" designator fails, as it's selected from its reverse designator.
+            if (selectSimilarType.IsInstanceOfType(__instance))
+                __instance.FinalizeDesignationSucceeded();
+        }
+
+        #endregion
+
+        #region Temporary state overrides
+
+        private static void ClearTemporaryState(object instance, object[] args)
+        {
+            shiftHeldState = null;
+            controlHeldState = null;
+            visibleMapRectState = null;
         }
 
         // Some designators use the current state of shift/control key, so we need to sync those as well
@@ -223,10 +297,20 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        private static void DeterministicallyHandleReCaching(ref float currentTime)
+        #endregion
+
+        #region Cache
+
+        private static bool DeterministicallyHandleReCaching(ref float currentTime)
         {
-            if (MP.IsInMultiplayer)
-                currentTime = Find.TickManager.TicksGame;
+            if (!MP.IsInMultiplayer)
+                return true;
+            // Can be called from MonoBehaviour.FixedUpdate and operates on a single map only, cancel in such cases
+            if (PatchingUtilities.ShouldCancel)
+                return false;
+
+            currentTime = Find.TickManager.TicksGame;
+            return true;
         }
 
         private static bool ScaleReCachingTimerToTickSpeed(float currentTime, float ___createdTime, ref bool __result)
@@ -235,13 +319,17 @@ namespace Multiplayer.Compat
                 return true;
 
             var mult = Find.TickManager.TickRateMultiplier;
-            if (mult > 0)
+            if (mult <= 0.15f)
                 mult = 0.15f;
             // The original method re-caches once a second. We check every 60 ticks multiplied by tick rate multiplier, so it will end up roughly every second no matter the game speed.
             // Also handle the situation of the game being paused by assuming the multiplier is 0.15 (small value to potentially force re-cache)
             __result = ___createdTime > 0 && ___createdTime < currentTime + (60 * mult);
             return false;
         }
+
+        #endregion
+
+        #region Sync Workers
 
         private static void SyncDraftedHuntSettings(SyncWorker sync, ref object settings)
         {
@@ -333,5 +421,21 @@ namespace Multiplayer.Compat
                 }
             }
         }
+
+        #endregion
+
+        #region Fogged error fix
+
+        private static bool PreThingIsRelevant(Thing thing, ref bool __result)
+        {
+            // Do it even if not in MP, as the issue affect SP as well
+            if (thing.Map != null)
+                return true;
+
+            __result = false;
+            return false;
+        }
+
+        #endregion
     }
 }

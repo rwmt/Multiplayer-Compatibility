@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using HarmonyLib;
-using Multiplayer.API;
+﻿using HarmonyLib;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -21,15 +19,12 @@ namespace Multiplayer.Compat
                 // VFEI.Comps.ItemComps.CompCustomTransporter
 
                 var type = AccessTools.TypeByName("InsectoidBioengineering.Building_BioengineeringIncubator");
+                // Start insertion (0), remove all genes (1), cancel all jobs (2), engage/start (3)
                 MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 1, 2, 3);
 
-                // Keep an eye on this in the future, seems like something the devs might combine into a single class at some point
-                foreach (var geneNumber in new[] { "First", "Second", "Third" })
-                {
-                    type = AccessTools.TypeByName($"InsectoidBioengineering.Command_Set{geneNumber}GenomeList");
-                    MP.RegisterSyncWorker<Command>(SyncSetGenomeCommand, type, shouldConstruct: true);
-                    MP.RegisterSyncMethod(AccessTools.Method(type, $"TryInsert{geneNumber}Genome"));
-                }
+                type = AccessTools.TypeByName("InsectoidBioengineering.GenomeListClass");
+                // Select none (0), or a specific genome (2), handles all slots
+                MpCompat.RegisterLambdaDelegate(type, "Process", 0, 2);
             }
 
             // RNG
@@ -48,31 +43,6 @@ namespace Multiplayer.Compat
                 };
 
                 PatchingUtilities.PatchSystemRand(methods);
-            }
-        }
-
-        private static void SyncSetGenomeCommand(SyncWorker sync, ref Command command)
-        {
-            var traverse = Traverse.Create(command);
-            var building = traverse.Field("building");
-            var genomeList = traverse.Field("genome");
-
-            if (sync.isWriting)
-            {
-                sync.Write(building.GetValue() as Thing);
-                var list = genomeList.GetValue() as List<Thing>;
-                sync.Write(list.Count);
-                foreach (var item in list)
-                    sync.Write(item as Thing);
-            }
-            else
-            {
-                building.SetValue(sync.Read<Thing>());
-                int count = sync.Read<int>();
-                var list = new List<Thing>(count);
-                for (int i = 0; i < count; i++)
-                    list.Add(sync.Read<Thing>());
-                genomeList.SetValue(list);
             }
         }
     }
