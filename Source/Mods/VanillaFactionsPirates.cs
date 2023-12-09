@@ -12,7 +12,7 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Factions Expanded - Pirates by Oskar Potocki, Sarg Bjornson, erdelf, Roolo, Smash Phil, Taranchuk, xrushha, Kikohi, legodude17</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaFactionsExpanded-Pirates"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFactionsExpanded-Pirates"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2723801948"/>
     [MpCompatFor("OskarPotocki.VFE.Pirates")]
     internal class VanillaFactionsPirates
@@ -45,8 +45,15 @@ namespace Multiplayer.Compat
             {
                 // Enable/disable siege mode
                 MpCompat.RegisterLambdaMethod("VFEPirates.Ability_SiegeMode", "GetGizmo", 0, 2);
-                // Trigger flight towards tile (right now, the TransportPodsArrivalAction parameter is always null)
-                MP.RegisterSyncMethod(AccessTools.TypeByName("VFEPirates.Ability_BlastOff"), "TryLaunch").ExposeParameter(1);
+                MP.RegisterSyncMethod(AccessTools.Method("VFEPirates.Verb_DroneDeployment:ReleaseDrones"));
+
+                // The code using the ability returns true, and we need to make sure it happens because
+                // as far as I understand, sync method on non-void methods returns default value (which
+                // would be false for bool)
+                PatchingUtilities.InitCancelInInterface();
+                MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedShieldDetonation));
+                MpCompat.harmony.Patch(AccessTools.Method("VFEPirates.Verb_ShieldDetonation:TryCastShot"),
+                    prefix: new HarmonyMethod(typeof(VanillaFactionsPirates), nameof(PreShieldDetonation)));
             }
 
             // Warcasket dialog
@@ -75,7 +82,9 @@ namespace Multiplayer.Compat
                 armorColorField = AccessTools.FieldRefAccess<Color>(type, "colorArmor");
 
                 MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedSetColors));
-                MP.RegisterPauseLock(PauseIfDialogOpen);
+                // This dialog should most likely not react to pressing enter/esc (or whatever those were assigned to).
+                // Sounds like an oversight on VE team.
+                DialogUtilities.RegisterDialogCloseSync(warcasketDialogType, true);
             }
 
             // Curse window
@@ -101,6 +110,12 @@ namespace Multiplayer.Compat
 
                 curseWorkerDisactivateMethod = AccessTools.Method(type, "Disactivate");
                 curseWorkerStartMethod = AccessTools.Method(type, "Start");
+            }
+            
+            // Flecks
+            {
+                // Uses GenView.ShouldSpawnMotesAt, which is based on camera position
+                PatchingUtilities.PatchPushPopRand("VFEPirates.IncomingSmoker:ThrowBlackSmoke");
             }
         }
 
@@ -210,6 +225,7 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> ReplaceButton(IEnumerable<CodeInstruction> instr)
         {
             var method = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonInvisible));
+            var anythingPatched = false;
 
             foreach (var ci in instr)
             {
@@ -219,15 +235,30 @@ namespace Multiplayer.Compat
                     yield return new CodeInstruction(OpCodes.Ldarg_2);
 
                     ci.operand = AccessTools.Method(typeof(VanillaFactionsPirates), nameof(InjectedButton));
+                    anythingPatched = true;
                 }
 
                 yield return ci;
             }
+
+            if (!anythingPatched) Log.Warning("Failed to patch Vanilla Factions Pirates - curse page");
         }
 
-        // Once we add non-blocking dialogs to the API
-        // we should apply this only to the map it's used on
-        private static bool PauseIfDialogOpen(Map map)
-            => Find.WindowStack.IsOpen(warcasketDialogType);
+        private static bool PreShieldDetonation(Verb __instance, ref bool __result)
+        {
+            if (!PatchingUtilities.ShouldCancel)
+                return true;
+
+            // We need to sync as ThingComp, as MP only supports 2 comps - CompEquippable and CompReloadable
+            SyncedShieldDetonation((ThingComp)__instance.DirectOwner, __instance.loadID);
+            __result = true;
+            return false;
+        }
+
+        private static void SyncedShieldDetonation(ThingComp verbGiverComp, string loadId)
+        {
+            var verb = ((IVerbOwner)verbGiverComp).VerbTracker.AllVerbs.Find(ve => ve.loadID == loadId);
+            verb.TryCastShot();
+        }
     }
 }

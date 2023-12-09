@@ -3,10 +3,13 @@ using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using SaveOurShip2;
+using UnityEngine;
 using Verse;
 
 namespace Multiplayer.Compat
 {
+    /// <summary>Save Our Ship 2 by Thain, Kentington</summary>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1909914131"/>
     [MpCompatFor("kentington.saveourship2")]
     internal class SaveOurShip2
     {
@@ -22,10 +25,19 @@ namespace Multiplayer.Compat
         {
             thingsById = (Dictionary<int, Thing>)AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.ThingsById"), "thingsById").GetValue(null);
 
+            // Map rendering fix
+            {
+                var type = AccessTools.TypeByName("Multiplayer.Client.MapDrawerRegenPatch");
+                MpCompat.harmony.Patch(AccessTools.Method(type, "Prefix"),
+                    prefix: new HarmonyMethod(typeof(SaveOurShip2), nameof(CancelMapDrawerRegenPatch)));
+            }
+
             // Ship bridge
             {
                 // Launching ship
                 MP.RegisterSyncMethod(typeof(Building_ShipBridge), nameof(Building_ShipBridge.TryLaunch));
+                MpCompat.harmony.Patch(AccessTools.Method(typeof(Building_ShipBridge), nameof(Building_ShipBridge.TryLaunch)),
+                    postfix: new HarmonyMethod(typeof(SaveOurShip2), nameof(PostTryLaunch)));
 
                 // Capturing ship
                 MP.RegisterSyncMethod(typeof(Building_ShipBridge), nameof(Building_ShipBridge.CaptureShip));
@@ -332,6 +344,30 @@ namespace Multiplayer.Compat
         private static void SyncShipBridgeInnerClass(SyncWorker sync, ref object obj)
         {
             if (!sync.isWriting) obj = bridgeInnerClassStaticField;
+        }
+
+        // Stop MP from caching/restoring the map, as SoS2 does its own thing with it
+        private static bool CancelMapDrawerRegenPatch(ref bool __result, [HarmonyArgument("__instance")] MapDrawer instance)
+        {
+            if (!MP.IsInMultiplayer || instance.map.Biome != ShipInteriorMod2.OuterSpaceBiome) 
+                return true;
+            
+            __result = true;
+            return false;
+
+        }
+
+        private static void PostTryLaunch()
+        {
+            if (!ShipCountdown.CountingDown || !MP.IsInMultiplayer)
+                return;
+            // I think MP does something which messes with stuff,
+            // so we stop manually instead of calling the countdown stop method.
+            
+            ShipCountdown.timeLeft = -1000f;
+            ScreenFader.SetColor(Color.clear);
+            // TODO: Find a way to do it non-instantly that would work in a synced way
+            SaveShip.SaveShipAndRemoveItemStacks();
         }
     }
 }

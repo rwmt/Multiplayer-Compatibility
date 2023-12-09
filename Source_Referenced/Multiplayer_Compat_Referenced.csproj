@@ -11,6 +11,8 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DebugType>None</DebugType>
     <RootNamespace>Multiplayer.Compat</RootNamespace>
+    <!-- ZombieLand reference DLL is giving a MSB3270 warning each time building the project, which is quite annoying. This prevents it. -->
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Source/Multiplayer_Compat.csproj">
@@ -25,7 +27,7 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Krafs.Rimworld.Ref">
-      <Version>1.3.*</Version>
+      <Version>1.4.*</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Krafs.Publicizer">

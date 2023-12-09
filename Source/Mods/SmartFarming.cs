@@ -23,9 +23,11 @@ namespace Multiplayer.Compat
             growZoneRegistryField = AccessTools.FieldRefAccess<IDictionary>(type, "growZoneRegistry");
 
             type = AccessTools.TypeByName("SmartFarming.ZoneData");
-            MpCompat.RegisterLambdaDelegate(type, "Init", 3, 4).SetContext(SyncContext.CurrentMap); // Toggle no petty jobs, force harvest now
+            // Toggle: no petty jobs, allow harvest, harvest now, orchard alignment
+            MpCompat.RegisterLambdaDelegate(type, "Init", 3, 5, 6, 8);
             MP.RegisterSyncMethod(type, "SwitchSowMode"); // Called from two places
             MP.RegisterSyncMethod(type, "SwitchPriority"); // Called from two places
+            MP.RegisterSyncMethod(type, "MergeZones");
             MP.RegisterSyncWorker<object>(SyncZoneData, type);
         }
 
@@ -33,29 +35,31 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                int? id = null;
-                var comp = compCache[Find.CurrentMap];
+                int? zoneId = null;
+                var comp = compCache[Find.CurrentMap.uniqueID];
                 var zoneRegistry = growZoneRegistryField(comp);
 
                 foreach (DictionaryEntry entry in zoneRegistry)
                 {
                     if (entry.Value == zoneData)
                     {
-                        id = (int)entry.Key;
+                        zoneId = (int)entry.Key;
                         break;
                     }
                 }
 
-                sync.Write(id);
+                sync.Write(zoneId);
+                if (zoneId != null)
+                    sync.Write(Find.CurrentMap.uniqueID);
             }
             else
             {
-                var id = sync.Read<int?>();
-                if (id != null)
+                var zoneId = sync.Read<int?>();
+                if (zoneId != null)
                 {
-                    var comp = compCache[Find.CurrentMap];
+                    var comp = compCache[sync.Read<int>()];
                     var zoneRegistry = growZoneRegistryField(comp);
-                    zoneData = zoneRegistry[id.Value];
+                    zoneData = zoneRegistry[zoneId.Value];
                 }
             }
         }

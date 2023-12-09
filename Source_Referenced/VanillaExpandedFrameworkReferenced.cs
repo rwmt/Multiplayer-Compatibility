@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using Multiplayer.API;
@@ -12,7 +13,7 @@ using Verse.Sound;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Expanded Framework and other Vanilla Expanded mods by Oskar Potocki, Sarg Bjornson, Chowder, XeoNovaDan, Orion, Kikohi, erdelf, Taranchuk, and more</summary>
-    /// <see href="https://github.com/AndroidQuazar/VanillaExpandedFramework"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaExpandedFramework"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2023507013"/>
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     internal class VanillaExpandedFrameworkReferenced
@@ -35,18 +36,50 @@ namespace Multiplayer.Compat
 
                 // Take items dialog
                 MpCompat.harmony.Patch(AccessTools.Method(typeof(Dialog_TakeItems), nameof(Dialog_TakeItems.DoBottomButtons)),
-                    prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreDoBottomButtons)));
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreTakeItemsDoBottomButtons)));
                 MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedTakeItems));
 
+                // Give items dialog
+                MpCompat.harmony.Patch(AccessTools.Method(typeof(Dialog_GiveItems), nameof(Dialog_GiveItems.DoBottomButtons)),
+                    prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreGiveItemsDoBottomButtons)));
+                MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedGiveItems));
+
                 // Generic outpost
-                // Stop packing (0), pack (1), and (dev) produce now (5)
-                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 5).Last().SetDebugOnly();
+                // Stop packing (0), pack (1), pick colony to deliver to (8), and (dev) produce now (9), random pawn takes 10 damage (10), all pawns become hungry (11), pack instantly (12)
+                MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 8, 9, 10, 11, 12).Reverse().Take(4).SetDebugOnly();
+                // Pick delivery method
+                MpCompat.RegisterLambdaDelegate(typeof(Outpost), nameof(Outpost.GetGizmos), 8);
                 // Remove pawn from outpost/create caravan (delegate, 4)
                 // We need a slight workaround, as the gizmo itself won't work - the pawn is inaccessible for syncing
-                var innerType = AccessTools.Inner(typeof(Outpost), "<>c__DisplayClass67_0");
-                outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(innerType, "<>4__this");
-                outpostsInnerClassPawnField = AccessTools.FieldRefAccess<Pawn>(innerType, "p");
-                MpCompat.harmony.Patch(AccessTools.Method(innerType, "<GetGizmos>b__4"),
+                var innerMethod = MpMethodUtil.GetLambda(typeof(Outpost), nameof(Outpost.GetGizmos), lambdaOrdinal: 4);
+                if (innerMethod == null)
+                    Log.Error("Cannot find the inner class for Vanilla Expanded Framework - Outposts module. Removing pawns from outposts 1 at a time will desync.");
+                else
+                {
+                    var fields = AccessTools.GetDeclaredFields(innerMethod.DeclaringType);
+                    if (fields.Count < 2)
+                        Log.Error($"The inner class for Vanilla Expanded Framework - Outposts module had {fields.Count} fields, expected 2. There was most likely an update and this patch needs fixing. Removing pawns from outposts 1 at a time will desync.");
+                    else
+                    {
+                        if (fields.Count > 2)
+                            Log.Error($"The inner class for Vanilla Expanded Framework - Outposts module had {fields.Count} fields, expected 2. There was most likely an update and this patch needs fixing. Removing pawns from outposts 1 at a time could possibly desync.");
+
+                        try
+                        {
+                            outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(
+                                innerMethod.DeclaringType, 
+                                fields.FirstOrDefault(x => x.FieldType == typeof(Outpost))?.Name ?? "<>4__this");
+                            outpostsInnerClassPawnField = AccessTools.FieldRefAccess<Pawn>(
+                                innerMethod.DeclaringType, 
+                                fields.FirstOrDefault(x => x.FieldType == typeof(Pawn))?.Name ?? "p");
+                        }
+                        catch (Exception)
+                        {
+                            Log.Error("Couldn't setup sync using the inner class for Vanilla Expanded Framework - Outposts module. Removing pawns from outposts 1 at a time will desync.");
+                        }
+                    }
+                }
+                MpCompat.harmony.Patch(innerMethod, 
                     prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreRemoveFromOutpost)));
                 MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedRemoveFromOutpost));
                 MP.RegisterSyncWorker<ResultOption>(SyncResultOption);
@@ -141,7 +174,7 @@ namespace Multiplayer.Compat
 
         // Basically replace the original method with our own, that's basically the same
         // (with the main difference being how we are handling the button)
-        private static bool PreDoBottomButtons(Rect rect, Dialog_TakeItems __instance)
+        private static bool PreTakeItemsDoBottomButtons(Rect rect, Dialog_TakeItems __instance)
         {
             var rect2 = new Rect(rect.width - __instance.BottomButtonSize.x, rect.height - 40f, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y);
             
@@ -184,7 +217,7 @@ namespace Multiplayer.Compat
                     if (thing.stackCount <= transferable.CountToTransfer)
                     {
                         transferable.AdjustBy(-thing.stackCount);
-                        caravan.AddPawnOrItem(thing, true);
+                        caravan.AddPawnOrItem(outpost.TakeItem(thing), true);
                     }
                     else
                     {
@@ -196,8 +229,74 @@ namespace Multiplayer.Compat
             }
         }
 
+        // Basically replace the original method with our own, that's basically the same
+        // (with the main difference being how we are handling the button)
+        private static bool PreGiveItemsDoBottomButtons(Rect rect, Dialog_GiveItems __instance)
+        {
+            var rect2 = new Rect(rect.width - __instance.BottomButtonSize.x, rect.height - 40f, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y);
+            
+            if (Widgets.ButtonText(rect2, "Outposts.Give".Translate()))
+            {
+                var thingsToTransfer = __instance.transferables
+                    .Where(x => x.HasAnyThing && x.CountToTransfer > 0)
+                    .ToDictionary(x => x.ThingDef, x => x.CountToTransfer);
+
+                SyncedGiveItems(__instance.outpost, __instance.caravan, thingsToTransfer);
+                __instance.Close();
+            }
+
+            if (Widgets.ButtonText(new Rect(0f, rect2.y, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y), "CancelButton".Translate()))
+                __instance.Close();
+
+            if (Widgets.ButtonText(new Rect(rect.width / 2f - __instance.BottomButtonSize.x, rect2.y, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y), "ResetButton".Translate()))
+            {
+                SoundDefOf.Tick_Low.PlayOneShotOnCamera();
+                __instance.CalculateAndRecacheTransferables();
+            }
+
+            return false;
+        }
+
+        private static void SyncedGiveItems(Outpost outpost, Caravan caravan, Dictionary<ThingDef, int> itemsToTransfer)
+        {
+            var dummyDialog = new Dialog_GiveItems(outpost, caravan);
+            dummyDialog.CalculateAndRecacheTransferables();
+
+            foreach (var transferable in dummyDialog.transferables)
+            {
+                if (transferable.HasAnyThing && itemsToTransfer.TryGetValue(transferable.ThingDef, out var count))
+                    transferable.ForceTo(count);
+
+                while (transferable.HasAnyThing && transferable.CountToTransfer > 0)
+                {
+                    var thing = transferable.things.Pop();
+
+                    if (thing.stackCount <= transferable.CountToTransfer)
+                    {
+                        transferable.AdjustBy(-thing.stackCount);
+                        outpost.AddItem(thing);
+                    }
+                    else
+                    {
+                        outpost.AddItem(thing.SplitOff(transferable.CountToTransfer));
+                        transferable.AdjustTo(0);
+                        transferable.things.Add(thing);
+                    }
+                }
+            }
+        }
+
         private static bool PreRemoveFromOutpost(object __instance)
         {
+            if (outpostsInnerClassThisField == null || outpostsInnerClassPawnField == null)
+            {
+                Log.Error("Removing pawns from outposts while setting it up failed - the game will now most likely desync!");
+                // It'll cause a desync because we let it run, but it'll at least
+                // let people playing use this feature and then resync.
+                // Shouldn't have too much of an impact.
+                return true;
+            }
+            
             var outpost = outpostsInnerClassThisField(__instance);
             var pawn = outpostsInnerClassPawnField(__instance);
 

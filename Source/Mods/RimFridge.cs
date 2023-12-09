@@ -18,7 +18,6 @@ namespace Multiplayer.Compat
 
         public RimFridgeCompat(ModContentPack mod)
         {
-
             // Several Gizmos
             {
                 MpCompat.RegisterLambdaDelegate("RimFridge.CompRefrigerator", "CompGetGizmosExtra", 1, 2, 3, 4, 5);
@@ -29,6 +28,11 @@ namespace Multiplayer.Compat
 
                 MP.RegisterSyncWorker<Dialog_Rename>(SyncFridgeName, dialogType);
                 MP.RegisterSyncMethod(dialogType, "SetName");
+            }
+
+            // Current map usage
+            {
+                PatchingUtilities.ReplaceCurrentMapUsage("RimFridge.Patch_ReachabilityUtility_CanReach:Prefix");
             }
         }
 

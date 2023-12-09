@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using HarmonyLib;
 using Mono.Cecil;
 using Verse;
 
@@ -15,6 +17,8 @@ namespace Multiplayer.Compat
 
             foreach (var asm in content.assemblies.loadedAssemblies)
                 InitCompatInAsm(asm);
+
+            ClearCaches();
         }
         
         static void LoadConditional(ModContentPack content)
@@ -33,12 +37,18 @@ namespace Multiplayer.Compat
             foreach (var t in asm.MainModule.GetTypes().ToArray())
             {
                 var attr = t.CustomAttributes
-                    .FirstOrDefault(a => a.Constructor.DeclaringType.Name == nameof(MpCompatForAttribute));
-                if (attr == null) continue;
+                    .Where(a => a.Constructor.DeclaringType.Name is nameof(MpCompatForAttribute) or nameof(MpCompatRequireModAttribute))
+                    .ToArray();
+                if (!attr.Any()) continue;
 
-                var modId = ((string)attr.ConstructorArguments.First().Value).ToLower();
-                var mod = LoadedModManager.RunningMods.FirstOrDefault(m => m.PackageId.NoModIdSuffix() == modId);
-                if (mod == null)
+                var anyMod = attr.Any(a =>
+                {
+                    var modId = ((string)a.ConstructorArguments.First().Value).ToLower();
+                    var mod = LoadedModManager.RunningMods.FirstOrDefault(m => m.PackageId.NoModIdSuffix() == modId);
+                    return mod != null;
+                });
+                
+                if (!anyMod)
                     asm.MainModule.Types.Remove(t);
             }
 
@@ -46,7 +56,7 @@ namespace Multiplayer.Compat
             asm.Write(stream);
 
             var loadedAsm = AppDomain.CurrentDomain.Load(stream.ToArray());
-            InitCompatInAsm(loadedAsm);
+            content.assemblies.loadedAssemblies.Add(loadedAsm);
         }
 
         static void InitCompatInAsm(Assembly asm)
@@ -71,6 +81,25 @@ namespace Multiplayer.Compat
                     Log.Error($"MPCompat :: Exception loading {action.mod.PackageId}: {e.InnerException ?? e}");
                 }
             }
+        }
+
+        static void ClearCaches()
+        {
+            // Clear the GenTypes cache first, as MP will use it to create its own cache (built through GenTypes.AllTypes call if null)
+            GenTypes.ClearCache();
+
+            // As we're adding the new assembly, the classes added by it aren't included by the MP GenTypes AllSubclasses/AllSubclassesNonAbstract optimization
+            // GenTypes.ClearCache() on its own won't work, as MP isn't doing anything when it's called.
+            var mpType = AccessTools.TypeByName("Multiplayer.Client.Util.TypeCache") ?? AccessTools.TypeByName("Multiplayer.Client.Multiplayer");
+            ((IDictionary)AccessTools.Field(mpType, "subClasses").GetValue(null)).Clear();
+            ((IDictionary)AccessTools.Field(mpType, "subClassesNonAbstract").GetValue(null)).Clear();
+            ((IDictionary)AccessTools.Field(mpType, "implementations").GetValue(null)).Clear();
+            AccessTools.Method(mpType, "CacheTypeHierarchy").Invoke(null, Array.Empty<object>());
+
+            // Clear/re-init the list of ISyncSimple implementations.
+            AccessTools.Method("Multiplayer.Client.ImplSerialization:Init").Invoke(null, Array.Empty<object>());
+            // Clear/re-init the localDefInfos dictionary so it contains the classes added from referenced assembly.
+            AccessTools.Method("Multiplayer.Client.MultiplayerData:CollectDefInfos").Invoke(null, Array.Empty<object>());
         }
     }
 }

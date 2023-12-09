@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
-using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -15,174 +14,173 @@ namespace Multiplayer.Compat
     [MpCompatFor("onyxae.dragonsdescent")]
     public class DragonsDescent
     {
-        // AbilityComp_AbilityControl
-        private static MethodInfo abilityCompGizmoGetter;
+        //// Gizmos ////
         // CompHostileResponse
-        private static FieldInfo hostilityResponseTypeField; // Skipping the getter/setter here
         // Inner class inside of CompHostileResponse
-        private static FieldInfo compHostileResponseField;
-        // CompRitualAltar
-        private static Type compRitualAltarType;
-        // RitualTracker
-        private static MethodInfo ritualTrackerGetRitualMethod;
-        private static FieldInfo ritualTrackerMapField;
+        private static AccessTools.FieldRef<object, ThingComp> compHostileResponseParentField;
+        private static AccessTools.FieldRef<object, IList> compHostileResponseOptionsField;
+        private static AccessTools.FieldRef<object, int> compHostileResponseIndexField;
+
+        // CompProperties_HostileResponse
+        private static AccessTools.FieldRef<object, IList> compHostileResponsePropsOptionsField;
+
+        //// Altar and Rituals ////
+        // Command_RitualEffect
+        private static ConstructorInfo ritualEffectCommandCtor;
+        private static AccessTools.FieldRef<object, Thing> ritualEffectCommandSourceField;
+        private static AccessTools.FieldRef<object, object> ritualEffectCommandRitualField;
+        private static AccessTools.FieldRef<object, object> ritualEffectCommandRitualRequestField;
+        private static FastInvokeHandler ritualEffectCommandCreateSetupMethod;
+
         // MapComponent_Tracker
-        private static Type trackerMapComponentType;
-        private static FieldInfo trackerMapComponentRitualsField;
-        // RitualReference
-        private static Type ritualReferenceType;
-        private static FieldInfo ritualReferenceDefField;
-        // Inner class inside of RitualReference
-        private static FieldInfo ritualReferenceInnerRitualField;
-        private static FieldInfo ritualReferenceInnerSelfField;
-        private static FieldInfo ritualReferenceInnerParentField;
-        private static FieldInfo ritualReferenceInnerRitualsField;
-        // CompProperties_Ritual
-        private static FieldInfo ritualCompPropertiesRitualsField;
+        private static Type mapComponentTrackerType;
+        private static AccessTools.FieldRef<object, object> mapComponentTrackerRitualsField;
+
+        // Ritual
+        private static AccessTools.FieldRef<object, Def> ritualDefField;
+
+        // RitualActivator
+        private static FastInvokeHandler ritualActivatorInitializeMethod;
+
+        // RitualTracker
+        private static AccessTools.FieldRef<object, Map> ritualTrackerMapField;
 
         public DragonsDescent(ModContentPack mod)
         {
             // Incubator
             {
-                var type = AccessTools.TypeByName("DD.CompEggIncubator");
-                var methods = MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 1, 2, 3, 4);
-                foreach (var method in methods.Skip(1)) // All but the first one are debug-only gizmos
-                    method.SetDebugOnly();
+                // (Toggle) accelerate growth, and dev commands: reset progress, force tick, hatch now
+                MpCompat.RegisterLambdaMethod("DD.CompEggIncubator", "CompGetGizmosExtra", 1, 2, 3, 4)
+                    .Skip(1)
+                    .SetDebugOnly();
 
-                type = AccessTools.TypeByName("DD.CompProperties_EggIncubator");
-                MP.RegisterSyncDelegate(type, "<>c__DisplayClass7_0", "<CreateGizmo>b__0");
+                // Place on ground
+                MpCompat.RegisterLambdaDelegate("DD.CompProperties_EggIncubator", "CreateGizmo", 0);
             }
 
-            // Abilities
-            {
-                var type = AccessTools.TypeByName("DD.AbilityComp_AbilityControl");
-                var gizmoActionMethod = MpMethodUtil.GetLambda(type, "get_Gizmo", MethodType.Normal, null, 1);
-                MP.RegisterSyncMethod(gizmoActionMethod); // Toggle active
-                MpCompat.harmony.Patch(gizmoActionMethod,
-                    prefix: new HarmonyMethod(typeof(DragonsDescent), nameof(PreGizmoActionCalled)));
-                abilityCompGizmoGetter = AccessTools.PropertyGetter(type, "Gizmo");
-            }
+            // AbilityCom_AbilityControl seems unused, skipping this gizmo
 
             // Hostility response type changing
             {
                 var type = AccessTools.TypeByName("DD.CompHostileResponse");
-                hostilityResponseTypeField = AccessTools.Field(type, "type");
+                var method = MpMethodUtil.GetLambda(type, "Gizmo", MethodType.Getter, null, 1);
+                var inner = method.DeclaringType;
 
-                var inner = AccessTools.Inner(type, "<>c__DisplayClass15_0");
-                MP.RegisterSyncMethod(typeof(DragonsDescent), nameof(SyncSetHostilityResponseType));
-                compHostileResponseField = AccessTools.Field(inner, "<>4__this");
-                MpCompat.harmony.Patch(AccessTools.Method(inner, "<get_Gizmo>b__1"),
-                    prefix: new HarmonyMethod(typeof(DragonsDescent), nameof(PreSetHostilityResponseType)));
+                compHostileResponseParentField = AccessTools.FieldRefAccess<ThingComp>(inner, "<>4__this");
+                compHostileResponseOptionsField = AccessTools.FieldRefAccess<IList>(inner, "options");
+                compHostileResponseIndexField = AccessTools.FieldRefAccess<int>(inner, "index");
+
+                compHostileResponsePropsOptionsField = AccessTools.FieldRefAccess<IList>("DD.CompProperties_HostileResponse:options");
+
+                MP.RegisterSyncMethod(method);
+                MP.RegisterSyncWorker<object>(SyncHostileResponseOptionInnerClass, inner, shouldConstruct: true);
             }
 
-            // Altar
+            // Altar and Rituals
             {
-                compRitualAltarType = AccessTools.TypeByName("DD.CompRitualAltar");
-                MP.RegisterSyncDelegate(compRitualAltarType, "<>c__DisplayClass11_0", "<CompGetGizmosExtra>b__0").SetDebugOnly();
-                MP.RegisterSyncDelegate(compRitualAltarType, "<>c__DisplayClass11_0", "<CompGetGizmosExtra>b__1").SetDebugOnly();
-                MP.RegisterSyncDelegate(compRitualAltarType, "<>c__DisplayClass11_0", "<CompGetGizmosExtra>b__2").SetDebugOnly();
-                MP.RegisterSyncDelegate(compRitualAltarType, "<>c__DisplayClass11_0", "<CompGetGizmosExtra>b__3").SetDebugOnly();
+                // MapComponent_Tracker
+                mapComponentTrackerType = AccessTools.TypeByName("DD.MapComponent_Tracker");
+                mapComponentTrackerRitualsField = AccessTools.FieldRefAccess<object>(mapComponentTrackerType, "rituals");
 
-                var type = AccessTools.TypeByName("DD.RitualTracker");
-                MP.RegisterSyncWorker<object>(SyncRitualTracker, type);
-                ritualTrackerGetRitualMethod = AccessTools.Method(type, "GetRitual");
-                ritualTrackerMapField = AccessTools.Field(type, "map");
+                // Ritual
+                ritualDefField = AccessTools.FieldRefAccess<Def>("DD.Ritual:def");
 
-                trackerMapComponentType = AccessTools.TypeByName("DD.MapComponent_Tracker");
-                trackerMapComponentRitualsField = AccessTools.Field(trackerMapComponentType, "rituals");
+                //RitualActivator
+                ritualActivatorInitializeMethod = MethodInvoker.GetHandler(AccessTools.Method("DD.RitualActivator:Initialize"));
 
-                ritualReferenceType = AccessTools.TypeByName("DD.RitualReference");
-                ritualReferenceDefField = AccessTools.Field(ritualReferenceType, "def");
+                // RitualTracker
+                var ritualTrackerType = AccessTools.TypeByName("DD.RitualTracker");
+                ritualTrackerMapField = AccessTools.FieldRefAccess<Map>(ritualTrackerType, "map");
 
-                var inner = AccessTools.Inner(ritualReferenceType, "<>c__DisplayClass12_0");
-                MpCompat.RegisterLambdaMethod(inner, "SetupAction", 0, 1);
-                MP.RegisterSyncWorker<object>(SyncRitualReferenceInnerClass, inner, shouldConstruct: true);
-                ritualReferenceInnerRitualField = AccessTools.Field(inner, "ritual");
-                ritualReferenceInnerSelfField = AccessTools.Field(inner, "<>4__this");
-                ritualReferenceInnerParentField = AccessTools.Field(inner, "parent");
-                ritualReferenceInnerRitualsField = AccessTools.Field(inner, "rituals");
-
-                type = AccessTools.TypeByName("DD.CompProperties_Ritual");
-                ritualCompPropertiesRitualsField = AccessTools.Field(type, "rituals");
+                // CompRitualAltar
+                MpCompat.RegisterLambdaDelegate("DD.CompRitualAltar", "CompGetGizmosExtra", 0, 1, 2, 3, 4, 5).SetDebugOnly();
+                MP.RegisterSyncWorker<object>(SyncRitualTracker, ritualTrackerType);
             }
+
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 
-        private static void PreGizmoActionCalled(AbilityComp __instance, Command ___gizmo)
+        private static void LatePatch()
         {
-            if (MP.IsInMultiplayer && ___gizmo == null)
-                abilityCompGizmoGetter.Invoke(__instance, Array.Empty<object>());
+            // Altar and Rituals
+            // Command_RitualEffect
+            var ritualEffectCommand = AccessTools.TypeByName("DD.Command_RitualEffect");
+            var ritualTrackerType = AccessTools.TypeByName("DD.RitualTracker");
+            var ritualDefType = AccessTools.TypeByName("DD.RitualDef");
+
+            ritualEffectCommandCtor = AccessTools.DeclaredConstructor(ritualEffectCommand, new[] { typeof(Thing), ritualTrackerType, ritualDefType });
+            ritualEffectCommandSourceField = AccessTools.FieldRefAccess<Thing>(ritualEffectCommand, "source");
+            ritualEffectCommandRitualField = AccessTools.FieldRefAccess<object>(ritualEffectCommand, "ritual");
+            ritualEffectCommandRitualRequestField = AccessTools.FieldRefAccess<object>(ritualEffectCommand, "ritualRequest");
+            ritualEffectCommandCreateSetupMethod = MethodInvoker.GetHandler(AccessTools.PropertyGetter(ritualEffectCommand, "CreateSetup"));
+
+            MP.RegisterSyncMethod(ritualEffectCommand, "ActivateOnNoTarget").SetPreInvoke(PreActivateRitual);
+            MP.RegisterSyncMethod(ritualEffectCommand, "ActivateOnLocalTarget").SetPreInvoke(PreActivateRitual);
+            MP.RegisterSyncMethod(ritualEffectCommand, "ActivateOnGlobalTarget").SetPreInvoke(PreActivateRitual);
+            MP.RegisterSyncWorker<Command>(SyncRitualEffectCommand, ritualEffectCommand);
         }
 
-        private static bool PreSetHostilityResponseType(object __instance, IList ___options, int ___index)
-        {
-            if (!MP.IsInMultiplayer) return true;
-
-            // Skip actually changing the value for now, do it in a synced method
-            SyncSetHostilityResponseType((ThingComp)compHostileResponseField.GetValue(__instance), (___index + 1) % ___options.Count);
-            return false;
-        }
-
-        private static void SyncSetHostilityResponseType(ThingComp thing, int value) => hostilityResponseTypeField.SetValue(thing, value);
-
-        private static void SyncRitualTracker(SyncWorker sync, ref object obj)
+        private static void SyncHostileResponseOptionInnerClass(SyncWorker sync, ref object obj)
         {
             if (sync.isWriting)
-                sync.Write((Map)ritualTrackerMapField.GetValue(obj));
+            {
+                sync.Write(compHostileResponseParentField(obj));
+                sync.Write(compHostileResponseIndexField(obj));
+            }
+            else
+            {
+                var comp = sync.Read<ThingComp>();
+                var index = sync.Read<int>();
+                var options = compHostileResponsePropsOptionsField(comp.props);
+
+                compHostileResponseParentField(obj) = comp;
+                compHostileResponseOptionsField(obj) = options;
+                compHostileResponseIndexField(obj) = index;
+            }
+        }
+
+        private static void SyncRitualTracker(SyncWorker sync, ref object tracker)
+        {
+            if (sync.isWriting)
+                sync.Write(ritualTrackerMapField(tracker));
             else
             {
                 var map = sync.Read<Map>();
-                var component = map.GetComponent(trackerMapComponentType);
-                obj = trackerMapComponentRitualsField.GetValue(component);
+                var comp = map.GetComponent(mapComponentTrackerType);
+                tracker = mapComponentTrackerRitualsField(comp);
             }
         }
 
-        private static void SyncRitualReferenceInnerClass(SyncWorker sync, ref object obj)
+        private static void PreActivateRitual(object instance, object[] _)
+        {
+            // Create the request
+            var ritualRequest = ritualEffectCommandCreateSetupMethod(instance);
+            // Get the source
+            var source = ritualEffectCommandSourceField(instance);
+            // Initialize the request
+            ritualActivatorInitializeMethod(ritualRequest, source);
+            // Set the field inside of the instance to the request we created
+            ritualEffectCommandRitualRequestField(instance) = ritualRequest;
+        }
+
+        private static void SyncRitualEffectCommand(SyncWorker sync, ref Command command)
         {
             if (sync.isWriting)
             {
-                var ritualReference = ritualReferenceInnerSelfField.GetValue(obj);
-                var parent = (ThingWithComps)ritualReferenceInnerParentField.GetValue(obj);
-                var rituals = ritualReferenceInnerRitualsField.GetValue(obj);
+                sync.Write(ritualEffectCommandSourceField(command));
+                sync.Write(Find.CurrentMap.GetComponent(mapComponentTrackerType));
 
-                // Get the index of our ritual reference inside of the comp props
-                var comp = parent.AllComps.First(x => x.GetType() == compRitualAltarType);
-                var ritualsList = (IList)ritualCompPropertiesRitualsField.GetValue(comp.props);
-                var index = ritualsList.IndexOf(ritualReference);
-
-                // We need to be able to retrieve the RitualReference, otherwise we won't really be able to sync
-                // (We could technically sync the Def inside of this object, but it ended up not syncing when I tried)
-                sync.Write(index);
-                if (index >= 0)
-                {
-                    sync.Write<Thing>(parent);
-                    SyncRitualTracker(sync, ref rituals);
-                }
+                var ritual = ritualEffectCommandRitualField(command);
+                sync.Write(ritualDefField(ritual));
             }
             else
             {
-                var index = sync.Read<int>();
+                var source = sync.Read<Thing>();
+                var mapComponent = sync.Read<MapComponent>();
+                var tracker = mapComponentTrackerRitualsField(mapComponent);
+                var def = sync.Read<Def>();
 
-                if (index >= 0)
-                {
-                    var parent = sync.Read<Thing>();
-                    object rituals = null;
-                    SyncRitualTracker(sync, ref rituals);
-
-                    ritualReferenceInnerParentField.SetValue(obj, parent);
-                    ritualReferenceInnerRitualsField.SetValue(obj, rituals);
-
-                    if (index >= 0)
-                    {
-                        var comp = ((ThingWithComps)parent).AllComps.First(x => x.GetType() == compRitualAltarType);
-                        var ritualsList = (IList)ritualCompPropertiesRitualsField.GetValue(comp.props);
-                        var ritualReference = ritualsList[index];
-                        ritualReferenceInnerSelfField.SetValue(obj, ritualReference);
-
-                        var def = ritualReferenceDefField.GetValue(ritualReference);
-                        var ritualList = ritualTrackerGetRitualMethod.Invoke(rituals, new object[] { def });
-                        ritualReferenceInnerRitualField.SetValue(obj, ritualList);
-                    }
-                }
+                command = (Command)ritualEffectCommandCtor.Invoke(new[] { source, tracker, def });
             }
         }
     }

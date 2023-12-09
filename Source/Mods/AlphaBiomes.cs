@@ -26,10 +26,17 @@ namespace Multiplayer.Compat
             {
                 "AlphaBiomes.CompGasProducer:CompTick",
                 "AlphaBiomes.TarSprayer:SteamSprayerTick",
+                // AlphaBiomes.TarSprayer:ThrowAirPuffUp - only contained by above method
                 "AlphaBiomes.GameCondition_AcidRain:DoCellSteadyEffects",
             };
 
-            PatchingUtilities.PatchSystemRand(AccessTools.Constructor(AccessTools.TypeByName("AlphaBiomes.CompGasProducer")), false);
+            var systemRngFixConstructor = new[]
+            {
+                "AlphaBiomes.CompGasProducer",
+                "AlphaBiomes.HediffComp_GangreneWounds",
+            }.Select(x => AccessTools.DeclaredConstructor(AccessTools.TypeByName(x)));
+
+            PatchingUtilities.PatchSystemRand(systemRngFixConstructor, false);
             PatchingUtilities.PatchPushPopRand(rngFixMethods);
         }
 
