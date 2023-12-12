@@ -33,7 +33,6 @@ namespace Multiplayer.Compat
 
         // Mp Compat fields
         private static bool shouldSyncInInterface = false;
-        // private static bool isDrawingDialog = false;
         
         // VehiclesModSettings
         private static ISyncField showAllCargoItemsField;
@@ -69,6 +68,10 @@ namespace Multiplayer.Compat
                     return MP.RegisterSyncMethod(declaredMethod);
                 return null;
             }
+
+            // Should be initialized by PatchCancelInInterface calls later on,
+            // so this exists here as an extra safety in case those ever get removed later on.
+            PatchingUtilities.InitCancelInInterface();
 
             #endregion
 
@@ -427,8 +430,6 @@ namespace Multiplayer.Compat
             // TODO: Aerial vehicle tab
             // TODO: ITabs and WITabs
             // TODO: Aerial launch (LaunchProtocol, Rocket Takeoff?, DefaultTakeoff?)
-            // TODO: Finish Dialog_LoadCargo
-            // TODO: Dialog_TradeAerialVehicle
 
             #endregion
         }
