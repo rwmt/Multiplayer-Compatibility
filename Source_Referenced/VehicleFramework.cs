@@ -357,7 +357,13 @@ namespace Multiplayer.Compat
             #region ITabs and WITabs
 
             {
-                MP.RegisterSyncMethod(typeof(ITab_Vehicle_Cargo), nameof(ITab_Vehicle_Cargo.InterfaceDrop)).SetContext(SyncContext.MapSelected);
+                // Technically there's only 2 types here, with the type itself never used besides as a base class...
+                // May as well futureproof this, I suppose.
+                foreach (var type in typeof(ITab_Airdrop_Container).AllSubclasses().Concat(typeof(ITab_Airdrop_Container)))
+                {
+                    TrySyncDeclaredMethod(type, nameof(ITab_Airdrop_Container.InterfaceDrop))?.SetContext(SyncContext.MapSelected);
+                    TrySyncDeclaredMethod(type, nameof(ITab_Airdrop_Container.InterfaceDropAll))?.SetContext(SyncContext.MapSelected);
+                }
 
                 // Used by Vehicles.ITab_Vehicle_Passengers and Vehicles.WITab_Vehicle_Manifest
                 method = AccessTools.DeclaredMethod(typeof(VehicleTabHelper_Passenger), nameof(VehicleTabHelper_Passenger.HandleDragEvent));
