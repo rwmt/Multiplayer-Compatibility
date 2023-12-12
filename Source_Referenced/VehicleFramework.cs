@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using HarmonyLib;
+using JetBrains.Annotations;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
@@ -15,6 +15,7 @@ using UnityEngine;
 using Vehicles;
 using Verse;
 using Verse.AI;
+using Verse.Sound;
 
 namespace Multiplayer.Compat
 {
@@ -36,6 +37,9 @@ namespace Multiplayer.Compat
         
         // VehiclesModSettings
         private static ISyncField showAllCargoItemsField;
+
+        // VehiclePawn.<>c__DisplayClass250_0
+        private static AccessTools.FieldRef<object, VehiclePawn> vehiclePawnInnerClassParentField;
 
         #endregion
 
@@ -259,7 +263,7 @@ namespace Multiplayer.Compat
 
                 // Replace the `Widgets.ButtonText` for cancel and reset buttons with our own to handle MP-specific stuff.
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_FormVehicleCaravan), nameof(Dialog_FormVehicleCaravan.DoBottomButtons)),
-                    transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(ReplaceCancelButton)));
+                    transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(ReplaceButtonsTranspiler)));
 
                 // Catch the selection of new route and sync it
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_FormVehicleCaravan), nameof(Dialog_FormVehicleCaravan.Notify_ChoseRoute)),
@@ -305,35 +309,45 @@ namespace Multiplayer.Compat
 
                 #region Load cargo
 
+                // Sync creation of session
+                MP.RegisterSyncMethod(typeof(LoadVehicleCargoSession), nameof(LoadVehicleCargoSession.CreateLoadVehicleCargoSession));
+                // Sync load cargo session methods
+                MP.RegisterSyncMethod(typeof(LoadVehicleCargoSession), nameof(LoadVehicleCargoSession.Accept));
+                MP.RegisterSyncMethod(typeof(LoadVehicleCargoSession), nameof(LoadVehicleCargoSession.Reset));
+                MP.RegisterSyncMethod(typeof(LoadVehicleCargoSession), nameof(LoadVehicleCargoSession.PackInstantly));
+                MP.RegisterSyncMethod(typeof(LoadVehicleCargoSession), nameof(LoadVehicleCargoSession.SetToSendEverything));
+                MP.RegisterSyncMethod(typeof(LoadVehicleCargoSession), nameof(LoadVehicleCargoSession.Remove));
+
+                // Setting value is changeable from load cargo dialog
+                showAllCargoItemsField = MP.RegisterSyncField(typeof(VehiclesModSettings), nameof(VehiclesModSettings.showAllCargoItems))
+                    .PostApply(PostShowAllCargoItemsChanged);
+                // Since the ability to register a sync field with instance path like in mp (Type, string string),
+                // we must as a workaround provide a sync worker the Vehicle Framework settings type.
+                // Alternatively we could just call the MP method directly through reflection, but let's avoid doing that.
+                MP.RegisterSyncWorker<VehiclesModSettings>(SyncVehicleSettings);
+
                 // Capture drawing so we can tie the dialog to the session and set the correct current session with transferables.
                 // Mp prefers making a subclass of the session itself for it, we're doing it by patching it to avoid making extra classes.
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_LoadCargo), nameof(Dialog_LoadCargo.DoWindowContents)),
                     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreDrawLoadCargo)),
                     finalizer: new HarmonyMethod(typeof(VehicleFramework), nameof(FinalizeDrawLoadCargo)));
-                // Setting value is changeable from load cargo dialog
-                showAllCargoItemsField = MP.RegisterSyncField(typeof(VehiclesModSettings), nameof(VehiclesModSettings.showAllCargoItems));
 
-                // type = loadCargoDialogType = AccessTools.TypeByName("Vehicles.Dialog_LoadCargo");
-                // DialogUtilities.RegisterDialogCloseSync(type, true);
-                // MP.RegisterSyncMethod(type, "SetToSendEverything").SetDebugOnly(); // Dev: select everything
-                // MP.RegisterSyncMethod(typeof(VehicleFramework), nameof(SyncedSetShowAllCargoItems));
-                // method = AccessTools.DeclaredMethod(type, "CalculateAndRecacheTransferables");
-                // MP.RegisterSyncMethod(method); // Reset button
-                // loadCargoRecacheMethod = MethodInvoker.GetHandler(method);
-                // MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreLoadCargoRecache)));
-                // MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
-                //     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreDrawLoadCargo)),
-                //     finalizer: new HarmonyMethod(typeof(VehicleFramework), nameof(PostDrawLoadCargo)));
-                //
-                // type = AccessTools.TypeByName("Vehicles.VehicleReservationManager");
-                // // Called when accepting load cargo dialog
-                // MP.RegisterSyncMethod(type, "RegisterLister");
-                //
-                // type = AccessTools.TypeByName("Vehicles.VehicleMod");
-                // vehicleModSettingsField = AccessTools.StaticFieldRefAccess<ModSettings>(AccessTools.DeclaredField(type, "settings"));
-                //
-                // type = AccessTools.TypeByName("Vehicles.VehiclesModSettings");
-                // settingsShowAllCargoItemsField = AccessTools.FieldRefAccess<bool>(type, "showAllCargoItems");
+                // Catch dev option to select everything to be sent
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_LoadCargo), nameof(Dialog_LoadCargo.SetToSendEverything)),
+                    prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreLoadCargoSetToSendEverything)));
+
+                // Replace the `Widgets.ButtonText` for several buttons with our own to handle MP-specific stuff.
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_LoadCargo), nameof(Dialog_LoadCargo.BottomButtons)),
+                    transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(ReplaceButtonsTranspiler)));
+
+                // Catch load cargo dialog gizmo to open session dialog tied to it or create session if there's none
+                method = MpMethodUtil.GetLambda(typeof(VehiclePawn), nameof(VehiclePawn.GetGizmos), lambdaOrdinal: 1);
+                vehiclePawnInnerClassParentField = AccessTools.FieldRefAccess<VehiclePawn>(method.DeclaringType, "<>4__this");
+                MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreLoadCargoDialog)));
+
+                // Prevent the call in MP, as it'll mess with transferables if re-opening the window.
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_LoadCargo), nameof(Dialog_LoadCargo.CalculateAndRecacheTransferables)),
+                    prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreLoadCargoCalculateAndRecache)));
 
                 #endregion
             }
@@ -827,6 +841,13 @@ namespace Multiplayer.Compat
                     vehicle = handler.vehicle
                 };
             }
+        }
+
+        // Needed by the load cargo dialog/session sync field
+        private static void SyncVehicleSettings(SyncWorker sync, ref VehiclesModSettings settings)
+        {
+            if (!sync.isWriting)
+                settings = VehicleMod.settings;
         }
 
         #endregion
@@ -1353,21 +1374,47 @@ namespace Multiplayer.Compat
 
         #region Load cargo session
 
+        #region Session class
+
         [MpCompatRequireMod("SmashPhil.VehicleFramework")]
         private class LoadVehicleCargoSession : ExposableSession, ISessionWithTransferables, ISessionWithCreationRestrictions
         {
+            public static LoadVehicleCargoSession drawingSession;
+            public static bool allowedToRecacheTransferables = false;
+
             public override Map Map => vehicle.Map;
 
             private VehiclePawn vehicle;
-            private List<TransferableOneWay> transferables = new();
+            public List<TransferableOneWay> transferables = new();
 
             public bool uiDirty;
+            public bool widgetDirty;
 
+            [UsedImplicitly]
             public LoadVehicleCargoSession(Map _) : base(null) { }
 
             public LoadVehicleCargoSession(VehiclePawn vehicle) : base(null)
             {
                 this.vehicle = vehicle;
+
+                AddItems();
+            }
+
+            public void AddItems()
+            {
+                var dialog = new Dialog_LoadCargo(vehicle);
+                try
+                {
+                    allowedToRecacheTransferables = true;
+                    uiDirty = true;
+                    widgetDirty = true;
+                    dialog.CalculateAndRecacheTransferables();
+                    transferables = dialog.transferables;
+                }
+                finally
+                {
+                    allowedToRecacheTransferables = false;
+                }
             }
 
             public override void ExposeData()
@@ -1378,24 +1425,109 @@ namespace Multiplayer.Compat
                 Scribe_Collections.Look(ref transferables, "transferables", LookMode.Deep);
             }
 
+            public override bool IsCurrentlyPausing(Map map) => map == Map;
+
             private void OpenWindow(bool sound = true)
             {
+                Log.Message($"session {sessionId}");
+
                 var dialog = PrepareDummyDialog();
                 if (!sound)
                     dialog.soundAppear = null;
 
                 Find.WindowStack.Add(dialog);
+                uiDirty = true;
+                widgetDirty = true;
             }
 
             private Dialog_LoadCargo PrepareDummyDialog()
             {
                 return new Dialog_LoadCargo(vehicle)
                 {
-                    transferables = transferables
+                    transferables = transferables,
                 };
             }
 
-            public override bool IsCurrentlyPausing(Map map) => map == Map;
+            public void Accept()
+            {
+                vehicle.cargoToLoad = transferables.Where(t => t.CountToTransfer > 0).ToList();
+                vehicle.Map.GetCachedMapComponent<VehicleReservationManager>().RegisterLister(vehicle, "LoadVehicle");
+                Remove();
+            }
+
+            public void Reset()
+            {
+                SoundDefOf.Tick_Low.PlayOneShotOnCamera();
+                transferables.ForEach(t => t.CountToTransfer = 0);
+                uiDirty = true;
+            }
+
+            public void PackInstantly()
+            {
+                SoundDefOf.Tick_High.PlayOneShotOnCamera();
+
+                foreach (var transferable in transferables)
+                {
+                    var things = transferable.things;
+                    var count = transferable.CountToTransfer;
+
+                    TransferableUtility.Transfer(things, count, (t, _) => vehicle.AddOrTransfer(t));
+                }
+
+                Remove();
+            }
+
+            public void SetToSendEverything()
+            {
+                PrepareDummyDialog().SetToSendEverything();
+                uiDirty = true;
+            }
+
+            public void Remove()
+            {
+                MP.GetLocalSessionManager(Map).RemoveSession(this);
+            }
+
+            public static bool TryOpenLoadVehicleCargoDialog(VehiclePawn vehicle)
+            {
+                if (vehicle?.Map == null)
+                    return false;
+
+                var session = MP.GetLocalSessionManager(vehicle.Map).GetFirstOfType<LoadVehicleCargoSession>();
+                if (session == null)
+                    return false;
+
+                session.OpenWindow();
+                return true;
+            }
+
+            public static void CreateLoadVehicleCargoSession(VehiclePawn vehicle)
+            {
+                if (vehicle == null)
+                {
+                    Log.Error($"Trying to create {nameof(FormVehicleCaravanSession)} for a null vehicle.");
+                    return;
+                }
+                if (vehicle.Map == null)
+                {
+                    Log.Error($"Trying to create {nameof(FormVehicleCaravanSession)} for a vehicle with null map. Vehicle={vehicle}");
+                    return;
+                }
+
+                var manager = MP.GetLocalSessionManager(vehicle.Map);
+                var session = manager.GetFirstOfType<LoadVehicleCargoSession>();
+                if (session == null)
+                {
+                    session = new LoadVehicleCargoSession(vehicle);
+                    if (!manager.AddSession(session))
+                        session = null;
+                }
+
+                if (session == null)
+                    Log.Error($"Couldn't get or create {nameof(LoadVehicleCargoSession)}");
+                else if (MP.IsExecutingSyncCommandIssuedBySelf)
+                    session.OpenWindow();
+            }
 
             public override FloatMenuOption GetBlockingWindowOptions(ColonistBar.Entry entry)
             {
@@ -1414,39 +1546,160 @@ namespace Multiplayer.Compat
             public bool CanExistWith(Session other) => other is not LoadVehicleCargoSession;
         }
 
-        private static void PreDrawLoadCargo(Dialog_LoadCargo __instance, out bool __state)
+        #endregion
+
+        #region Dialog Patches
+
+        private static void SetCurrentLoadCargoSessionState(LoadVehicleCargoSession session)
+        {
+            LoadVehicleCargoSession.drawingSession = session;
+            MP.SetCurrentSessionWithTransferables(session);
+        }
+
+        private static void PreDrawLoadCargo(Dialog_LoadCargo __instance)
         {
             if (!MP.IsInMultiplayer)
-            {
-                __state = false;
                 return;
-            }
 
             var session = MP.GetLocalSessionManager(__instance.vehicle.Map).GetFirstOfType<LoadVehicleCargoSession>();
-            __state = true;
-            MP.SetCurrentSessionWithTransferables(session);
-            MP.WatchBegin();
-            showAllCargoItemsField.Watch();
-
             if (session == null)
             {
                 __instance.Close();
+                return;
             }
-            else if (session.uiDirty)
+
+            SetCurrentLoadCargoSessionState(session);
+            MP.WatchBegin();
+            showAllCargoItemsField.Watch(VehicleMod.settings);
+
+            if (session.uiDirty)
             {
                 __instance.CountToTransferChanged();
                 session.uiDirty = false;
             }
-        }
 
-        private static void FinalizeDrawLoadCargo(bool __state)
-        {
-            if (__state)
+            if (session.widgetDirty)
             {
-                MP.SetCurrentSessionWithTransferables(null);
-                MP.WatchEnd();
+                __instance.transferables = session.transferables;
+                // Initialize UI
+                __instance.itemsTransfer = new TransferableOneWayWidget(
+                    session.transferables,
+                    null,
+                    null,
+                    null,
+                    true,
+                    IgnorePawnsInventoryMode.IgnoreIfAssignedToUnload,
+                    false,
+                    () => __instance.MassCapacity - __instance.MassUsage);
+
+                session.widgetDirty = false;
             }
         }
+
+        private static void FinalizeDrawLoadCargo()
+        {
+            if (LoadVehicleCargoSession.drawingSession != null)
+            {
+                MP.WatchEnd();
+                SetCurrentLoadCargoSessionState(null);
+            }
+        }
+
+        private static void PostShowAllCargoItemsChanged(object instances, object value)
+        {
+            // If the setting to see all was selected, it resets the dialog transferables.
+            // We need to make sure it's done to all dialogs, as it's a global setting.
+            foreach (var map in Find.Maps)
+                MP.GetLocalSessionManager(map).GetFirstOfType<LoadVehicleCargoSession>()?.AddItems();
+        }
+
+        private static bool ReplacedLoadCargoCancelButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor)
+        {
+            bool DoButton() => Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
+
+            if (LoadVehicleCargoSession.drawingSession == null)
+                return DoButton();
+
+            var color = GUI.color;
+            try
+            {
+                // Red button like in MP
+                GUI.color = new Color(1f, 0.3f, 0.35f);
+
+                // If the button was pressed sync removing the dialog
+                if (DoButton())
+                    LoadVehicleCargoSession.drawingSession.Remove();
+            }
+            finally
+            {
+                GUI.color = color;
+            }
+
+            return false;
+        }
+
+        private static bool ReplacedLoadCargoResetButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor)
+        {
+            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
+
+            if (!result || LoadVehicleCargoSession.drawingSession == null)
+                return result;
+
+            LoadVehicleCargoSession.drawingSession.Reset();
+            return false;
+        }
+
+        private static bool ReplacedLoadCargoAcceptButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor)
+        {
+            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
+
+            if (!result || LoadVehicleCargoSession.drawingSession == null)
+                return result;
+
+            LoadVehicleCargoSession.drawingSession.Accept();
+            return false;
+        }
+
+        private static bool ReplacedLoadCargoPackInstantlyButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor)
+        {
+            var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
+
+            if (!result || LoadVehicleCargoSession.drawingSession == null)
+                return result;
+
+            LoadVehicleCargoSession.drawingSession.PackInstantly();
+            return false;
+        }
+
+        private static bool PreLoadCargoSetToSendEverything()
+        {
+            if (LoadVehicleCargoSession.drawingSession == null)
+                return true;
+
+            LoadVehicleCargoSession.drawingSession.SetToSendEverything();
+            return false;
+        }
+
+        private static bool PreLoadCargoCalculateAndRecache()
+            => !MP.IsInMultiplayer || LoadVehicleCargoSession.allowedToRecacheTransferables;
+
+        #endregion
+
+        #region Gizmo patches
+
+        private static bool PreLoadCargoDialog(object __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            var vehicle = vehiclePawnInnerClassParentField(__instance);
+            if (!LoadVehicleCargoSession.TryOpenLoadVehicleCargoDialog(vehicle))
+                LoadVehicleCargoSession.CreateLoadVehicleCargoSession(vehicle);
+
+            return false;
+        }
+
+        #endregion
 
         #endregion
 
@@ -1457,71 +1710,64 @@ namespace Multiplayer.Compat
 
         // MP approach is to intercept `Widgets.ButtonTextWorker` call with a prefix/postfix call.
         // Our approach here is to replace the `Widgets.ButtonText` call itself with our intercepted one.
-        private static IEnumerable<CodeInstruction> ReplaceCancelButton(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        private static IEnumerable<CodeInstruction> ReplaceButtonsTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
             var target = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonText),
                 new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
+            var buttonReplacements = new Dictionary<string, MethodInfo>();
+            int expected;
 
-            MethodInfo cancelReplacement, resetReplacement;
             if (baseMethod.DeclaringType == typeof(Dialog_FormVehicleCaravan))
             {
-                cancelReplacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedFormCaravanCancelButton));
-                resetReplacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedFormCaravanResetButton));
+                expected = 2;
+                buttonReplacements.Add("CancelButton", AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedFormCaravanCancelButton)));
+                buttonReplacements.Add("ResetButton", AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedFormCaravanResetButton)));
+            }
+            else if (baseMethod.DeclaringType == typeof(Dialog_LoadCargo))
+            {
+                expected = 4;
+                buttonReplacements.Add("CancelButton", AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedLoadCargoCancelButton)));
+                buttonReplacements.Add("ResetButton", AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedLoadCargoResetButton)));
+                buttonReplacements.Add("AcceptButton", AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedLoadCargoAcceptButton)));
+                buttonReplacements.Add("Dev: Pack Instantly", AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedLoadCargoPackInstantlyButton)));
             }
             else
                 throw new Exception($"Trying to patch a method for unsupported type: {baseMethod.DeclaringType}");
 
             var replacedCount = 0;
-            var isCancelButton = false;
-            var isResetButton = false;
+            MethodInfo currentButtonReplacement = null;
 
             foreach (var ci in instr)
             {
-                if (isCancelButton)
+                if (currentButtonReplacement != null)
                 {
                     if (ci.Calls(target))
                     {
-                        ci.operand = cancelReplacement;
-                        isCancelButton = false;
+                        ci.operand = currentButtonReplacement;
+                        currentButtonReplacement = null;
                         replacedCount++;
                     }
                 }
-                else if (isResetButton)
+                else if (ci.opcode == OpCodes.Ldstr && ci.operand is string text)
                 {
-                    if (ci.Calls(target))
-                    {
-                        ci.operand = resetReplacement;
-                        isResetButton = false;
-                        replacedCount++;
-                    }
-                }
-                else if (ci.opcode == OpCodes.Ldstr)
-                {
-                    switch (ci.operand)
-                    {
-                        case "CancelButton":
-                            isCancelButton = true;
-                            break;
-                        case "ResetButton":
-                            isResetButton = true;
-                            break;
-                    }
+                    buttonReplacements.TryGetValue(text, out currentButtonReplacement);
                 }
 
                 yield return ci;
             }
 
-            const int expected = 2;
             if (replacedCount != expected)
             {
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
                 Log.Warning($"Patched incorrect number of Widgets.ButtonText calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
+#if DEBUG
             else
             {
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
-                Log.Warning($"Patched Widgets.ButtonText calls (patched {replacedCount}, expected {expected}) for method {name}");
+                Log.Message($"Patched Widgets.ButtonText calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
+#endif
         }
 
         #endregion
