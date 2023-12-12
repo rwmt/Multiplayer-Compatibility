@@ -276,7 +276,7 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_FormVehicleCaravan), nameof(Dialog_FormVehicleCaravan.DebugTryFormCaravanInstantly)),
                     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreDebugTryFormCaravanInstantly)));
 
-                // Catch (re)form caravan dialog gizmo to create session instead
+                // Catch (re)form caravan dialog gizmo to open session dialog tied to it or create session if there's none
                 MpCompat.harmony.Patch(MpMethodUtil.GetLambda(typeof(Vehicles.Gizmos), nameof(Vehicles.Gizmos.AddVehicleGizmosPassthrough), lambdaOrdinal: 0),
                     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreFormCaravanDialog)));
                 MpCompat.harmony.Patch(MpMethodUtil.GetLambda(typeof(Vehicles.Gizmos), nameof(Vehicles.Gizmos.AddVehicleGizmosPassthrough), lambdaOrdinal: 1),
@@ -909,7 +909,7 @@ namespace Multiplayer.Compat
 
             public override bool IsCurrentlyPausing(Map map) => map == Map;
 
-            public void OpenWindow(bool sound = true)
+            private void OpenWindow(bool sound = true)
             {
                 Log.Message($"session {sessionId}");
 
@@ -918,6 +918,7 @@ namespace Multiplayer.Compat
                     dialog.soundAppear = null;
 
                 Find.WindowStack.Add(dialog);
+                uiDirty = true;
             }
 
             private Dialog_FormVehicleCaravan PrepareDummyDialog()
@@ -959,27 +960,27 @@ namespace Multiplayer.Compat
 
             public void TryReformCaravan()
             {
-                SafelyHandleSessionOperation(() =>
+                SafelyHandleSessionOperation(dialog =>
                 {
-                    if (PrepareDummyDialog().TryReformCaravan())
+                    if (dialog.TryReformCaravan())
                         Remove();
                 });
             }
 
             public void TryFormAndSendCaravan()
             {
-                SafelyHandleSessionOperation(() =>
+                SafelyHandleSessionOperation(dialog =>
                 {
-                    if (PrepareDummyDialog().TryFormAndSendCaravan())
+                    if (dialog.TryFormAndSendCaravan())
                         Remove();
                 });
             }
 
             public void DebugTryFormCaravanInstantly()
             {
-                SafelyHandleSessionOperation(() =>
+                SafelyHandleSessionOperation(dialog =>
                 {
-                    if (PrepareDummyDialog().DebugTryFormCaravanInstantly())
+                    if (dialog.DebugTryFormCaravanInstantly())
                         Remove();
                 });
             }
@@ -1002,20 +1003,22 @@ namespace Multiplayer.Compat
                 uiDirty = true;
             }
 
-            private void SafelyHandleSessionOperation(Action operation)
+            private void SafelyHandleSessionOperation(Action<Dialog_FormVehicleCaravan> operation)
             {
+                var dialog = PrepareDummyDialog();
+
                 // Just in case, if there's a session setup - just let it run as normal.
                 if (drawingSession != null)
                 {
-                    operation();
+                    operation(dialog);
                     return;
                 }
 
                 // Set the session as active before doing the operation, and unset afterwards.
                 try
                 {
-                    SetCurrentFormVehicleCaravanSessionState(this);
-                    operation();
+                    SetCurrentFormVehicleCaravanSessionState(this, dialog);
+                    operation(dialog);
                 }
                 finally
                 {
@@ -1025,6 +1028,9 @@ namespace Multiplayer.Compat
 
             public static bool TryOpenFormVehicleCaravanDialog(Map map)
             {
+                if (map == null)
+                    return false;
+
                 var session = MP.GetLocalSessionManager(map).GetFirstOfType<FormVehicleCaravanSession>();
                 if (session == null)
                     return false;
@@ -1035,6 +1041,12 @@ namespace Multiplayer.Compat
 
             public static void CreateFormVehicleCaravanSession(Map map, bool reform)
             {
+                if (map == null)
+                {
+                    Log.Error($"Trying to create {nameof(FormVehicleCaravanSession)} with a null map.");
+                    return;
+                }
+
                 var manager = MP.GetLocalSessionManager(map);
                 var session = manager.GetFirstOfType<FormVehicleCaravanSession>();
                 if (session == null)
@@ -1071,6 +1083,23 @@ namespace Multiplayer.Compat
 
         #region Dialog patches
 
+        private static void SetCurrentFormVehicleCaravanSessionState(FormVehicleCaravanSession session, Dialog_FormVehicleCaravan dialog = null)
+        {
+            FormVehicleCaravanSession.drawingSession = session;
+            MP.SetCurrentSessionWithTransferables(session);
+
+            if (session == null)
+            {
+                Dialog_FormVehicleCaravan.CurrentFormingCaravan = null;
+                CaravanHelper.assignedSeats.Clear();
+            }
+            else
+            {
+                Dialog_FormVehicleCaravan.CurrentFormingCaravan = dialog;
+                CaravanHelper.assignedSeats.AddRange(session.assignedSeats);
+            }
+        }
+
         private static void PreDrawFormVehicleCaravan(Dialog_FormVehicleCaravan __instance)
         {
             if (!MP.IsInMultiplayer)
@@ -1084,7 +1113,7 @@ namespace Multiplayer.Compat
             }
 
             MP.WatchBegin();
-            SetCurrentFormVehicleCaravanSessionState(session);
+            SetCurrentFormVehicleCaravanSessionState(session, __instance);
 
             if (session.uiDirty)
             {
@@ -1102,17 +1131,6 @@ namespace Multiplayer.Compat
                 MP.WatchEnd();
                 SetCurrentFormVehicleCaravanSessionState(null);
             }
-        }
-
-        private static void SetCurrentFormVehicleCaravanSessionState(FormVehicleCaravanSession session)
-        {
-            FormVehicleCaravanSession.drawingSession = session;
-            MP.SetCurrentSessionWithTransferables(session);
-
-            if (session == null)
-                CaravanHelper.assignedSeats.Clear();
-            else
-                CaravanHelper.assignedSeats.AddRange(session.assignedSeats);
         }
 
         private static bool PreNotifyChoseRoute(Dialog_FormVehicleCaravan __instance, int destinationTile)
@@ -1236,37 +1254,6 @@ namespace Multiplayer.Compat
                 CreateAndSyncMpTransferableReference(FormVehicleCaravanSession.drawingSession, trad);
         }
 
-        // private static void PreAssignSeatsCtor(TransferableOneWay transferable, out bool __state)
-        // {
-        //     if (!MP.IsInMultiplayer)
-        //     {
-        //         __state = false;
-        //         return;
-        //     }
-        //
-        //     var session = MP.GetLocalSessionManager(transferable.AnyThing.Map).GetFirstOfType<FormVehicleCaravanSession>();
-        //     if (session == null)
-        //     {
-        //         // No point in closing the dialog from ctor, as it's not technically open yet
-        //         __state = false;
-        //         return;
-        //     }
-        //
-        //     __state = true;
-        //     // The ctor doesn't edit the dictionary, so we don't really check for any changes in there
-        //     Log.Warning($"Ctor current items: {CaravanHelper.assignedSeats.Count}");
-        //     CaravanHelper.assignedSeats.AddRange(session.assignedSeats);
-        // }
-        //
-        // private static void FinalizeAssignSeatsCtor(bool __state)
-        // {
-        //     if (__state)
-        //     {
-        //         Log.Warning($"Ctor current items: {CaravanHelper.assignedSeats.Count}");
-        //         CaravanHelper.assignedSeats.Clear();
-        //     }
-        // }
-
         private static void PreDrawAssignSeats(Dialog_AssignSeats __instance)
         {
             if (!MP.IsInMultiplayer)
@@ -1286,7 +1273,7 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            SetCurrentFormVehicleCaravanSessionState(session);
+            SetCurrentFormVehicleCaravanSessionState(session, dialog);
 
             // Update data if another player changed stuff
             var vehicle = __instance.Vehicle;
