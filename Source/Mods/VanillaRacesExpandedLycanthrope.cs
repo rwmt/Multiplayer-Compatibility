@@ -4,7 +4,8 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Races Expanded - Lycanthrope by Oskar Potocki, Sarg Bjornson</summary>
-    /// TODO: Add links to mod workshop/github
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaRacesExpanded-Lycanthrope"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=3114453100"/>
     [MpCompatFor("vanillaracesexpanded.lycanthrope")]
     public class VanillaRacesExpandedLycanthrope
     {
