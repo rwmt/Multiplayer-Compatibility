@@ -33,7 +33,8 @@ namespace Multiplayer.Compat
 
         // Mp Compat fields
         private static bool shouldSyncInInterface = false;
-        
+        private static List<FlightNode> tempFlightPath = null;
+
         // VehiclesModSettings
         private static ISyncField showAllCargoItemsField;
 
@@ -376,9 +377,127 @@ namespace Multiplayer.Compat
 
             #endregion
 
+            #region Flying vehicles
+
+            {
+                // To start off, there needs to be some explanation here.
+                // In a lot of situations we need to sync additional data on top of
+                // what a sync method normally does - namely, the flight path (list, static property).
+                // We can't really make a sync worker for every context where it's used, and
+                // there were a couple of issues of making sync workers that would sync the flight
+                // path data as well.
+                // As a workaround came GetFlightPathSerializer<T> method - it'll return a serializer
+                // (to be used with sync transformers) to sync the object itself that was synced,
+                // as-is (with no changes), along with the flight path itself. Doesn't work with
+                // sync delegates and TransformTarget, so in those cases it requires transforming
+                // an argument or a field.
+
+                MP.RegisterSyncWorker<LaunchProtocol>(SyncLaunchProtocol, isImplicit: true);
+                MP.RegisterSyncWorker<FlightNode>(SyncFlightNode);
+
+                // Deselect destroyed vehicle caravans and pick their respective aerial vehicles (if there are any).
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(VehicleCaravan), nameof(VehicleCaravan.GetInspectString)),
+                    prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(CleanupDestroyedCaravans)));
+
+                // Settle with an aerial vehicle (from AerialVehicleInFlight gizmos)
+                MP.RegisterSyncMethod(typeof(SettlementVehicleUtility), nameof(SettlementVehicleUtility.Settle))
+                    .CancelIfAnyArgNull();
+                // (Debug) land at nearest player settlement (6), initiate crash event (7)
+                MpCompat.RegisterLambdaMethod(typeof(AerialVehicleInFlight), nameof(AerialVehicleInFlight.GetGizmos), 6, 7)
+                    .SetDebugOnly();
+
+                // Launch from gizmo
+                // CompVehicleLauncher/LaunchProtocol
+                MP.RegisterSyncMethod(typeof(CompVehicleLauncher), nameof(CompVehicleLauncher.TryLaunch))
+                    .ExposeParameter(1)
+                    .TransformTarget(GetFlightPathSerializer<CompVehicleLauncher>())
+                    .SetPostInvoke(RestoreFlightPath);
+                // AerialVehicleInFlight
+                MP.RegisterSyncMethod(typeof(AerialVehicleInFlight), nameof(AerialVehicleInFlight.NewDestination))
+                    .ExposeParameter(1)
+                    .TransformTarget(GetFlightPathSerializer<AerialVehicleInFlight>())
+                    .SetPostInvoke(RestoreFlightPath);
+
+                // Launch from FloatMenu
+                var syncDelegates = new List<ISyncDelegate>();
+                // Landing on an empty tile
+                syncDelegates.AddRange(MpCompat.RegisterLambdaDelegate(typeof(LaunchProtocol), nameof(LaunchProtocol.FloatMenuOption_LandCaravanEmptyTile), 0));
+                // Landing in specific location on map
+                syncDelegates.AddRange(MpCompat.RegisterLambdaDelegate(typeof(LaunchProtocol), nameof(LaunchProtocol.FloatMenuOption_LandInsideMap), 1));
+                syncDelegates.AddRange(MpCompat.RegisterLambdaDelegate(typeof(DefaultTakeoff), nameof(DefaultTakeoff.FloatMenuOption_LandInsideMap), 1));
+                // Land at settlement to visit (0), trade (1), offer gifts (2)
+                syncDelegates.AddRange(MpCompat.RegisterLambdaDelegate(typeof(LaunchProtocol), nameof(LaunchProtocol.FloatMenuOption_LandAtSettlement), 0, 1, 2));
+
+                // Setup extra data needed for syncing, syncing the flight path, restoring it after
+                // invoking, and setting the context to WorldSelected (as it may be used by the mod).
+                foreach (var syncDelegate in syncDelegates)
+                    syncDelegate
+                        .TransformField("<>4__this", GetFlightPathSerializer<LaunchProtocol>(), true) // Also sync DefaultTakeoff as LaunchProtocol
+                        .SetPostInvoke(RestoreFlightPath)
+                        .SetContext(SyncContext.WorldSelected);
+
+                // FloatMenuOption_ReconMap is unused for now, so let's not sync it yet just in case it gets removed, renamed, etc.
+                // FloatMenuOption_StrafeMap may be slightly more complex due to continuing targetting, despite immediately registering the action. Right now unused, so we don't really care.
+
+                // Generic method, inside of a generic nested type. The normal way of acquiring those
+                // won't really work here, so a slight change was needed to the method itself.
+                // As for the patch itself, we replace the mod's actual call in MP with our own,
+                // which will either call our synced method (SyncedLaunchOrFlyTo), or pass it to
+                // the UI callback function (which will then presumably call our synced method
+                // when pressing an "accept" button or whatever the mod makes the callback).
+                MpCompat.harmony.Patch(
+                    MpMethodUtil.GetLambdaGeneric(
+                        typeof(VehicleArrivalActionUtility),
+                        nameof(VehicleArrivalActionUtility.GetFloatMenuOptions),
+                        MethodType.Normal,
+                        null,
+                        new[] { typeof(AerialVehicleArrivalAction) },
+                        new[] { typeof(AerialVehicleArrivalAction) },
+                        0),
+                    prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreVehicleArrivalActionUtility)));
+
+                MP.RegisterSyncMethod(typeof(VehicleFramework), nameof(SyncedLaunchOrFlyTo))
+                    .SetContext(SyncContext.WorldSelected)
+                    .ExposeParameter(0);
+
+                // When launching from this specific location (unless the float menu is opened), it'll force rotation
+                // on the vehicle (if it has forced location set). It should get set later on, so we ignore that here
+                // as it would cause issues to force rotation from interface.
+                MpCompat.harmony.Patch(
+                    MpMethodUtil.GetLocalFunc(
+                        typeof(LaunchProtocol),
+                        nameof(LaunchProtocol.ChoseWorldTarget),
+                        parentArgs: new[] { typeof(GlobalTargetInfo), typeof(float) },
+                        localFunc: "Validator"),
+                    transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(NoForcedRotationInInterface)));
+
+                // Aerial vehicles have multiple arrival actions at settlements
+                // and the like. This specific ones orders the vehicle to fly to
+                // a settlement and land on a specific tile, despite it not even
+                // being loaded in the first place. Once the vehicle arrives it
+                // load the map and forces the player to target the location to
+                // land on. We need to sync the land-and-pick-cell interaction.
+
+                // Capture and stop the vehicle arrival, instead starting a session
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(AerialVehicleArrivalModeWorker_TargetedDrop), nameof(AerialVehicleArrivalModeWorker_TargetedDrop.VehicleArrived)),
+                    prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreTargetedDropVehicleArrival)));
+
+                // Prevent the map from being removed if the landing session is active
+                MpCompat.harmony.Patch(AccessTools.DeclaredPropertyGetter(typeof(MapPawns), nameof(MapPawns.AnyPawnBlockingMapRemoval)),
+                    postfix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreventMapRemovalForLandingSessions)) { after = new[] { "SmashPhil.VehicleFramework" } });
+
+                MP.RegisterSyncMethod(typeof(FlyingVehicleTargetedLandingSession), nameof(FlyingVehicleTargetedLandingSession.Remove));
+                MP.RegisterSyncMethod(typeof(FlyingVehicleTargetedLandingSession), nameof(FlyingVehicleTargetedLandingSession.VehicleArrivalById));
+            }
+
+            #endregion
+
             #region SyncWorkers
 
             {
+                // Special sync for vehicle pawn and some of its comps in case it's currently held by flying vehicle
+                MP.RegisterSyncWorker<VehiclePawn>(SyncVehiclePawn, isImplicit: true);
+                MP.RegisterSyncWorker<CompFueledTravel>(SyncFueledTravelComp);
                 // ITabs
                 MP.RegisterSyncWorker<object>(NoSync, typeof(ITab_Vehicle_Cargo), shouldConstruct: true);
                 // Turret
@@ -429,7 +548,6 @@ namespace Multiplayer.Compat
 
             // TODO: Aerial vehicle tab
             // TODO: ITabs and WITabs
-            // TODO: Aerial launch (LaunchProtocol, Rocket Takeoff?, DefaultTakeoff?)
 
             #endregion
         }
@@ -672,10 +790,202 @@ namespace Multiplayer.Compat
 
         #endregion
 
+        #region Flying Vehicles
+
+        private static void RestoreFlightPath(object instance, object[] args)
+        {
+            // If we temporarily replaced it, it should at the very least be an empty list.
+            if (tempFlightPath != null)
+            {
+                LaunchTargeter.FlightPath = tempFlightPath;
+                tempFlightPath = null;
+            }
+        }
+
+        private static void CleanupDestroyedCaravans(VehicleCaravan __instance)
+        {
+            // If we launched a VehicleCaravan, it won't deselect it (as the sync context was world selected).
+            // We need to do it manually. Specifically from GetInspectString, as it seems like the safest
+            // place to do so.
+            if (__instance.Destroyed)
+            {
+                foreach (var vehicle in __instance.Vehicles)
+                {
+                    var aerialVehicle = vehicle.GetAerialVehicle();
+                    if (aerialVehicle != null)
+                        Find.WorldSelector.Select(aerialVehicle);
+                }
+
+                Find.WorldSelector.Deselect(__instance);
+            }
+        }
+
+        private static bool PreVehicleArrivalActionUtility(Action<Action> ___uiConfirmationCallback, Func<FloatMenuAcceptanceReport> ___acceptanceReportGetter, Func<AerialVehicleArrivalAction> ___arrivalActionGetter, VehiclePawn ___vehicle, int ___destinationTile)
+        {
+            // If not in MP, let it run normally..
+            // If in MP and not accepted, let it run to display error.
+            if (!MP.IsInMultiplayer || !___acceptanceReportGetter().Accepted)
+                return true;
+
+            // Either sync the launch, or pass it as an action to the UI callback
+            if (___uiConfirmationCallback == null)
+                Action();
+            else
+                ___uiConfirmationCallback(Action);
+
+            return false;
+
+            void Action() => SyncedLaunchOrFlyTo(___arrivalActionGetter(), ___vehicle, ___vehicle.Spawned, ___destinationTile, LaunchTargeter.FlightPath);
+        }
+
+        private static void SyncedLaunchOrFlyTo(AerialVehicleArrivalAction action, VehiclePawn vehicle, bool wasSpawned, int destinationTile, List<FlightNode> path)
+        {
+            // Stop the call if the current spawned state of the vehicle doesn't match the one when syncing
+            if (vehicle.Spawned != wasSpawned)
+                return;
+
+            if (vehicle.Spawned)
+            {
+                // If spawned, try launching vehicle
+                try
+                {
+                    tempFlightPath = LaunchTargeter.FlightPath;
+                    LaunchTargeter.FlightPath = path;
+
+                    vehicle.CompVehicleLauncher.TryLaunch(destinationTile, action);
+                }
+                finally
+                {
+                    LaunchTargeter.FlightPath = tempFlightPath;
+                }
+            }
+            else
+            {
+                // If not spawned, get the vehicle world object and set target
+                var aerialVehicle = AerialVehicleLaunchHelper.GetOrMakeAerialVehicle(vehicle);
+                aerialVehicle.OrderFlyToTiles(path, aerialVehicle.DrawPos, action);
+            }
+        }
+
+        private static Serializer<T, (T target, List<FlightNode> path)> GetFlightPathSerializer<T>()
+        {
+            return Serializer.New(
+                (T target) => (target, LaunchTargeter.FlightPath),
+                (data) =>
+                {
+                    var (target, path) = data;
+
+                    tempFlightPath = LaunchTargeter.FlightPath;
+                    LaunchTargeter.FlightPath = path;
+
+                    return target;
+                });
+        }
+
+        private static IEnumerable<CodeInstruction> NoForcedRotationInInterface(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var targetMethod = AccessTools.DeclaredPropertyGetter(typeof(Rot4?), nameof(Nullable<Rot4>.HasValue));
+            var inMpCall = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(NotInMultiplayer));
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                yield return ci;
+
+                if (ci.Calls(targetMethod))
+                {
+                    // Push !MP.IsInMultiplayer to the top of the stack
+                    yield return new CodeInstruction(OpCodes.Call, inMpCall);
+                    // Do a bitwise and on the 2 most recent value on the stack, namely
+                    // the current mod's value, and our !MP.IsInMultiplayer call result
+                    yield return new CodeInstruction(OpCodes.And);
+                    // Basically, ensure that forcibly rotating the vehicle when launching it
+                    // only happens in SP. It should get rotated in a different location (during actual launch).
+
+                    replacedCount++;
+                }
+            }
+
+            const int expected = 2;
+            if (replacedCount != expected)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Patched incorrect number of Widgets.ButtonText calls (patched {replacedCount}, expected {expected}) for method {name}");
+            }
+        }
+
+        private static bool NotInMultiplayer() => !MP.IsInMultiplayer;
+
+        #endregion
+
         #region SyncWorkers
 
         private static void NoSync(SyncWorker sync, ref object target)
         {
+        }
+
+        private static void SyncVehiclePawn(SyncWorker sync, ref VehiclePawn vehicle)
+        {
+            if (sync.isWriting)
+            {
+                if (vehicle == null)
+                {
+                    sync.Write(byte.MaxValue);
+                    return;
+                }
+
+                var aerialVehicle = vehicle.GetAerialVehicle();
+                if (aerialVehicle == null)
+                {
+                    // The first possible scenario when syncing - the vehicle exists as normal, and sync it as such.
+                    sync.Write((byte)0);
+                    sync.Write<Pawn>(vehicle);
+                }
+                else
+                {
+                    // The second possible scenario when syncing - the vehicle exists as a world object, which needs
+                    // to be synced instead of the vehicle itself.
+                    // The vehicle apparently specifies the world object as its parent holder, but the world object
+                    // only returns the list of vehicle's cargo (instead of the vehicle itself), which causes MP to
+                    // fail syncing the vehicle in a situation like that.
+                    sync.Write((byte)1);
+                    sync.Write(aerialVehicle);
+                }
+            }
+            else
+            {
+                var type = sync.Read<byte>();
+                switch (type)
+                {
+                    case 0:
+                    {
+                        vehicle = sync.Read<Pawn>() as VehiclePawn;
+                        break;
+                    }
+                    case 1:
+                    {
+                        var vehicleInFlight = sync.Read<AerialVehicleInFlight>();
+                        vehicle = vehicleInFlight?.vehicle;
+
+                        if (vehicle == null)
+                            Log.Error($"Trying to read {nameof(VehiclePawn)}, but the {nameof(AerialVehicleInFlight)} is missing it. VehicleInFlight={vehicleInFlight}");
+
+                        break;
+                    }
+                    case byte.MaxValue:
+                        break;
+                    default:
+                        throw new Exception($"Trying to read {nameof(LaunchProtocol)}, but received an unsupported holder type ({type})");
+                }
+            }
+        }
+
+        private static void SyncFueledTravelComp(SyncWorker sync, ref CompFueledTravel fueledTravel)
+        {
+            if (sync.isWriting)
+                sync.Write(fueledTravel.parent as VehiclePawn);
+            else
+                fueledTravel = sync.Read<VehiclePawn>()?.CompFueledTravel;
         }
 
         private static void SyncVehicleComponent(SyncWorker sync, ref VehicleComponent comp)
@@ -765,7 +1075,7 @@ namespace Multiplayer.Compat
             else
             {
                 var vehiclePawn = sync.Read<VehiclePawn>();
-                controller = vehiclePawn.ignition;
+                controller = vehiclePawn?.ignition;
                 if (controller == null)
                     Log.Error($"Trying to read Vehicle_IgnitionController, but the vehicle is missing it. Vehicle={vehiclePawn}");
             }
@@ -855,6 +1165,26 @@ namespace Multiplayer.Compat
         {
             if (!sync.isWriting)
                 settings = VehicleMod.settings;
+        }
+
+        // Needed for flying vehicle syncing
+        private static void SyncLaunchProtocol(SyncWorker sync, ref LaunchProtocol launchProtocol)
+        {
+            if (sync.isWriting)
+                sync.Write(launchProtocol?.vehicle);
+            else
+                launchProtocol = sync.Read<VehiclePawn>()?.CompVehicleLauncher?.launchProtocol;
+        }
+
+        private static void SyncFlightNode(SyncWorker sync, ref FlightNode node)
+        {
+            SyncType type = typeof(FlightNode);
+            type.expose = true;
+
+            if (sync.isWriting)
+                sync.Write(node, type);
+            else
+                node = sync.Read<FlightNode>(type);
         }
 
         #endregion
@@ -1690,6 +2020,160 @@ namespace Multiplayer.Compat
             if (!LoadVehicleCargoSession.TryOpenLoadVehicleCargoDialog(vehicle))
                 LoadVehicleCargoSession.CreateLoadVehicleCargoSession(vehicle);
 
+            return false;
+        }
+
+        #endregion
+
+        #endregion
+
+        #region Flying vehicle landing session
+
+        #region Session class
+
+        [MpCompatRequireMod("SmashPhil.VehicleFramework")]
+        private class FlyingVehicleTargetedLandingSession : ExposableSession, ISessionWithCreationRestrictions
+        {
+            private List<VehiclePawn> vehicles = new();
+            public override Map Map { get; }
+            public override bool IsSessionValid => !vehicles.NullOrEmpty();
+
+            private FlyingVehicleTargetedLandingSession(Map map) : base(map)
+                => Map = map;
+
+            public override bool IsCurrentlyPausing(Map map)
+                => map == Map;
+
+            public override FloatMenuOption GetBlockingWindowOptions(ColonistBar.Entry entry)
+            {
+                if (entry.map != Map)
+                    return null;
+
+                return new FloatMenuOption("MpVehicleAerialLandingSession".Translate(), () =>
+                {
+                    if (!IsSessionValid)
+                    {
+                        Remove();
+                    }
+                    else
+                    {
+                        SwitchToMapOrWorld(Map);
+
+                        // If one vehicle, just start targetter for it
+                        if (vehicles.Count == 1)
+                            StartVehicleLandingTargetter(vehicles[0]);
+                        // If multiple vehicles, open list of the ones waiting to land
+                        else
+                            SetupVehicleListFloatMenu();
+                    }
+                });
+            }
+
+            public override void ExposeData()
+            {
+                base.ExposeData();
+
+                Scribe_Deep.Look(ref vehicles, "vehicles", this);
+            }
+
+            public bool CanExistWith(Session other)
+                => other is not FlyingVehicleTargetedLandingSession;
+
+            public void VehicleArrival(VehiclePawn vehicle, LocalTargetInfo target, Rot4 rot)
+                => VehicleArrivalById(vehicle.thingIDNumber, target, rot);
+
+            // The vehicle is not spawned, and it doesn't have a holder.
+            // And even if we make this session class a IThingHolder, MP
+            // doesn't include session classes as valid implementations.
+            public void VehicleArrivalById(int vehicleId, LocalTargetInfo target, Rot4 rot)
+            {
+                var vehicle = vehicles.Find(v => v.thingIDNumber == vehicleId);
+                if (vehicle == null)
+                    return;
+
+                if (vehicle.Spawned)
+                {
+                    vehicles.Remove(vehicle);
+                    Log.Error($"{nameof(FlyingVehicleTargetedLandingSession)} contained a vehicle that it should no longer contain, sessionID={SessionId}, vehicle={vehicle}");
+                    return;
+                }
+
+                var vehicleSkyfaller = (VehicleSkyfaller_Arriving)ThingMaker.MakeThing(vehicle.CompVehicleLauncher.Props.skyfallerIncoming);
+                vehicleSkyfaller.vehicle = vehicle;
+                GenSpawn.Spawn(vehicleSkyfaller, target.Cell, Map, rot);
+
+                vehicles.Remove(vehicle);
+                if (LandingTargeter.Instance.vehicle == vehicle)
+                    LandingTargeter.Instance.StopTargeting();
+
+                if (!IsSessionValid)
+                    Remove();
+            }
+
+            public void Remove() => MP.GetLocalSessionManager(Map).RemoveSession(this);
+
+            // Should only ever be called during ticking, no need for sync methods here.
+            public static void HandleTargetedVehicleArrival(VehiclePawn vehicle, Map map)
+            {
+                MP.GetLocalSessionManager(map)
+                    .GetOrAddSession(new FlyingVehicleTargetedLandingSession(map))
+                    .vehicles
+                    .AddDistinct(vehicle);
+            }
+
+            private void SetupVehicleListFloatMenu()
+            {
+                var list = new List<FloatMenuOption>();
+
+                foreach (var vehicle in vehicles)
+                {
+                    string name;
+                    if (vehicle.Nameable && vehicle.Name != null)
+                        name = $"{vehicle.VehicleDef.LabelCap} - {vehicle.Name}";
+                    else
+                        name = vehicle.VehicleDef.LabelCap;
+
+                    list.Add(new FloatMenuOption(name, () => StartVehicleLandingTargetter(vehicle)));
+                }
+
+                Find.WindowStack.Add(new FloatMenu(list, "MpVehiclesWaitingToLand"));
+            }
+
+            private void StartVehicleLandingTargetter(VehiclePawn vehicle)
+            {
+                var allowRotating = false;
+                if (vehicle.VehicleDef.rotatable)
+                    allowRotating = vehicle.CompVehicleLauncher.launchProtocol.LandingProperties?.forcedRotation == null;
+
+                LandingTargeter.Instance.BeginTargeting(
+                    vehicle,
+                    Map,
+                    (target, rot) => VehicleArrival(vehicle, target, rot),
+                    allowRotating: allowRotating);
+            }
+        }
+
+        #endregion
+
+        #region Map patches
+
+        private static void PreventMapRemovalForLandingSessions(ref bool __result, Map ___map)
+        {
+            // The map would get removed due to no active pawns. The mod would prevent the map removal
+            // if the LandingTargeter was active, which in our patch - it isn't. It also checks active
+            // pawns in skyfallers, which again - likely none are active at this point.
+            if (MP.IsInMultiplayer && !__result)
+                __result = MP.GetLocalSessionManager(___map).GetFirstOfType<FlyingVehicleTargetedLandingSession>() != null;
+        }
+
+        private static bool PreTargetedDropVehicleArrival(VehiclePawn vehicle, Map map)
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            // Prevent the targeter from being started in MP, as we'll instead handle
+            // this ourselves with the session we've made.
+            FlyingVehicleTargetedLandingSession.HandleTargetedVehicleArrival(vehicle, map);
             return false;
         }
 
