@@ -144,8 +144,8 @@ namespace Multiplayer.Compat
                 // Target fuel level setter, used from Gizmo_RefuelableFuelTravel
                 MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.TargetFuelLevel));
                 // Refuel from inventory, used from Gizmo_RefuelableFuelTravel
-                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), new SyncType[]{ typeof(List<Thing>) });
-                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), new SyncType[]{ typeof(float) });
+                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), new SyncType[] { typeof(List<Thing>) });
+                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), new SyncType[] { typeof(float) });
                 // Toggle connect/disconnect from power for electric vehicles
                 MpCompat.RegisterLambdaMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.CompGetGizmosExtra), 1);
                 // (Dev) set fuel to 0/0.1/half/max
@@ -202,6 +202,7 @@ namespace Multiplayer.Compat
                         // But only allow it to be synced under very specific circumstances
                         MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(CancelTurretSetTargetSync)));
                     }
+
                     TrySyncDeclaredMethod(subclass, nameof(VehicleTurret.TryRemoveShell));
                     TrySyncDeclaredMethod(subclass, nameof(VehicleTurret.ReloadCannon));
                     TrySyncDeclaredMethod(subclass, nameof(VehicleTurret.SwitchAutoTarget));
@@ -760,7 +761,7 @@ namespace Multiplayer.Compat
                     ci.operand = replacement;
                     replacedCount++;
                 }
-                
+
                 yield return ci;
             }
 
@@ -994,7 +995,7 @@ namespace Multiplayer.Compat
             {
                 var vehicle = comp.vehicle;
                 var comps = vehicle.statHandler.components;
-                
+
                 var compIndex = comps.IndexOf(comp);
                 sync.Write(compIndex);
                 if (compIndex >= 0)
@@ -1128,7 +1129,7 @@ namespace Multiplayer.Compat
                 // We could technically just sync the turret and use its vehicle field.
                 // Syncing it anyway in case some mods do weird stuff with this.
                 sync.Write(command.vehicle);
-                
+
                 // Not syncing other fields, as it doesn't seem they're needed.
             }
             else
@@ -1574,7 +1575,7 @@ namespace Multiplayer.Compat
         {
             if (FormVehicleCaravanSession.drawingSession == null)
                 return;
-        
+
             foreach (var pawnTransferable in __instance.AvailablePawns)
                 CreateAndSyncMpTransferableReference(FormVehicleCaravanSession.drawingSession, pawnTransferable);
         }
@@ -1630,6 +1631,7 @@ namespace Multiplayer.Compat
                     __instance.assignedSeats.TryAdd(pawn, (vehicle, handler));
                 }
             }
+
             foreach (var (pawn, seat) in CaravanHelper.assignedSeats)
             {
                 if (__instance.assignedSeats.TryGetValue(pawn, out var current) && current.vehicle == vehicle)
@@ -1638,6 +1640,7 @@ namespace Multiplayer.Compat
                     __instance.assignedSeats.TryAdd(pawn, seat);
                 }
             }
+
             // Remove all the assigned pawns that got assigned to other vehicles (missing from pawn list)
             __instance.assignedSeats.RemoveAll(x => !__instance.pawns.Contains(x.Key));
         }
@@ -1715,7 +1718,9 @@ namespace Multiplayer.Compat
             public bool widgetDirty;
 
             [UsedImplicitly]
-            public LoadVehicleCargoSession(Map _) : base(null) { }
+            public LoadVehicleCargoSession(Map _) : base(null)
+            {
+            }
 
             public LoadVehicleCargoSession(VehiclePawn vehicle) : base(null)
             {
@@ -1832,6 +1837,7 @@ namespace Multiplayer.Compat
                     Log.Error($"Trying to create {nameof(FormVehicleCaravanSession)} for a null vehicle.");
                     return;
                 }
+
                 if (vehicle.Map == null)
                 {
                     Log.Error($"Trying to create {nameof(FormVehicleCaravanSession)} for a vehicle with null map. Vehicle={vehicle}");
