@@ -174,7 +174,7 @@ namespace Multiplayer.Compat
                 // It would be beneficial if we could sync `FireTurrets` method, as it would
                 // prevent a lot of duplicated syncing of "FireTurret" if there are multiple turrets.
                 // However, the issue is that not all calls to "FireTurret" are an action we want to sync,
-                // for example when it opens targetter.
+                // for example when it opens targeter.
 
                 // Static turrets
                 MP.RegisterSyncMethod(typeof(Command_CooldownAction), nameof(Command_CooldownAction.FireTurret));
@@ -2180,9 +2180,9 @@ namespace Multiplayer.Compat
                     {
                         SwitchToMapOrWorld(Map);
 
-                        // If one vehicle, just start targetter for it
+                        // If one vehicle, just start targeter for it
                         if (vehicles.Count == 1)
-                            StartVehicleLandingTargetter(vehicles[0]);
+                            StartVehicleLandingTargeter(vehicles[0]);
                         // If multiple vehicles, open list of the ones waiting to land
                         else
                             SetupVehicleListFloatMenu();
@@ -2254,13 +2254,13 @@ namespace Multiplayer.Compat
                     else
                         name = vehicle.VehicleDef.LabelCap;
 
-                    list.Add(new FloatMenuOption(name, () => StartVehicleLandingTargetter(vehicle)));
+                    list.Add(new FloatMenuOption(name, () => StartVehicleLandingTargeter(vehicle)));
                 }
 
                 Find.WindowStack.Add(new FloatMenu(list, "MpVehiclesWaitingToLand"));
             }
 
-            private void StartVehicleLandingTargetter(VehiclePawn vehicle)
+            private void StartVehicleLandingTargeter(VehiclePawn vehicle)
             {
                 var allowRotating = false;
                 if (vehicle.VehicleDef.rotatable)
