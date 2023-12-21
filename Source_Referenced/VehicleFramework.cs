@@ -374,6 +374,55 @@ namespace Multiplayer.Compat
                 method = AccessTools.DeclaredMethod(typeof(VehicleTabHelper_Passenger), nameof(VehicleTabHelper_Passenger.HandleDragEvent));
                 MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreHandleDragEvent)));
                 MP.RegisterSyncMethod(typeof(VehicleFramework), nameof(SyncedHandleDragEvent));
+
+                // WITab_AerialVehicle_Items
+                // Aerial vehicle inventory tab
+                var typesThing = new[] { typeof(Thing), typeof(AerialVehicleInFlight) };
+                var typesTransferable = new[] { typeof(TransferableImmutable), typeof(AerialVehicleInFlight) };
+
+                // Abandon non-pawn Thing
+                method = MpMethodUtil.GetLambda(
+                    typeof(AerialVehicleAbandonOrBanishHelper),
+                    nameof(AerialVehicleAbandonOrBanishHelper.TryAbandonOrBanishViaInterface),
+                    MethodType.Normal,
+                    typesThing,
+                    0);
+                MP.RegisterSyncDelegate(typeof(AerialVehicleAbandonOrBanishHelper), method.DeclaringType!.Name, method.Name);
+                // Abandon specific Pawn, replace the vanilla banish interaction with our synced one as
+                // syncing of the pawn fails here. All the other methods redirect pawn banishing here.
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(
+                        typeof(AerialVehicleAbandonOrBanishHelper),
+                        nameof(AerialVehicleAbandonOrBanishHelper.TryAbandonOrBanishViaInterface),
+                        typesThing),
+                    transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(ReplaceVanillaBanishDialog)));
+                MP.RegisterSyncMethod(typeof(VehicleFramework), nameof(SyncedBanishPawn));
+
+                // Abandon non-pawn Transferable
+                method = MpMethodUtil.GetLambda(
+                    typeof(AerialVehicleAbandonOrBanishHelper),
+                    nameof(AerialVehicleAbandonOrBanishHelper.TryAbandonOrBanishViaInterface),
+                    MethodType.Normal,
+                    typesTransferable,
+                    0);
+                MP.RegisterSyncDelegate(typeof(AerialVehicleAbandonOrBanishHelper), method.DeclaringType!.Name, method.Name);
+
+                // Abandon specific count Thing
+                method = MpMethodUtil.GetLambda(
+                    typeof(AerialVehicleAbandonOrBanishHelper),
+                    nameof(AerialVehicleAbandonOrBanishHelper.TryAbandonSpecificCountViaInterface),
+                    MethodType.Normal,
+                    typesThing,
+                    0);
+                MP.RegisterSyncDelegate(typeof(AerialVehicleAbandonOrBanishHelper), method.DeclaringType!.Name, method.Name);
+
+                // Abandon specific count Transferable
+                method = MpMethodUtil.GetLambda(
+                    typeof(AerialVehicleAbandonOrBanishHelper),
+                    nameof(AerialVehicleAbandonOrBanishHelper.TryAbandonSpecificCountViaInterface),
+                    MethodType.Normal,
+                    typesTransferable,
+                    0);
+                MP.RegisterSyncDelegate(typeof(AerialVehicleAbandonOrBanishHelper), method.DeclaringType!.Name, method.Name);
             }
 
             #endregion
@@ -547,9 +596,6 @@ namespace Multiplayer.Compat
 
             #endregion
 
-            // TODO: Aerial vehicle tab
-            // TODO: ITabs and WITabs
-
             #endregion
         }
 
@@ -672,7 +718,7 @@ namespace Multiplayer.Compat
 
         #endregion
 
-        #region ITabs
+        #region ITabs and WITabs
 
         private static bool PreHandleDragEvent()
         {
@@ -720,6 +766,75 @@ namespace Multiplayer.Compat
                 VehicleTabHelper_Passenger.transferToHolder = currentTransferToHolder;
                 Event.current = currentEvent;
             }
+        }
+
+        private static void ReplacedShowBanishPawnConfirmationDialog(Pawn pawn, Action onConfirm, AerialVehicleInFlight aerialVehicle)
+        {
+            if (!MP.IsInMultiplayer)
+            {
+                PawnBanishUtility.ShowBanishPawnConfirmationDialog(pawn, onConfirm);
+                return;
+            }
+
+            // onConfirm should be null, don't bother with it in MP
+            if (onConfirm != null)
+                Log.ErrorOnce($"onConfirm was not null for {nameof(PawnBanishUtility.ShowBanishPawnConfirmationDialog)}, MP Compat will likely need an update. There may be issues", -818484805);
+
+            Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                PawnBanishUtility.GetBanishPawnDialogText(pawn),
+                () => SyncedBanishPawn(aerialVehicle, pawn.thingIDNumber),
+                true));
+        }
+
+        private static void SyncedBanishPawn(AerialVehicleInFlight aerialVehicle, int pawnId)
+        {
+            if (aerialVehicle?.vehicle == null)
+                return;
+
+            var pawns = aerialVehicle.vehicle.AllPawnsAboard;
+            if (pawns.NullOrEmpty())
+                return;
+
+            var pawn = pawns.Find(p => p.thingIDNumber == pawnId);
+            if (pawn != null)
+                PawnBanishUtility.Banish(pawn);
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceVanillaBanishDialog(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var target = AccessTools.DeclaredMethod(typeof(PawnBanishUtility), nameof(PawnBanishUtility.ShowBanishPawnConfirmationDialog));
+            var replacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedShowBanishPawnConfirmationDialog));
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                if (ci.Calls(target))
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+
+                    replacedCount++;
+
+                    // Load the first arg (AerialVehicleInFlight) to the stack so our replacement method can access it
+                    yield return new CodeInstruction(OpCodes.Ldarg_1);
+                }
+
+                yield return ci;
+            }
+
+            const int expected = 1;
+            if (replacedCount != expected)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Patched incorrect number of PawnBanishUtility.ShowBanishPawnConfirmationDialog calls (patched {replacedCount}, expected {expected}) for method {name}");
+            }
+#if DEBUG
+            else
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Message($"Patched PawnBanishUtility.ShowBanishPawnConfirmationDialog calls (patched {replacedCount}, expected {expected}) for method {name}");
+            }
+#endif
         }
 
         #endregion
