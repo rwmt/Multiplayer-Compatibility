@@ -3,18 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Threading;
 using HarmonyLib;
 using JetBrains.Annotations;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
 using SmashTools;
-using SmashTools.Performance;
 using UnityEngine;
 using Vehicles;
 using Verse;
-using Verse.AI;
 using Verse.Sound;
 
 namespace Multiplayer.Compat
@@ -85,13 +82,17 @@ namespace Multiplayer.Compat
                 var methods = new[]
                 {
                     AccessTools.DeclaredMethod(typeof(PathingHelper), nameof(PathingHelper.RecalculatePerceivedPathCostAt)),
-                    AccessTools.DeclaredMethod(typeof(PathingHelper), nameof(PathingHelper.ThingAffectingRegionsDeSpawned)),
                     AccessTools.DeclaredMethod(typeof(PathingHelper), nameof(PathingHelper.ThingAffectingRegionsOrientationChanged)),
-                    AccessTools.DeclaredMethod(typeof(PathingHelper), nameof(PathingHelper.ThingAffectingRegionsSpawned)),
                     AccessTools.DeclaredMethod(typeof(Vehicle_PathFollower), nameof(Vehicle_PathFollower.TrySetNewPath_Threaded)),
+                    // Differences between stable and experimental, don't use direct references (nameof should be fine) to avoid issues.
+                    // Spawned/DeSpawned, current stable
+                    AccessTools.DeclaredMethod("Vehicles.PathingHelper:ThingAffectingRegionsDeSpawned"),
+                    AccessTools.DeclaredMethod("Vehicles.PathingHelper:ThingAffectingRegionsSpawned"),
+                    // StateChange, current experimental
+                    AccessTools.DeclaredMethod("Vehicles.PathingHelper:ThingAffectingRegionsStateChange"),
                 };
                 var transpiler = new HarmonyMethod(typeof(VehicleFramework), nameof(ReplaceThreadAvailable));
-                foreach (var m in methods)
+                foreach (var m in methods.Where(m => m != null))
                     MpCompat.harmony.Patch(m, transpiler: transpiler);
 
                 // // Slightly replace how pathfinding is handled by the mod.
@@ -647,90 +648,90 @@ namespace Multiplayer.Compat
 
         #region MP safe pathfinding
 
-        private static bool PrePathTicker(Vehicle_PathFollower __instance)
-        {
-            if (!MP.IsInMultiplayer)
-                return true;
-
-            // In the mod, it wouldn't wait for the path to be calculated (and instead assign it the first tick it's ready).
-            // In MP, we need to wait here for pathfinding to be finished.
-            lock (__instance.pathLock)
-            {
-                while (__instance.CalculatingPath)
-                    Monitor.Wait(__instance.pathLock, 25); // Wait until the lock is pulsed, but just in case - check every 25ms if the path is ready.
-            }
-
-            if (__instance.pathToAssign == PawnPath.NotFound)
-            {
-                __instance.pathToAssign = null;
-                __instance.PatherFailed();
-            }
-            else if (__instance.pathToAssign != null)
-            {
-                __instance.curPath?.ReleaseToPool();
-                __instance.curPath = __instance.pathToAssign;
-                __instance.pathToAssign = null;
-            }
-
-            return true;
-        }
-
-        private static bool PreThreadedTrySetNewPath(Vehicle_PathFollower __instance)
-        {
-            if (!MP.IsInMultiplayer)
-                return true;
-
-            __instance.CalculatingPath = true;
-
-            var cachedMapComponent = __instance.vehicle.Map.GetCachedMapComponent<VehicleMapping>();
-            if (cachedMapComponent.ThreadAvailable)
-            {
-                var asyncAction = AsyncPool<AsyncAction>.Get();
-                asyncAction.Set(
-                    () => MpSafeThreadedPathfinding(__instance),
-                    () => __instance.moving && __instance.CalculatingPath,
-                    _ => MpSafeThreadedPathfindingErrorHandling(__instance));
-                cachedMapComponent.dedicatedThread.Queue(asyncAction);
-            }
-            else
-            {
-                if (!VehicleMod.settings.debug.debugUseMultithreading)
-                    Log.WarningOnce("Finding path on main thread. DedicatedThread was not available.", __instance.vehicle.Map.GetHashCode());
-                __instance.TrySetNewPath();
-                __instance.CalculatingPath = false;
-            }
-
-            return false;
-        }
-
-        private static void MpSafeThreadedPathfinding(Vehicle_PathFollower pather)
-        {
-            var path = pather.GenerateNewPath_Concurrent();
-            if (path is not { Found: true })
-            {
-                pather.pathToAssign = PawnPath.NotFound;
-                Messages.Message("VF_NoPathForVehicle".Translate(), MessageTypeDefOf.RejectInput, false);
-            }
-            else
-            {
-                pather.pathToAssign?.ReleaseToPool();
-                pather.pathToAssign = path;
-            }
-
-            pather.CalculatingPath = false;
-            // No need to pulse all, as there should (at most) be 1 object waiting
-            lock (pather.pathLock)
-                Monitor.Pulse(pather.pathLock);
-        }
-
-        private static void MpSafeThreadedPathfindingErrorHandling(Vehicle_PathFollower pather)
-        {
-            pather.pathToAssign = PawnPath.NotFound;
-            pather.CalculatingPath = false;
-            // No need to pulse all, as there should (at most) be 1 object waiting
-            lock (pather.pathLock)
-                Monitor.Pulse(pather.pathLock);
-        }
+        // private static bool PrePathTicker(Vehicle_PathFollower __instance)
+        // {
+        //     if (!MP.IsInMultiplayer)
+        //         return true;
+        //
+        //     // In the mod, it wouldn't wait for the path to be calculated (and instead assign it the first tick it's ready).
+        //     // In MP, we need to wait here for pathfinding to be finished.
+        //     lock (__instance.pathLock)
+        //     {
+        //         while (__instance.CalculatingPath)
+        //             Monitor.Wait(__instance.pathLock, 25); // Wait until the lock is pulsed, but just in case - check every 25ms if the path is ready.
+        //     }
+        //
+        //     if (__instance.pathToAssign == PawnPath.NotFound)
+        //     {
+        //         __instance.pathToAssign = null;
+        //         __instance.PatherFailed();
+        //     }
+        //     else if (__instance.pathToAssign != null)
+        //     {
+        //         __instance.curPath?.ReleaseToPool();
+        //         __instance.curPath = __instance.pathToAssign;
+        //         __instance.pathToAssign = null;
+        //     }
+        //
+        //     return true;
+        // }
+        //
+        // private static bool PreThreadedTrySetNewPath(Vehicle_PathFollower __instance)
+        // {
+        //     if (!MP.IsInMultiplayer)
+        //         return true;
+        //
+        //     __instance.CalculatingPath = true;
+        //
+        //     var cachedMapComponent = __instance.vehicle.Map.GetCachedMapComponent<VehicleMapping>();
+        //     if (cachedMapComponent.ThreadAvailable)
+        //     {
+        //         var asyncAction = AsyncPool<AsyncAction>.Get();
+        //         asyncAction.Set(
+        //             () => MpSafeThreadedPathfinding(__instance),
+        //             () => __instance.moving && __instance.CalculatingPath,
+        //             _ => MpSafeThreadedPathfindingErrorHandling(__instance));
+        //         cachedMapComponent.dedicatedThread.Queue(asyncAction);
+        //     }
+        //     else
+        //     {
+        //         if (!VehicleMod.settings.debug.debugUseMultithreading)
+        //             Log.WarningOnce("Finding path on main thread. DedicatedThread was not available.", __instance.vehicle.Map.GetHashCode());
+        //         __instance.TrySetNewPath();
+        //         __instance.CalculatingPath = false;
+        //     }
+        //
+        //     return false;
+        // }
+        //
+        // private static void MpSafeThreadedPathfinding(Vehicle_PathFollower pather)
+        // {
+        //     var path = pather.GenerateNewPath_Concurrent();
+        //     if (path is not { Found: true })
+        //     {
+        //         pather.pathToAssign = PawnPath.NotFound;
+        //         Messages.Message("VF_NoPathForVehicle".Translate(), MessageTypeDefOf.RejectInput, false);
+        //     }
+        //     else
+        //     {
+        //         pather.pathToAssign?.ReleaseToPool();
+        //         pather.pathToAssign = path;
+        //     }
+        //
+        //     pather.CalculatingPath = false;
+        //     // No need to pulse all, as there should (at most) be 1 object waiting
+        //     lock (pather.pathLock)
+        //         Monitor.Pulse(pather.pathLock);
+        // }
+        //
+        // private static void MpSafeThreadedPathfindingErrorHandling(Vehicle_PathFollower pather)
+        // {
+        //     pather.pathToAssign = PawnPath.NotFound;
+        //     pather.CalculatingPath = false;
+        //     // No need to pulse all, as there should (at most) be 1 object waiting
+        //     lock (pather.pathLock)
+        //         Monitor.Pulse(pather.pathLock);
+        // }
 
         #endregion
 
