@@ -355,6 +355,24 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreLoadCargoCalculateAndRecache)));
 
                 #endregion
+
+                #region Shared
+
+                // Insert "Switch to map" button to the dialogs with session
+                var types = new[]
+                {
+                    typeof(Dialog_FormVehicleCaravan),
+                    typeof(Dialog_LoadCargo),
+                };
+
+                foreach (var type in types)
+                {
+                    MpCompat.harmony.Patch(
+                        AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents), new[] { typeof(Rect) }),
+                        postfix: new HarmonyMethod(typeof(VehicleFramework), nameof(InsertSwitchToMap)));
+                }
+
+                #endregion
             }
 
             #endregion
@@ -2367,6 +2385,22 @@ namespace Multiplayer.Compat
                 Log.Message($"Patched Widgets.ButtonText calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
 #endif
+        }
+
+        private static void InsertSwitchToMap(Window __instance, Rect __0)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            using (new TextBlock(GameFont.Tiny))
+            {
+                // TODO: Switch to the MP translation once it's included in the mod
+                var switchToMapText = "MpVehiclesSwitchToMap".Translate();
+                var width = switchToMapText.GetWidthCached() + 25;
+
+                if (Widgets.ButtonText(new Rect(__0.xMax - width, 5, width, 24), switchToMapText))
+                    __instance.Close();
+            }
         }
 
         #endregion
