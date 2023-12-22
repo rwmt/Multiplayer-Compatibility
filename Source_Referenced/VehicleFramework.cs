@@ -83,17 +83,17 @@ namespace Multiplayer.Compat
                 {
                     AccessTools.DeclaredMethod(typeof(PathingHelper), nameof(PathingHelper.RecalculatePerceivedPathCostAt)),
                     AccessTools.DeclaredMethod(typeof(PathingHelper), nameof(PathingHelper.ThingAffectingRegionsOrientationChanged)),
+                    AccessTools.DeclaredMethod(typeof(PathingHelper), nameof(PathingHelper.ThingAffectingRegionsStateChange)),
                     AccessTools.DeclaredMethod(typeof(Vehicle_PathFollower), nameof(Vehicle_PathFollower.TrySetNewPath_Threaded)),
-                    // Differences between stable and experimental, don't use direct references (nameof should be fine) to avoid issues.
-                    // Spawned/DeSpawned, current stable
-                    AccessTools.DeclaredMethod("Vehicles.PathingHelper:ThingAffectingRegionsDeSpawned"),
-                    AccessTools.DeclaredMethod("Vehicles.PathingHelper:ThingAffectingRegionsSpawned"),
-                    // StateChange, current experimental
-                    AccessTools.DeclaredMethod("Vehicles.PathingHelper:ThingAffectingRegionsStateChange"),
                 };
                 var transpiler = new HarmonyMethod(typeof(VehicleFramework), nameof(ReplaceThreadAvailable));
                 foreach (var m in methods.Where(m => m != null))
                     MpCompat.harmony.Patch(m, transpiler: transpiler);
+
+                // Disable an issue where a lot of red regions pop-up for 50 ticks when hosting,
+                // or when the `PathingHelper.ThingAffectingRegionsStateChange` method is called for things that spawned.
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(VehicleRegionDirtyer), nameof(VehicleRegionDirtyer.Notify_ThingAffectingRegionsSpawned)),
+                    transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(DisableDebugFlashing)));
 
                 // // Slightly replace how pathfinding is handled by the mod.
                 // // Currently, the vehicle will wait before moving for as long as the path is being calculated.
@@ -155,8 +155,10 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.CompCaravanGizmos), 0, 1).SetDebugOnly();
 
                 MP.RegisterSyncMethod(typeof(CompVehicleTurrets), nameof(CompVehicleTurrets.SetQuotaLevel));
-                // (Dev) full reload turret/cannon
-                MpCompat.RegisterLambdaDelegate(typeof(CompVehicleTurrets), nameof(ThingComp.CompGetGizmosExtra), 2, 4).SetDebugOnly();
+                // Deploy turret
+                MpCompat.RegisterLambdaMethod(typeof(CompVehicleTurrets), nameof(CompVehicleTurrets.CompGetGizmosExtra), 0);
+                // (Dev) full reload turret/cannon (4/6)
+                MpCompat.RegisterLambdaDelegate(typeof(CompVehicleTurrets), nameof(CompVehicleTurrets.CompGetGizmosExtra), 4, 6).SetDebugOnly();
 
 
                 // Turret syncing in separate region
@@ -627,10 +629,11 @@ namespace Multiplayer.Compat
         // Stops specific threads from being created
         private static bool NoThreadInMp(VehicleMapping mapping) => !MP.IsInMultiplayer && mapping.ThreadAvailable;
 
-        private static IEnumerable<CodeInstruction> ReplaceThreadAvailable(IEnumerable<CodeInstruction> instr)
+        private static IEnumerable<CodeInstruction> ReplaceThreadAvailable(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
             var target = AccessTools.DeclaredPropertyGetter(typeof(VehicleMapping), nameof(VehicleMapping.ThreadAvailable));
             var replacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(NoThreadInMp));
+            var replacedAnything = false;
 
             foreach (var ci in instr)
             {
@@ -638,10 +641,56 @@ namespace Multiplayer.Compat
                 {
                     ci.opcode = OpCodes.Call;
                     ci.operand = replacement;
+                    replacedAnything = true;
                 }
 
                 yield return ci;
             }
+
+            if (!replacedAnything)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Failed to patch {nameof(VehicleMapping)}.{nameof(VehicleMapping.ThreadAvailable)} calls for method {name}");
+            }
+        }
+
+        #endregion
+
+        #region Other fixes
+
+        private static IEnumerable<CodeInstruction> DisableDebugFlashing(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var target = AccessTools.DeclaredMethod(typeof(Ext_Map), nameof(Ext_Map.DrawCell_ThreadSafe));
+            var replacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(NoCellDrawing));
+            var replacedAnything = false;
+
+            foreach (var ci in instr)
+            {
+                if (ci.Calls(target))
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+                    replacedAnything = true;
+                }
+
+                yield return ci;
+            }
+
+            if (!replacedAnything)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Failed to patch {nameof(Ext_Map)}.{nameof(Ext_Map.DrawCell_ThreadSafe)} calls (patch most likely no longer needed) for method {name}");
+            }
+        }
+
+        private static void NoCellDrawing(Map map, IntVec3 cell, float colorPct, string text, int duration)
+        {
+            // Do nothing in MP.
+            // We could prefix the method that we patch instead and prevent it from running, but
+            // it would prevent it from running it from other places in the mod.
+
+            if (!MP.IsInMultiplayer)
+                map.DrawCell_ThreadSafe(cell, colorPct, text, duration);
         }
 
         #endregion
