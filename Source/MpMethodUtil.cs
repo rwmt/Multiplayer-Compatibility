@@ -17,18 +17,26 @@ namespace Multiplayer.Compat
         const string EnumerableStateMachineInfix = "d__";
 
         public static IEnumerable<MethodInfo> GetLambda(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, params int[] lambdaOrdinals)
+            => GetLambdaGeneric(parentType, parentMethod, parentMethodType, parentArgs, null, null, lambdaOrdinals);
+
+        public static IEnumerable<MethodInfo> GetLambdaGeneric(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, Type[] genericParentMethodArgs = null, Type[] genericNestedTypeArgs = null, params int[] lambdaOrdinals)
         {
             foreach (int ord in lambdaOrdinals)
             {
-                yield return MpMethodUtil.GetLambda(parentType, parentMethod, parentMethodType, parentArgs, ord);
+                yield return MpMethodUtil.GetLambdaGeneric(parentType, parentMethod, parentMethodType, parentArgs, genericParentMethodArgs, genericNestedTypeArgs, ord);
             }
         }
 
         public static MethodInfo GetLambda(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, int lambdaOrdinal = 0)
+            => GetLambdaGeneric(parentType, parentMethod, parentMethodType, parentArgs, null, null, lambdaOrdinal);
+
+        public static MethodInfo GetLambdaGeneric(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, Type[] genericParentMethodArgs = null, Type[] genericNestedTypeArgs = null, int lambdaOrdinal = 0)
         {
             var parent = GetMethod(parentType, parentMethod, parentMethodType, parentArgs);
             if (parent == null)
                 throw new Exception($"Couldn't find parent method ({parentMethodType}) {parentType}::{parentMethod}");
+            if (genericParentMethodArgs != null && parent is MethodInfo m)
+                parent = m.MakeGenericMethod(genericParentMethodArgs);
 
             var parentId = GetMethodDebugId(parent);
 
@@ -40,7 +48,19 @@ namespace Multiplayer.Compat
 
             // Capturing lambda
             var lambda = parentType.GetNestedTypes(AccessTools.all).
-                Where(t => t.Name.StartsWith(displayClassPrefix)).
+                Where(t =>
+                {
+                    if (genericNestedTypeArgs is { Length: > 0 })
+                    {
+                        if (!t.IsGenericType)
+                            return false;
+                        if (t.GetGenericArguments().Length != genericNestedTypeArgs.Length)
+                            return false;
+                    }
+
+                    return t.Name.StartsWith(displayClassPrefix);
+                }).
+                Select(t => genericNestedTypeArgs == null ? t : t.MakeGenericType(genericNestedTypeArgs)).
                 SelectMany(AccessTools.GetDeclaredMethods).
                 FirstOrDefault(m => m.Name == lambdaNameShort);
 
@@ -61,10 +81,15 @@ namespace Multiplayer.Compat
         }
 
         public static MethodInfo GetLocalFunc(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, string localFunc = null)
+            => GetLocalFuncGeneric(parentType, parentMethod, parentMethodType, parentArgs, null, null, localFunc);
+
+        public static MethodInfo GetLocalFuncGeneric(Type parentType, string parentMethod = null, MethodType parentMethodType = MethodType.Normal, Type[] parentArgs = null, Type[] genericParentMethodArgs = null, Type[] genericNestedTypeArgs = null, string localFunc = null)
         {
             var parent = GetMethod(parentType, parentMethod, parentMethodType, parentArgs);
             if (parent == null)
                 throw new Exception($"Couldn't find parent method ({parentMethodType}) {parentType}::{parentMethod}");
+            if (genericParentMethodArgs != null && parent is MethodInfo m)
+                parent = m.MakeGenericMethod(genericParentMethodArgs);
 
             var parentId = GetMethodDebugId(parent);
 
@@ -78,7 +103,19 @@ namespace Multiplayer.Compat
             var localFuncPrefixWithId = $"<{parentMethod}>{LocalFunctionInfix}{localFunc}|{parentId}";
 
             var candidates = parentType.GetNestedTypes(AccessTools.all).
-                Where(t => t.Name.StartsWith(displayClassPrefix)).
+                Where(t =>
+                {
+                    if (genericNestedTypeArgs is { Length: > 0 })
+                    {
+                        if (!t.IsGenericType)
+                            return false;
+                        if (t.GetGenericArguments().Length != genericNestedTypeArgs.Length)
+                            return false;
+                    }
+
+                    return t.Name.StartsWith(displayClassPrefix);
+                }).
+                Select(t => genericNestedTypeArgs == null ? t : t.MakeGenericType(genericNestedTypeArgs)).
                 SelectMany(AccessTools.GetDeclaredMethods).
                 Where(m => m.Name.StartsWith(localFuncPrefix)).
                 Concat(AccessTools.GetDeclaredMethods(parentType).Where(m => m.Name.StartsWith(localFuncPrefixWithId))).
@@ -104,17 +141,21 @@ namespace Multiplayer.Compat
                 // Try extract the debug id from the method body
                 foreach (var inst in PatchProcessor.GetOriginalInstructions(method))
                 {
-                    // Example class names: <>c__DisplayClass10_0 or <CompGetGizmosExtra>d__7
+                    // Example class names: <>c__DisplayClass10_0 or <CompGetGizmosExtra>d__7 or <>c__DisplayClass0_0`1
                     if (inst.opcode == OpCodes.Newobj
                         && inst.operand is MethodBase m
                         && (cur = m.DeclaringType.Name) != null)
                     {
+                        // Strip generic data
+                        if (cur.Contains('`'))
+                            cur = cur.Until('`');
+
                         if (cur.StartsWith(DisplayClassPrefix))
                             return int.Parse(cur.Substring(DisplayClassPrefix.Length).Until('_'));
                         else if (cur.Contains(EnumerableStateMachineInfix))
                             return int.Parse(cur.After('>').Substring(EnumerableStateMachineInfix.Length));
                     }
-                    // Example method names: <FillTab>b__10_0 or <DoWindowContents>g__Start|55_1
+                    // Example method names: <FillTab>b__10_0 or <DoWindowContents>g__Start|55_1 or <GetFloatMenuOptions>b__0`1
                     else if (
                         (inst.opcode == OpCodes.Ldftn || inst.opcode == OpCodes.Call)
                         && inst.operand is MethodBase f
@@ -122,6 +163,10 @@ namespace Multiplayer.Compat
                         && cur.StartsWith("<")
                         && cur.After('>').CharacterCount('_') == 3)
                     {
+                        // Strip generic data
+                        if (cur.Contains('`'))
+                            cur = cur.Until('`');
+
                         if (cur.Contains(LambdaMethodInfix))
                             return int.Parse(cur.After('>').Substring(LambdaMethodInfix.Length).Until('_'));
                         else if (cur.Contains(LocalFunctionInfix))
@@ -131,7 +176,7 @@ namespace Multiplayer.Compat
             }
             catch (Exception e)
             {
-                throw new Exception($"Extracting debug id for {method.DeclaringType}::{method.Name} failed at {cur} with: {e.Message}");
+                throw new Exception($"Extracting debug id for {method.DeclaringType}::{method.Name} failed at {cur} with: {e}");
             }
 
             throw new Exception($"Couldn't determine debug id for parent method {method.DeclaringType}::{method.Name}");
@@ -163,9 +208,8 @@ namespace Multiplayer.Compat
                     return AccessTools.DeclaredConstructor(type, args);
 
                 case MethodType.StaticConstructor:
-                    return AccessTools
-                        .GetDeclaredConstructors(type)
-                        .FirstOrDefault(c => c.IsStatic);
+                    return Enumerable.FirstOrDefault(AccessTools
+                            .GetDeclaredConstructors(type), c => c.IsStatic);
             }
 
             return null;
