@@ -92,9 +92,9 @@ namespace Multiplayer.Compat
                     var def = sync.Read<DesignationDef>();
 
                     if (target.HasThing)
-                        manager.DesignationOn(target.Thing, def);
+                        designation = manager.DesignationOn(target.Thing, def);
                     else
-                        manager.DesignationAt(target.Cell, def);
+                        designation = manager.DesignationAt(target.Cell, def);
                 }
             }
         }
