@@ -47,6 +47,7 @@ namespace Multiplayer.Compat
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
                 (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
+                (PatchExpandableProjectile, "Expandable projectile", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -191,6 +192,30 @@ namespace Multiplayer.Compat
                 "VFECore.SocialCardUtility_DrawPregnancyApproach_Patch", 
                 "AddPregnancyApproachOptions",
                 0, 1); // Disable extra approaches (0), set extra approach (1)
+        }
+
+        private static void PatchExpandableProjectile()
+        {
+            PatchingUtilities.InitCancelInInterface();
+            MpCompat.harmony.Patch(AccessTools.DeclaredPropertyGetter("VFECore.ExpandableProjectile:StartingPosition"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreStartingPositionGetter)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostStartingPositionGetter)));
+        }
+
+        private static void PreStartingPositionGetter(Vector3 ___startingPosition, bool ___pawnMoved, ref (Vector3, bool)? __state)
+        {
+            // If in interface, store the current values.
+            if (PatchingUtilities.ShouldCancel)
+                __state = (___startingPosition, ___pawnMoved);
+        }
+
+        private static void PostStartingPositionGetter(ref Vector3 ___startingPosition, ref bool ___pawnMoved, (Vector3, bool)? __state)
+        {
+            // If state not null (in interface), restore previous values.
+            // Alternatively, we could also have separate values for interface and simulation,
+            // but seems a bit pointless to do it like this since it's just a minor thing.
+            if (__state != null)
+                (___startingPosition, ___pawnMoved) = __state.Value;
         }
 
         #endregion
