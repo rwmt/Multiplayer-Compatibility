@@ -70,6 +70,7 @@ namespace Multiplayer.Compat
             // Should be initialized by PatchCancelInInterface calls later on,
             // so this exists here as an extra safety in case those ever get removed later on.
             PatchingUtilities.InitCancelInInterface();
+            MpCompatPatchLoader.LoadPatch<VehicleFramework>();
 
             #endregion
 
@@ -211,7 +212,8 @@ namespace Multiplayer.Compat
                     TrySyncDeclaredMethod(subclass, nameof(VehicleTurret.SwitchAutoTarget));
                 }
 
-                // type = AccessTools.TypeByName("Vehicles.TurretTargeter");
+                // Stop the call from interface, called from TurretRotation getter. We update it during ticking.
+                PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(typeof(VehicleTurret), nameof(VehicleTurret.ValidateLockStatus)));
             }
 
             #endregion
@@ -2454,6 +2456,63 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+        #endregion
+
+        #region Determinism
+
+        [MpCompatPostfix(typeof(VehiclePawn), nameof(VehiclePawn.Tick))]
+        private static void PostVehicleTick(VehiclePawn __instance)
+        {
+            // Ignore out of MP, drawing will update angles and stuff
+            if (!MP.IsInMultiplayer)
+                return;
+
+            // Likely not needed if the vehicle is not spawned
+            if (!__instance.Spawned)
+                return;
+
+            // Make sure that the vehicle has turrets at all
+            var turretsComp = __instance.CompVehicleTurrets;
+            if (turretsComp == null)
+                return;
+
+            // This would normally be done during ticking or drawing for each turret inside
+            // of TurretRotation getter. However, calling it during drawing will cause issues,
+            // and the turrets don't always tick, so we need to ensure this is updated when
+            // the turret is not ticking, and it's done in a deterministic manner.
+            foreach (var turret in turretsComp.turrets)
+            {
+                if (turret.IsTargetable || turret.attachedTo != null)
+                {
+                    turret.ValidateLockStatus();
+                    turret.rotation = turret.rotation.ClampAndWrap(0f, 360f);
+                }
+            }
+        }
+
+        [MpCompatPrefix(typeof(VehicleTurret), nameof(VehicleTurret.TurretRotation), methodType: MethodType.Getter)]
+        private static void PreTurretRotation(VehicleTurret __instance, float ___rotation, ref float? __state)
+        {
+            if (PatchingUtilities.ShouldCancel)
+                __state = ___rotation;
+        }
+
+        [MpCompatPostfix(typeof(VehicleTurret), nameof(VehicleTurret.TurretRotation), methodType: MethodType.Getter)]
+        private static void PostTurretRotation(ref float ___rotation, float? __state)
+        {
+            if (__state.HasValue)
+                ___rotation = __state.Value;
+        }
+
+        [MpCompatPrefix(typeof(TurretTargeter), nameof(TurretTargeter.Turret), methodType: MethodType.Getter)]
+        private static bool PreTurretTargeterCurrentTurretGetter()
+        {
+            // A couple of places during ticking check the current turret from the targeter. This will cause
+            // issues due to conditional statements based on `TurretTargeter.Turret != this`, etc. so just
+            // prevent the mod from returning the actual turret in interface (return default value/null).
+            return PatchingUtilities.ShouldCancel; // The inverse of what PatchingUtilities.PatchCancelInInterface does
+        }
 
         #endregion
     }
