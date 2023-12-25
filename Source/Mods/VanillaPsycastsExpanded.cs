@@ -17,6 +17,31 @@ namespace Multiplayer.Compat
     [MpCompatFor("VanillaExpanded.VPsycastsE")]
     public class VanillaPsycastsExpanded
     {
+        #region Init
+
+        public VanillaPsycastsExpanded(ModContentPack mod)
+        {
+            InitializeCommonData();
+            PatchPsysets();
+            PatchPsyringDialog();
+            RegisterSyncMethods();
+
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
+        }
+
+        private static void LatePatch()
+        {
+            PatchPsychicStatusGizmo();
+            PatchPsycasterHediff();
+            PatchGizmosAndFlecks();
+            PatchITab();
+            PatchSkipdoor();
+        }
+
+        #endregion
+
+        #region Common
+
         private static ISyncField syncPsychicEntropyLimit;
         private static ISyncField syncPsychicEntropyTargetFocus;
         private static AccessTools.FieldRef<object, Pawn_PsychicEntropyTracker> psychicEntropyGetter;
@@ -26,159 +51,23 @@ namespace Multiplayer.Compat
         private static FastInvokeHandler removePsysetMethod;
         private static AccessTools.FieldRef<object, IList> hediffPsysetsList;
 
-        // PsySet
-        private static Type psysetType;
-        private static AccessTools.FieldRef<object, IEnumerable> psysetAbilitiesField;
-        private static AccessTools.FieldRef<object, string> psysetNameField;
-
-        // Dialog_Psyset
-        private static AccessTools.FieldRef<object, object> dialogPsysetPsysetField;
-        private static AccessTools.FieldRef<object, Hediff> dialogPsysetHediffField;
-
-        // Dialog_Psyset.<>c__DisplayClass10_0
-        private static AccessTools.FieldRef<object, Window> innerClassDialogPsysetField;
-
-        // Dialog_CreatePsyring
-        private static Type createPsyringDialogType;
-        private static ConstructorInfo createPsyringDialogConstructor;
-        private static AccessTools.FieldRef<object, Pawn> createPsyringPawnField;
-        private static AccessTools.FieldRef<object, Thing> createPsyringFuelField;
-
-        // HashSet<AbilityDef>
-        private static Type abilityDefHashSetType;
-        private static FastInvokeHandler abilityDefHashSetAddMethod;
-
-        public VanillaPsycastsExpanded(ModContentPack mod)
+        private static void InitializeCommonData()
         {
             syncPsychicEntropyLimit = (ISyncField)AccessTools.Field("Multiplayer.Client.SyncFields:SyncPsychicEntropyLimit").GetValue(null);
             syncPsychicEntropyTargetFocus = (ISyncField)AccessTools.Field("Multiplayer.Client.SyncFields:SyncPsychicEntropyTargetFocus").GetValue(null);
-
-            psysetType = AccessTools.TypeByName("VanillaPsycastsExpanded.PsySet");
-            psysetAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(psysetType, "Abilities");
-            psysetNameField = AccessTools.FieldRefAccess<string>(psysetType, "Name");
-
-            var abilityDefType = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
-            abilityDefHashSetType = typeof(HashSet<>).MakeGenericType(abilityDefType);
-            abilityDefHashSetAddMethod = MethodInvoker.GetHandler(AccessTools.Method(abilityDefHashSetType, "Add"));
-
-            // Psyset dialog
-            {
-                var type = AccessTools.TypeByName("VanillaPsycastsExpanded.UI.Dialog_Psyset");
-
-                dialogPsysetPsysetField = AccessTools.FieldRefAccess<object>(type, "psyset");
-                dialogPsysetHediffField = AccessTools.FieldRefAccess<Hediff>(type, "hediff");
-
-                MpCompat.harmony.Patch(AccessTools.GetDeclaredConstructors(type).FirstOrDefault(),
-                    postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsysetDialogCtor)));
-                MpCompat.harmony.Patch(AccessTools.Method(type, nameof(Window.DoWindowContents)),
-                    prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PrePsysetDoWindowContents)),
-                    postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsysetDoWindowContents)));
-
-                var method = MpMethodUtil.GetLambda(type, "DoWindowContents");
-                type = method.DeclaringType;
-
-                innerClassDialogPsysetField = AccessTools.FieldRefAccess<Window>(type, "<>4__this");
-
-                MpCompat.harmony.Patch(method,
-                    prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PrePsysetInnerClassMethod)),
-                    postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsysetInnerClassMethod)));
-            }
-
-            // Set name dialog
-            {
-                MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.Dialog_RenamePsyset:SetName"),
-                    prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PreSetPsysetName)));
-            }
-
-            // CreatePsyring dialog
-            {
-                createPsyringDialogType = AccessTools.TypeByName("VanillaPsycastsExpanded.Technomancer.Dialog_CreatePsyring");
-                createPsyringDialogConstructor = AccessTools.DeclaredConstructor(createPsyringDialogType, new [] { typeof(Pawn), typeof(Thing) });
-                createPsyringPawnField = AccessTools.FieldRefAccess<Pawn>(createPsyringDialogType, "pawn");
-                createPsyringFuelField = AccessTools.FieldRefAccess<Thing>(createPsyringDialogType, "fuel");
-
-                MP.RegisterSyncWorker<object>(SyncDialogCreatePsyring, createPsyringDialogType);
-                MP.RegisterSyncMethod(createPsyringDialogType, "Create");
-
-                DialogUtilities.RegisterDialogCloseSync(createPsyringDialogType, true);
-            }
-
-            // Sync methods
-            {
-                MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncPsyset));
-                MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRemovePsyset));
-                MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncEnsurePsysetExists));
-                MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRenamePsyset));
-            }
-
-            // Motes/Flecks
-            {
-                // Uses RNG after GenView.ShouldSpawnMotesAt, gonna cause desyncs
-                PatchingUtilities.PatchPushPopRand("VanillaPsycastsExpanded.FixedTemperatureZone:ThrowFleck");
-            }
-
-            // Gizmos
-            {
-                MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.CompBreakLink", "GetGizmos", 0);
-                MpCompat.RegisterLambdaDelegate("VanillaPsycastsExpanded.Ability_GuardianSkipBarrier", "GetGizmo", 0);
-            }
-
-            // Current map usage
-            {
-                // Already patched on GitHub, this patch should become redundant the next time the mod updates
-                PatchingUtilities.ReplaceCurrentMapUsage("VanillaPsycastsExpanded.Harmonist.HediffComp_MindControl:CompPostPostRemoved");
-            }
-
-            LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 
-        private static void LatePatch()
+        #endregion
+
+        #region Psychic status gizmo
+
+        private static void PatchPsychicStatusGizmo()
         {
-            // Status gizmo
-            {
-                var type = AccessTools.TypeByName("VanillaPsycastsExpanded.UI.PsychicStatusGizmo");
-                psychicEntropyGetter = AccessTools.FieldRefAccess<Pawn_PsychicEntropyTracker>(type, "tracker");
-                MpCompat.harmony.Patch(AccessTools.Method(type, "GizmoOnGUI"),
-                    prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PrePsyfocusTarget)),
-                    postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsyfocusTarget)));
-            }
-
-            // Hediff
-            {
-                var type = AccessTools.TypeByName("VanillaPsycastsExpanded.Hediff_PsycastAbilities");
-
-                removePsysetMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "RemovePsySet"));
-                hediffPsysetsList = AccessTools.FieldRefAccess<IList>(type, "psysets");
-
-                MP.RegisterSyncMethod(type, "SpentPoints");
-                MP.RegisterSyncMethod(type, "ImproveStats");
-                MP.RegisterSyncMethod(type, "UnlockPath");
-                MP.RegisterSyncMethod(type, "UnlockMeditationFocus");
-                MP.RegisterSyncMethod(type, "GainExperience");
-                // MP.RegisterSyncMethod(type, "RemovePsySet");
-
-                // Active Psyset changes don't need syncing - they could, but it may end up annoying
-                // MpCompat.RegisterLambdaDelegate(type, "GetPsySetGizmos", 0);
-                // MpCompat.RegisterLambdaDelegate(type, "GetPsySetFloatMenuOptions", 0);
-            }
-
-            // ITab
-            {
-                MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.ITab_Pawn_Psycasts:DoPsysets"),
-                    transpiler: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(Transpiler)));
-            }
-
-            // Motes/Flecks
-            {
-                // Uses RNG after GenView.ShouldSpawnMotesAt, gonna cause desyncs
-                PatchingUtilities.PatchPushPopRand("VanillaPsycastsExpanded.Conflagrator.FireTornado:ThrowPuff");
-            }
-
-            // Skipdoor 
-            {
-                // Destroy
-                MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.Skipmaster.Skipdoor", "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
-            }
+            var type = AccessTools.TypeByName("VanillaPsycastsExpanded.UI.PsychicStatusGizmo");
+            psychicEntropyGetter = AccessTools.FieldRefAccess<Pawn_PsychicEntropyTracker>(type, "tracker");
+            MpCompat.harmony.Patch(AccessTools.Method(type, "GizmoOnGUI"),
+                prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PrePsyfocusTarget)),
+                postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsyfocusTarget)));
         }
 
         private static void PrePsyfocusTarget(object __instance)
@@ -200,6 +89,64 @@ namespace Multiplayer.Compat
         {
             if (MP.IsInMultiplayer)
                 MP.WatchEnd();
+        }
+
+        #endregion
+
+        #region Psysets
+
+        // PsySet
+        private static Type psysetType;
+        private static AccessTools.FieldRef<object, IEnumerable> psysetAbilitiesField;
+        private static AccessTools.FieldRef<object, string> psysetNameField;
+
+        // Dialog_Psyset
+        private static AccessTools.FieldRef<object, object> dialogPsysetPsysetField;
+        private static AccessTools.FieldRef<object, Hediff> dialogPsysetHediffField;
+
+        // Dialog_Psyset.<>c__DisplayClass10_0
+        private static AccessTools.FieldRef<object, Window> innerClassDialogPsysetField;
+
+        // HashSet<AbilityDef>
+        private static Type abilityDefHashSetType;
+        private static FastInvokeHandler abilityDefHashSetAddMethod;
+        
+
+        private static void PatchPsysets()
+        {
+            // Init
+            var abilityDefType = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
+            abilityDefHashSetType = typeof(HashSet<>).MakeGenericType(abilityDefType);
+            abilityDefHashSetAddMethod = MethodInvoker.GetHandler(AccessTools.Method(abilityDefHashSetType, "Add"));
+
+            psysetType = AccessTools.TypeByName("VanillaPsycastsExpanded.PsySet");
+            psysetAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(psysetType, "Abilities");
+            psysetNameField = AccessTools.FieldRefAccess<string>(psysetType, "Name");
+
+            // Psyset dialog
+            var type = AccessTools.TypeByName("VanillaPsycastsExpanded.UI.Dialog_Psyset");
+
+            dialogPsysetPsysetField = AccessTools.FieldRefAccess<object>(type, "psyset");
+            dialogPsysetHediffField = AccessTools.FieldRefAccess<Hediff>(type, "hediff");
+
+            MpCompat.harmony.Patch(AccessTools.GetDeclaredConstructors(type).FirstOrDefault(),
+                postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsysetDialogCtor)));
+            MpCompat.harmony.Patch(AccessTools.Method(type, nameof(Window.DoWindowContents)),
+                prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PrePsysetDoWindowContents)),
+                postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsysetDoWindowContents)));
+
+            var method = MpMethodUtil.GetLambda(type, "DoWindowContents");
+            type = method.DeclaringType;
+
+            innerClassDialogPsysetField = AccessTools.FieldRefAccess<Window>(type, "<>4__this");
+
+            MpCompat.harmony.Patch(method,
+                prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PrePsysetInnerClassMethod)),
+                postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsysetInnerClassMethod)));
+
+            // Set name dialog
+            MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.Dialog_RenamePsyset:SetName"),
+                prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PreSetPsysetName)));
         }
 
         private static void ReplacedRemovePsyset(Hediff hediff, object psyset)
@@ -334,23 +281,6 @@ namespace Multiplayer.Compat
             psysetNameField(psyset) = name;
         }
 
-        private static void SyncDialogCreatePsyring(SyncWorker sync, ref object dialog)
-        {
-            if (sync.isWriting)
-            {
-                sync.Write(createPsyringPawnField(dialog));
-                sync.Write(createPsyringFuelField(dialog));
-            }
-            else
-            {
-                var pawn = sync.Read<Pawn>();
-                var fuel = sync.Read<Thing>();
-
-                // When Dialog_CreatePsyring.Create() is called next tick this dialog is already gone from WindowStack, this is disposable.
-                dialog = createPsyringDialogConstructor.Invoke(new object[] { pawn, fuel });
-            }
-        }
-
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instr)
         {
             var codeInstructions = instr as CodeInstruction[] ?? instr.ToArray();
@@ -389,5 +319,111 @@ namespace Multiplayer.Compat
                 yield return ci;
             }
         }
+
+        #endregion
+
+        #region Psyring
+
+        // Dialog_CreatePsyring
+        private static Type createPsyringDialogType;
+        private static AccessTools.FieldRef<object, Pawn> createPsyringPawnField;
+        private static AccessTools.FieldRef<object, Thing> createPsyringFuelField;
+
+        private static void PatchPsyringDialog()
+        {
+            createPsyringDialogType = AccessTools.TypeByName("VanillaPsycastsExpanded.Technomancer.Dialog_CreatePsyring");
+            createPsyringPawnField = AccessTools.FieldRefAccess<Pawn>(createPsyringDialogType, "pawn");
+            createPsyringFuelField = AccessTools.FieldRefAccess<Thing>(createPsyringDialogType, "fuel");
+
+            MP.RegisterSyncWorker<object>(SyncDialogCreatePsyring, createPsyringDialogType);
+            MP.RegisterSyncMethod(createPsyringDialogType, "Create");
+
+            DialogUtilities.RegisterDialogCloseSync(createPsyringDialogType, true);
+        }
+
+        private static void SyncDialogCreatePsyring(SyncWorker sync, ref object dialog)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(createPsyringPawnField(dialog));
+                sync.Write(createPsyringFuelField(dialog));
+            }
+            else
+            {
+                var pawn = sync.Read<Pawn>();
+                var fuel = sync.Read<Thing>();
+
+                // When Dialog_CreatePsyring.Create() is called next tick this dialog is already gone from WindowStack, this is disposable.
+                // dialog = createPsyringDialogConstructor.Invoke(new object[] { pawn, fuel });
+                dialog = Activator.CreateInstance(createPsyringDialogType, pawn, fuel, null);
+            }
+        }
+
+        #endregion
+
+        #region Psycaster hediff
+
+        private static void PatchPsycasterHediff()
+        {
+            var type = AccessTools.TypeByName("VanillaPsycastsExpanded.Hediff_PsycastAbilities");
+
+            removePsysetMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "RemovePsySet"));
+            hediffPsysetsList = AccessTools.FieldRefAccess<IList>(type, "psysets");
+
+            MP.RegisterSyncMethod(type, "SpentPoints");
+            MP.RegisterSyncMethod(type, "ImproveStats");
+            MP.RegisterSyncMethod(type, "UnlockPath");
+            MP.RegisterSyncMethod(type, "UnlockMeditationFocus");
+            MP.RegisterSyncMethod(type, "GainExperience");
+            // MP.RegisterSyncMethod(type, "RemovePsySet");
+
+            // Active Psyset changes don't need syncing - they could, but it may end up annoying
+            // MpCompat.RegisterLambdaDelegate(type, "GetPsySetGizmos", 0);
+            // MpCompat.RegisterLambdaDelegate(type, "GetPsySetFloatMenuOptions", 0);
+        }
+
+        #endregion
+
+        #region Other
+
+        private static void RegisterSyncMethods()
+        {
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncPsyset));
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRemovePsyset));
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncEnsurePsysetExists));
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRenamePsyset));
+
+            // Gizmos
+            MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.CompBreakLink", "GetGizmos", 0);
+            MpCompat.RegisterLambdaDelegate("VanillaPsycastsExpanded.Ability_GuardianSkipBarrier", "GetGizmo", 0);
+        }
+
+        private static void PatchGizmosAndFlecks()
+        {
+            // Uses RNG after GenView.ShouldSpawnMotesAt, gonna cause desyncs
+            PatchingUtilities.PatchPushPopRand(new[]
+            {
+                "VanillaPsycastsExpanded.FixedTemperatureZone:ThrowFleck",
+                "VanillaPsycastsExpanded.Conflagrator.FireTornado:ThrowPuff",
+            });
+        }
+
+        private static void PatchCurrentMapUsage()
+        {
+        }
+
+        private static void PatchITab()
+        {
+            MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.ITab_Pawn_Psycasts:DoPsysets"),
+                transpiler: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(Transpiler)));
+        }
+
+        private static void PatchSkipdoor()
+        {
+            // Destroy
+            MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.Skipmaster.Skipdoor", "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
+        }
+
+        #endregion
     }
 }

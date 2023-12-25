@@ -1,6 +1,7 @@
 ﻿using System;
 
 using HarmonyLib;
+using JetBrains.Annotations;
 using Multiplayer.API;
 using Verse;
 
@@ -13,10 +14,14 @@ namespace Multiplayer.Compat
     [MpCompatFor("PeteTimesSix.SimpleSidearms")]
     public class SimpleSidearmsCompat
     {
+        // TODO: Suggest the author to encapsulate this, would simplify things so much
+        [MpCompatSyncField("SimpleSidearms.rimworld.CompSidearmMemory", "primaryWeaponMode")]
         private static ISyncField primaryWeaponModeSyncField;
 
         public SimpleSidearmsCompat(ModContentPack mod)
         {
+            MpCompatPatchLoader.LoadPatch(this);
+
             Type type;
 
             // Gizmo interactions
@@ -55,27 +60,8 @@ namespace Multiplayer.Compat
                 foreach (string method in methods) {
                     MP.RegisterSyncMethod(AccessTools.Method(type, method));
                 }
-
-                // TODO: Suggest the author to encapsulate this, would simplify things so much
-                primaryWeaponModeSyncField = MP.RegisterSyncField(AccessTools.Field(type, "primaryWeaponMode"));
             }
 
-            // Required for primaryWeaponMode
-            {
-                type = AccessTools.TypeByName("SimpleSidearms.rimworld.Gizmo_SidearmsList");
-
-                MpCompat.harmony.Patch(AccessTools.Method(type, "handleInteraction"),
-                    prefix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(HandleInteractionPrefix)),
-                    postfix: new HarmonyMethod(typeof(SimpleSidearmsCompat), nameof(HandleInteractionPostfix)));
-            }
-
-            // Used often in the Set* methods for CompSidearmMemory
-            {
-                type = AccessTools.TypeByName("SimpleSidearms.rimworld.ThingDefStuffDefPair");
-
-                MP.RegisterSyncWorker<object>(SyncWorkerForThingDefStuffDefPair, type);
-            }
-            
             // Patched sync methods
             {
                 // When undrafted, the pawns will remove their temporary forced weapon.
@@ -88,6 +74,8 @@ namespace Multiplayer.Compat
 
         #region ThingDefStuffDefPair
 
+        // Used often in the Set* methods for CompSidearmMemory
+        [MpCompatSyncWorker("SimpleSidearms.rimworld.ThingDefStuffDefPair")]
         private static void SyncWorkerForThingDefStuffDefPair(SyncWorker sync, ref object obj)
         {
             var traverse = Traverse.Create(obj);
@@ -108,6 +96,8 @@ namespace Multiplayer.Compat
 
         #region primaryWeaponMode field watch
 
+        // Required for primaryWeaponMode
+        [MpCompatPrefix("SimpleSidearms.rimworld.Gizmo_SidearmsList", "handleInteraction")]
         private static void HandleInteractionPrefix(ThingComp ___pawnMemory)
         {
             if (MP.IsInMultiplayer) {
@@ -116,10 +106,48 @@ namespace Multiplayer.Compat
             }
         }
 
+        [MpCompatPostfix("SimpleSidearms.rimworld.Gizmo_SidearmsList", "handleInteraction")]
         private static void HandleInteractionPostfix()
         {
             if (MP.IsInMultiplayer)
                 MP.WatchEnd();
+        }
+
+        #endregion
+
+        #region Stop verb init in interface
+
+        [MpCompatPrefix("PeteTimesSix.SimpleSidearms.Utilities.GettersFilters", "isManualUse")]
+        [MpCompatPrefix("PeteTimesSix.SimpleSidearms.Utilities.GettersFilters", "isDangerousWeapon")]
+        [MpCompatPrefix("PeteTimesSix.SimpleSidearms.Utilities.GettersFilters", "isEMPWeapon")]
+        [MpCompatPrefix("PeteTimesSix.SimpleSidearms.Utilities.GettersFilters", "findBestRangedWeapon", 8)]
+        private static bool PrePrimaryVerbMethodCall(ThingWithComps __0, ref bool __result)
+        {
+            if (!PatchingUtilities.ShouldCancel)
+                return true;
+
+            var comp = __0.GetComp<CompEquippable>();
+            // Let the mod handle non-existent CompEquippable
+            if (comp == null)
+                return true;
+
+            // If verbs are initialized, let the mod handle it as it wants
+            if (comp.verbTracker.verbs != null)
+                return true;
+
+            // If verbs are null, assume false (is EMP, is dangerous, etc.)
+            __result = false;
+            // Initialize the verb
+            SyncInitVerbsForComp(comp);
+            // Prevent the method from running
+            return false;
+        }
+
+        [MpCompatSyncMethod]
+        private static void SyncInitVerbsForComp(CompEquippable comp)
+        {
+            if (comp.verbTracker.verbs == null)
+                comp.verbTracker.InitVerbsFromZero();
         }
 
         #endregion

@@ -17,6 +17,8 @@ namespace Multiplayer.Compat
     [MpCompatFor("vanillaracesexpanded.android")]
     public class VanillaRacesAndroid
     {
+        #region Fields
+
         // Android creation
         private static Type androidCreationWindowType;
         private static AccessTools.FieldRef<GeneCreationDialogBase, Building> androidCreationWindowStationField;
@@ -54,9 +56,17 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<ChoiceLetter, int> traitChoiceCountField;
         private static AccessTools.FieldRef<ChoiceLetter, List<SkillDef>> passionChoicesField;
         private static AccessTools.FieldRef<ChoiceLetter, List<Trait>> traitChoicesField;
-        
+
         // Utils
         private static FastInvokeHandler recipeForAndroidMethod;
+
+        // HealthCardUtility patch
+        private static ISyncField syncSelfTend;
+        private static ISyncField syncAutoRepair;
+
+        #endregion
+
+        #region Main patch
 
         public VanillaRacesAndroid(ModContentPack mod)
         {
@@ -143,6 +153,17 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(NeutrocasketGetInspectStringPrefix)),
                     transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceSetMedicalCall)),
                     finalizer: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(NeutrocasketGetInspectStringFinalizer)));
+
+                // HealthCardUtility.DrawOverviewTab patch, replaces vanilla drawing for androids.
+                // Since MP WatchBegin prefix runs after VRE-A patch, it won't catch self tend changes,
+                // so we have to watch it in here (as well as the mod specific field).
+                // And as opposed to MP, we don't need to watch medCare field as androids don't use medicine.
+                syncSelfTend = MP.RegisterSyncField(typeof(Pawn_PlayerSettings), nameof(Pawn_PlayerSettings.selfTend));
+                syncAutoRepair = MP.RegisterSyncField(AccessTools.DeclaredField("VREAndroids.Gene_SyntheticBody:autoRepair"));
+
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.HealthCardUtility_DrawOverviewTab_Patch:DrawOverviewTabAndroid"),
+                    prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PreDrawOverviewTabAndroid)),
+                    postfix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(WatchEndPostfix)));
             }
         }
 
@@ -240,12 +261,6 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PreRemoveLetter)));
             }
 
-            // Flickering thoughts list
-            {
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.Gene_SyntheticBody:Tick"),
-                    transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceNeedsCall)));
-            }
-
             // Compat
             var dubsMintMenuGenerateListingMethod = AccessTools.DeclaredMethod("DubsMintMenus.Patch_HealthCardUtility:GenerateListing");
             if (dubsMintMenuGenerateListingMethod != null)
@@ -257,6 +272,8 @@ namespace Multiplayer.Compat
                     transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceAddBillCall)));
             }
         }
+
+        #endregion
 
         #region Dialog patches
 
@@ -449,51 +466,6 @@ namespace Multiplayer.Compat
 
         #endregion
 
-        #region Thoughts flickering fix
-
-        private static void ReplacedNeedsTrackerCall(Pawn_NeedsTracker instance)
-        {
-            // Check once every 6 hours, should prevent flickering and prevent flickering of needs.
-            // In vanilla, this method is called pretty infrequently. In situations like trait or hediffs
-            // being added or removed, ideo changes, etc.
-            // The flickering happens because it triggers this gets called each time:
-            // https://github.com/rwmt/Multiplayer/blob/d7aa398477ae6091f4f5d314bd0331c3933ca525/Source/Client/Patches/SituationalThoughts.cs#L8-L24
-            // Androids just call it every tick. It would probably be smart to look into the mod itself and
-            // check why it's called in the first place. Most likely related to androids becoming awakened?
-            if (instance.pawn.IsHashIntervalTick(GenDate.TicksPerHour * 6))
-                instance.AddOrRemoveNeedsAsAppropriate();
-        }
-
-        private static IEnumerable<CodeInstruction> ReplaceNeedsCall(IEnumerable<CodeInstruction> instr, MethodBase original)
-        {
-            var target = AccessTools.DeclaredMethod(typeof(Pawn_NeedsTracker), nameof(Pawn_NeedsTracker.AddOrRemoveNeedsAsAppropriate));
-            var replacement = AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(ReplacedNeedsTrackerCall));
-
-            var patched = false;
-
-            foreach (var ci in instr)
-            {
-                if ((ci.opcode == OpCodes.Call || ci.opcode == OpCodes.Callvirt) && ci.operand is MethodInfo method && method == target)
-                {
-                    ci.opcode = OpCodes.Call;
-                    ci.operand = replacement;
-
-                    patched = true;
-                }
-
-                yield return ci;
-            }
-
-            if (!patched)
-                Log.Warning($"Failed patching constant AddOrRemoveNeedsAsAppropriate calls for {original?.FullDescription() ?? "(unknown method)"}");
-#if DEBUG
-            else
-                Log.Error($"Successfully patched AddOrRemoveNeedsAsAppropriate calls for {original?.FullDescription() ?? "(unknown method)"}");
-#endif
-        }
-
-        #endregion
-
         #region Other Patches
 
         // HealthCardUtility:CreateSurgeryBill is a MP sync method. Because of this, when the method is called the execution
@@ -551,6 +523,24 @@ namespace Multiplayer.Compat
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
                 Log.Warning($"Patched incorrect number of Building_Bed.Medical calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
+        }
+
+        private static void PreDrawOverviewTabAndroid(Pawn pawn, Gene gene)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchBegin();
+
+            if (pawn.playerSettings != null)
+                syncSelfTend.Watch(pawn.playerSettings);
+            syncAutoRepair.Watch(gene);
+        }
+
+        private static void WatchEndPostfix()
+        {
+            if (MP.IsInMultiplayer)
+                MP.WatchEnd();
         }
 
         #endregion

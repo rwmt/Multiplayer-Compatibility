@@ -77,7 +77,7 @@ namespace Multiplayer.Compat
         private static bool PreTryRemoveWindow(Window window)
         {
             // Let the method run only if it's synced call
-            if (!MP.IsInMultiplayer || PatchingUtilities.ShouldCancel || window.GetType() != changeHairstyleDialogType)
+            if (!PatchingUtilities.ShouldCancel || window.GetType() != changeHairstyleDialogType)
                 return true;
 
             SyncedTryRemoveWindow();

@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -40,10 +41,12 @@ namespace Multiplayer.Compat
                 (PatchKCSG, "KCSG (custom structure generation)", false),
                 (PatchFactionDiscovery, "Faction Discovery", false),
                 (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
-                (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", false),
+                (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", true),
                 (PatchDoorTeleporter, "Teleporter Doors", true),
                 (PatchSpecialTerrain, "Special Terrain", false),
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
+                (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
+                (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -118,10 +121,6 @@ namespace Multiplayer.Compat
         private static void PatchVanillaWeaponsExpanded() 
             => MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
 
-        // Hediffs added in MoodOffset, can be called during alert updates (not synced)
-        private static void PatchVanillaCookingExpanded()
-            => PatchingUtilities.PatchCancelInInterface("VanillaCookingExpanded.Thought_Hediff:MoodOffset");
-
         private static void PatchVanillaFactionMechanoids()
         {
             var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
@@ -184,6 +183,14 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("VanillaGenesExpanded.CompHumanHatcher");
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Hatch"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
+        }
+
+        private static void PatchExtraPregnancyApproaches()
+        {
+            MpCompat.RegisterLambdaDelegate(
+                "VFECore.SocialCardUtility_DrawPregnancyApproach_Patch", 
+                "AddPregnancyApproachOptions",
+                0, 1); // Disable extra approaches (0), set extra approach (1)
         }
 
         #endregion
@@ -260,9 +267,6 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, Thing> abilityHolderField;
         private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
         private static ISyncField abilityAutoCastField;
-        
-        // AbilityDef
-        private static AccessTools.FieldRef<Def, int> abilityDefTargetCountField;
 
         private static void PatchAbilities()
         {
@@ -284,21 +288,17 @@ namespace Multiplayer.Compat
             abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
             abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
-            MP.RegisterSyncMethod(type, "CreateCastJob");
+            // There's another method taking LocalTargetInfo. Harmony grabs the one we need, but just in case specify the types to avoid ambiguity.
+            MP.RegisterSyncMethod(type, "StartAbilityJob", new SyncType[] { typeof(GlobalTargetInfo[]) });
             MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
             abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoTargeting"),
-                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoTargeting)));
 
             type = AccessTools.TypeByName("VFECore.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
-
-            type = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
-            abilityDefTargetCountField = AccessTools.FieldRefAccess<int>(type, "targetCount");
         }
 
         private static void SyncVEFAbility(SyncWorker sync, ref ITargetingSource source)
@@ -316,14 +316,14 @@ namespace Multiplayer.Compat
                 {
                     IEnumerable list = null;
 
-                    var compAbilities = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesType);
+                    var compAbilities = thing.AllComps.FirstOrDefault(c => compAbilitiesType.IsInstanceOfType(c));
                     ThingComp compAbilitiesApparel = null;
                     if (compAbilities != null)
                         list = learnedAbilitiesField(compAbilities);
 
                     if (list == null)
                     {
-                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => c.GetType() == compAbilitiesApparelType);
+                        compAbilitiesApparel = thing.AllComps.FirstOrDefault(c => compAbilitiesApparelType.IsInstanceOfType(c));
                         if (compAbilitiesApparel != null)
                             list = givenAbilitiesField(compAbilitiesApparel);
                     }
@@ -375,14 +375,6 @@ namespace Multiplayer.Compat
                 return;
 
             MP.WatchEnd();
-        }
-
-        private static void PostAbilityDoTargeting(ref int ___currentTargetingIndex, Def ___def)
-        {
-            // Normally the method would call CreateCastJob which would set it to -1,
-            // but since we sync that specific method we instead manually set it to -1
-            if (___currentTargetingIndex >= abilityDefTargetCountField(___def))
-                ___currentTargetingIndex = -1;
         }
 
         #endregion
@@ -501,6 +493,11 @@ namespace Multiplayer.Compat
         private static Type randomBuildingGraphicCompType;
         private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
 
+        // Glowers
+        private static Type dummyGlowerType;
+        private static AccessTools.FieldRef<ThingComp, CompGlower> compGlowerExtendedGlowerField;
+        private static AccessTools.FieldRef<ThingWithComps, ThingComp> dummyGlowerParentCompField;
+
         private static void PatchVanillaFurnitureExpanded()
         {
             MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
@@ -521,18 +518,35 @@ namespace Multiplayer.Compat
             randomBuildingGraphicCompChangeGraphicMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "ChangeGraphic"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
-            MP.RegisterSyncMethod(type, "SwitchColor");
-
             // Preferably leave it at the end in case it fails - if it fails all the other stuff here will still get patched
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
                 transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
 
+            // Glowers
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+            MP.RegisterSyncMethod(type, "SwitchColor");
+            compGlowerExtendedGlowerField = AccessTools.FieldRefAccess<CompGlower>(type, "compGlower");
+            // Inner method of CompGlowerExtended
             type = AccessTools.Inner(type, "CompGlower_SetGlowColorInternal_Patch");
             PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(type, "Postfix"));
+
+            type = dummyGlowerType = AccessTools.TypeByName("VanillaFurnitureExpanded.DummyGlower");
+            dummyGlowerParentCompField = AccessTools.FieldRefAccess<ThingComp>(type, "parentComp");
+
+            // Syncing of wall-light type of glower doesn't work with MP, as what they do
+            // is spawning a dummy thing, attaching the glower to it, followed by despawning
+            // the dummy thing. If something is not spawned and doesn't have a holder MP won't
+            // be able to sync it properly due to it missing parent/map it's attached to,
+            // and will report it as inaccessible. This works as a workaround to all of this.
+            // 
+            // We normally sync CompGlower as ThingComp. If we add an explicit sync worker
+            // for it, then we'll (basically) replace the vanilla worker for it. It'll be
+            // used in situations where we're trying to sync CompGlower directly instead of ThingComp.
+            // Can't be synced with `isImplicit: true`, as it'll cause it to sync it with ThingComp
+            // sync worker first before syncing it using this specific sync worker.
+            MP.RegisterSyncWorker<CompGlower>(SyncCompGlower);
         }
 
         private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
@@ -603,6 +617,35 @@ namespace Multiplayer.Compat
             }
         }
 
+        private static void SyncCompGlower(SyncWorker sync, ref CompGlower glower)
+        {
+            if (sync.isWriting)
+            {
+                // Check if the glower's parent thing is of DummyGlower type
+                if (dummyGlowerType.IsInstanceOfType(glower.parent))
+                {
+                    sync.Write(true);
+                    // Sync the CompGlowerExtended
+                    sync.Write(dummyGlowerParentCompField(glower.parent));
+                }
+                else
+                {
+                    // Handle this as normal ThingComp, letting MP sync it
+                    sync.Write(false);
+                    sync.Write<ThingComp>(glower);
+                }
+            }
+            else
+            {
+                // Check if we're reading a normal glower or a glower
+                // with a VFE dummy parent and handle appropriately.
+                if (sync.Read<bool>())
+                    glower = compGlowerExtendedGlowerField(sync.Read<ThingComp>());
+                else
+                    glower = sync.Read<ThingComp>() as CompGlower;
+            }
+        }
+
         #endregion
 
         #region MVCF
@@ -629,10 +672,6 @@ namespace Multiplayer.Compat
         // VerbComp
         private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
 
-        // System //
-        // ConditionalWeakTable
-        private static FastInvokeHandler conditionalWeakTableTryGetValueMethod;
-
         private static void PatchMVCF()
         {
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.SpawnSetup)),
@@ -653,9 +692,6 @@ namespace Multiplayer.Compat
             mvcfPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
             mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
 
-            var conditionalWeakTableType = typeof(ConditionalWeakTable<,>).MakeGenericType(typeof(Pawn), type);
-            conditionalWeakTableTryGetValueMethod = MethodInvoker.GetHandler(AccessTools.Method(conditionalWeakTableType, "TryGetValue"));
-
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
             mvcfManagedVerbManagerGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Manager"));
             MP.RegisterSyncWorker<object>(SyncManagedVerb, type, isImplicit: true);
@@ -669,18 +705,22 @@ namespace Multiplayer.Compat
             mvcfVerbCompParentField = AccessTools.FieldRefAccess<object>(type, "parent");
             MP.RegisterSyncWorker<object>(SyncVerbComp, type, isImplicit: true);
 
+            type = AccessTools.TypeByName("MVCF.VerbComps.VerbComp_Switch");
+            // Switch used verb
+            MP.RegisterSyncMethod(type, "Enable");
+
             type = AccessTools.TypeByName("MVCF.Reloading.Comps.VerbComp_Reloadable_ChangeableAmmo");
             var innerMethod = MpMethodUtil.GetLambda(type, "AmmoOptions", MethodType.Getter, null, 1);
             MP.RegisterSyncDelegate(type, innerMethod.DeclaringType.Name, innerMethod.Name);
 
-            type = AccessTools.TypeByName("MVCF.Features.Feature_Humanoid");
-            MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 1); // Fire at will
+            type = AccessTools.TypeByName("MVCF.PatchSets.PatchSet_HumanoidGizmos");
+            MpCompat.RegisterLambdaDelegate(type, "GetGizmos_Postfix", 3); // Toggle fire at will
             MpCompat.RegisterLambdaDelegate(type, "GetAttackGizmos_Postfix", 4); // Interrupt Attack
 
-            MpCompat.RegisterLambdaDelegate("MVCF.Features.Feature_RangedAnimals", "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
+            MpCompat.RegisterLambdaDelegate("MVCF.PatchSets.PatchSet_Animals", "Pawn_GetGizmos_Postfix", 0); // Also interrupt Attack
 
             // Changes the verb, so when called before syncing (especially if the original method is canceled by another mod) - will cause issues.
-            PatchingUtilities.PatchCancelInInterfaceSetResultToTrue("MVCF.Features.PatchSets.PatchSet_Base:Prefix_OrderForceTarget");
+            PatchingUtilities.PatchCancelInInterfaceSetResultToTrue("MVCF.PatchSets.PatchSet_MultiVerb:Prefix_OrderForceTarget");
         }
 
         // Initialize the VerbManager early, we expect it to exist on every player.
@@ -716,14 +756,9 @@ namespace Multiplayer.Compat
             {
                 var pawn = sync.Read<Pawn>();
 
-                var weakTable = mvcfPawnVerbUtilityField(null);
-
-                var outParam = new object[] { pawn, null };
-
                 // Either try getting the VerbManager from the comp, or create it if it's missing
-                if ((bool)conditionalWeakTableTryGetValueMethod(weakTable, outParam))
-                    obj = outParam[1];
-                else
+                obj = mvcfPawnVerbUtilityGetManager(pawn, true);
+                if (obj == null)
                     throw new Exception($"MpCompat :: VerbManager of {pawn} isn't initialized! NO WAY!");
             }
         }
@@ -1063,6 +1098,119 @@ namespace Multiplayer.Compat
                         weatherOverlayEffectsNextDamageTickField(overlay) = 0;
                 }
             }
+        }
+
+        #endregion
+
+        #region Vanilla Cooking Expanded
+
+        private static Type thoughtHediffType;
+
+        private static void PatchVanillaCookingExpanded()
+        {
+            // Hediff is added the fist time MoodOffset is called, called during alert updates (not synced).
+            thoughtHediffType = AccessTools.TypeByName("VanillaCookingExpanded.Thought_Hediff");
+            if (thoughtHediffType != null)
+            {
+                // Only apply the patch if there's actually any ThoughtDef that uses this specific hediff type.
+                // No point applying a patch and having it run if it'll never actually do anything useful.
+                // An example of a mod using it would be Vanilla Cooking Expanded (used for gourmet meals).
+                // This also required us to run this patch late, as otherwise the DefDatabase wouldn't be initialized yet.
+                if (DefDatabase<ThoughtDef>.AllDefsListForReading.Any(def => thoughtHediffType.IsAssignableFrom(def.thoughtClass)))
+                    PatchingUtilities.PatchTryGainMemory(TryGainThoughtHediff);
+            }
+            else Log.Error("Trying to patch `VanillaCookingExpanded.Thought_Hediff`, but the type is null. Did it get moved, renamed, or removed?");
+        }
+
+        private static bool TryGainThoughtHediff(Thought_Memory thought)
+        {
+            if (!thoughtHediffType.IsInstanceOfType(thought))
+                return false;
+
+            // Call MoodOffset to cause the method to add hediffs, etc.
+            thought.MoodOffset();
+            return true;
+        }
+
+        #endregion
+
+        #region Building stuff requiring non-construction skill
+
+        // DefModExtension
+        private static Type thingDefExtensionType;
+        private static AccessTools.FieldRef<DefModExtension, object> thingDefExtensionConstructionSkillRequirementField;
+        private static AccessTools.FieldRef<object, WorkTypeDef> constructionSkillRequirementWorkTypeField;
+        // Temp value
+        private static IConstructible lastThing;
+
+        private static void PatchWorkGiverDeliverResources()
+        {
+            MethodInfo rwMethod;
+            MethodInfo mpMethod;
+
+            try
+            {
+                const string rwMethodPath = "RimWorld.WorkGiver_ConstructDeliverResourcesToBlueprints:NoCostFrameMakeJobFor";
+                rwMethod = AccessTools.DeclaredMethod(rwMethodPath);
+                if (rwMethod == null)
+                    throw new MissingMethodException($"Could not access method: {rwMethodPath}");
+
+                const string mpMethodPath = "Multiplayer.Client.OnlyConstructorsPlaceNoCostFrames:IsConstruction";
+                mpMethod = AccessTools.DeclaredMethod(mpMethodPath);
+                if (mpMethod == null)
+                    throw new MissingMethodException($"Could not access method: {mpMethodPath}");
+
+                thingDefExtensionType = AccessTools.TypeByName("VFECore.ThingDefExtension");
+                thingDefExtensionConstructionSkillRequirementField= AccessTools.FieldRefAccess<object>(
+                    thingDefExtensionType, "constructionSkillRequirement");
+                constructionSkillRequirementWorkTypeField = AccessTools.FieldRefAccess<WorkTypeDef>(
+                    "VFECore.ConstructionSkillRequirement:workType");
+            }
+            catch (Exception)
+            {
+                // Cleanup stuff that won't be ever used if exception occurs before patching.
+                thingDefExtensionType = null;
+                thingDefExtensionConstructionSkillRequirementField = null;
+                constructionSkillRequirementWorkTypeField = null;
+
+                throw;
+            }
+
+            MpCompat.harmony.Patch(rwMethod, prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreNoCostFrameMakeJobFor)));
+            MpCompat.harmony.Patch(mpMethod, postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostIsConstruction)));
+        }
+
+        private static void PreNoCostFrameMakeJobFor(IConstructible c) => lastThing = c;
+
+        private static void PostIsConstruction(WorkGiver w, ref bool __result)
+        {
+            // If __result is true, the work type was construction, so MP allowed it.
+            if (__result || lastThing is not Thing thing || thing.def?.entityDefToBuild?.modExtensions == null)
+            {
+                lastThing = null;
+                return;
+            }
+
+            // Look for the VFE def mod extension
+            foreach (var extension in thing.def.entityDefToBuild.modExtensions)
+            {
+                if (extension != null && thingDefExtensionType.IsInstanceOfType(extension))
+                {
+                    // Get the construction skill requirement object
+                    var constructionRequirement = thingDefExtensionConstructionSkillRequirementField(extension);
+                    if (constructionRequirement == null)
+                        break;
+
+                    // Get the WorkTypeDef of the correct work requirement
+                    var constructionWorkType = constructionSkillRequirementWorkTypeField(constructionRequirement);
+                    // Set the result based on if the construction work type is the same as extension's work type.
+                    __result = w.def.workType == constructionWorkType;
+
+                    break;
+                }
+            }
+
+            lastThing = null;
         }
 
         #endregion

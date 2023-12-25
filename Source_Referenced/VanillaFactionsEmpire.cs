@@ -22,15 +22,6 @@ namespace Multiplayer.Compat
 
         public VanillaFactionsEmpire(ModContentPack mod)
         {
-            MpSyncWorkers.Requires<LordJob>();
-
-            // TODO: test following
-            // VFEEmpire.HarmonyPatches.Patch_AddHumanlikeOrders.<>c__DisplayClass0_1:<Postfix>b__4 - TryTakeOrderedJob (discard poisoned meal)
-            // There doesn't seem to be a way to force a pawn to poison a meal, or spawn visitors with hidden deserters who could possibly cause that.
-            // Having this occur naturally is taking a bit too long, so I'm leaving this note here in case it's discovered that it causes issues.
-            // Important note is that it should be synced, as the method only calls Pawn_JobTracker.TryTakeOrderedJob, which is synced through MP.
-            // However, there's some situations where that is not the case.
-
             // Rituals
             {
                 // Art exhibit
