@@ -4,8 +4,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Animals Expanded — Endangered by Oskar Potocki, Sarg Bjornson, Erin, Taranchuk</summary>
-    /// <see href="https://github.com/juanosarg/VanillaAnimalsExpanded-EndangeredAndRecentlyExtinct"/>
+    /// <summary>Vanilla Animals Expanded - Endangered by Oskar Potocki, Sarg Bjornson, Erin, Taranchuk</summary>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaAnimalsExpanded-Endangered"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2366589898"/>
     [MpCompatFor("VanillaExpanded.VAEEndAndExt")]
     class VanillaAnimalsEndangered

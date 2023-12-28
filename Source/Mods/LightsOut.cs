@@ -7,26 +7,27 @@ using Verse;
 namespace Multiplayer.Compat
 {
     /// <summary>LightsOut by juanlopez2008</summary>
+    /// <see href="https://github.com/NathanIkola/LightsOut"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2584269293"/>
     [MpCompatFor("juanlopez2008.LightsOut")]
     internal class LightsOut
     {
-        private static Type commandType;
-        private static MethodInfo parentCompGetter;
-
         public LightsOut(ModContentPack mod)
         {
-            commandType = AccessTools.TypeByName("LightsOut.Gizmos.KeepOnGizmo");
-            parentCompGetter = AccessTools.PropertyGetter(commandType, "ParentComp");
+            // Gizmos
+            {
+                MP.RegisterSyncMethod(AccessTools.PropertySetter("LightsOut.ThingComps.KeepOnComp:KeepOn"));
+            }
 
-            MP.RegisterSyncMethod(commandType, "ToggleAction");
-            MP.RegisterSyncWorker<Command_Toggle>(SyncToggleCommand, commandType);
-        }
-
-        private static void SyncToggleCommand(SyncWorker sync, ref Command_Toggle command)
-        {
-            if (sync.isWriting) sync.Write(parentCompGetter.Invoke(command, Array.Empty<object>()) as ThingComp);
-            else command = Activator.CreateInstance(commandType, sync.Read<ThingComp>()) as Command_Toggle;
+            // Patched sync methods
+            {
+                PatchingUtilities.PatchCancelInInterface(
+                    // From the patches we care for, PatchTableOff affects gene extractor and subcore scanner
+                    "LightsOut.Common.TablesHelper:PatchTableOff",
+                    // PatchTableOn doesn't look like it needs a patch, as it's not used on any sync methods
+                    "LightsOut.Patches.ModCompatibility.Biotech.PatchGeneAssembly:OnStart",
+                    "LightsOut.Patches.ModCompatibility.Biotech.PatchWasteAtomiser:UpdateWorking");
+            }
         }
     }
 }

@@ -14,7 +14,7 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("PsyObelisk.Things.ThingComp_PsyObelisk");
             PatchingUtilities.PatchUnityRand(AccessTools.Method(type, "GlowAround"), false);
             var syncMethods = MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", Enumerable.Range(0, 8).ToArray()); // 0 to 7
-            syncMethods.Skip(2).ToArray().SetDebugOnly();
+            syncMethods.Skip(2).SetDebugOnly();
         }
     }
 }

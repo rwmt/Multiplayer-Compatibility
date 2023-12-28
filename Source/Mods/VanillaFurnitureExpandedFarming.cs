@@ -4,8 +4,9 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Vanilla Furniture Expanded by Oskar Potocki and dninemfive</summary>
+    /// <summary>Vanilla Furniture Expanded - Farming by Oskar Potocki and dninemfive</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1957158779"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaFurnitureExpanded-Farming"/>
     /// contribution to Multiplayer Compatibility by Cody Spring
     [MpCompatFor("VanillaExpanded.VFEFarming")]
     class VFEF

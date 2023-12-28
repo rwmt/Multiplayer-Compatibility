@@ -9,7 +9,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Misc. Robots by HaploX1</summary>
+    /// <summary>Blueprints by Fluffy</summary>
+    /// <see href="https://github.com/fluffy-mods/Blueprints"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=708455313"/>
     [MpCompatFor("Fluffy.Blueprints")]
     class Blueprints

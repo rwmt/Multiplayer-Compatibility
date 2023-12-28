@@ -12,6 +12,7 @@ namespace Multiplayer.Compat
 {
     /// <summary>Vanilla Hair Expanded by Oskar Potocki, XeoNovaDan, MonteCristo</summary>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1888705256"/>
+    /// <see href="https://github.com/Vanilla-Expanded/VanillaHairExpanded"/>
     [MpCompatFor("VanillaExpanded.VHE")]
     class VanillaHairExpanded
     {
@@ -49,10 +50,11 @@ namespace Multiplayer.Compat
             beardDefField = AccessTools.Field(type, "beardDef");
             hairColourField = AccessTools.Field(type, "hairColour");
 
+            PatchingUtilities.InitCancelInInterface();
             MpCompat.harmony.Patch(AccessTools.Method(typeof(WindowStack), nameof(WindowStack.TryRemove), new[] { typeof(Window), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(VanillaHairExpanded), nameof(PreTryRemoveWindow)));
 
-            MP.RegisterPauseLock(PauseIfDialogOpen);
+            DialogUtilities.RegisterDialogCloseSync(changeHairstyleDialogType, true);
         }
 
         private static void PreDoWindowContents(Window __instance)
@@ -75,7 +77,7 @@ namespace Multiplayer.Compat
         private static bool PreTryRemoveWindow(Window window)
         {
             // Let the method run only if it's synced call
-            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand || window.GetType() != changeHairstyleDialogType)
+            if (!PatchingUtilities.ShouldCancel || window.GetType() != changeHairstyleDialogType)
                 return true;
 
             SyncedTryRemoveWindow();
@@ -115,10 +117,5 @@ namespace Multiplayer.Compat
                     dialog = Find.WindowStack.Windows.First(x => x.GetType() == changeHairstyleDialogType);
             }
         }
-
-        // Once we add non-blocking dialogs to the API
-        // we should apply this only to the map it's used on
-        private static bool PauseIfDialogOpen(Map map) 
-            => Find.WindowStack.IsOpen(changeHairstyleDialogType);
     }
 }

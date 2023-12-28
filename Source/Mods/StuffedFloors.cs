@@ -8,7 +8,8 @@ namespace Multiplayer.Compat
 {
 
     /// <summary>Stuffed Floors by Fluffy</summary>
-    /// <see href="https://github.com/FluffierThanThou/StuffedFloors"/>
+    /// <see href="https://github.com/fluffy-mods/StuffedFloors"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=853043503"/>
     [MpCompatFor("fluffy.stuffedfloors")]
     class StuffedFloorsCompat
     {

@@ -329,5 +329,8 @@ ASALocalRun/
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
 
-Assemblies/
-Referenced/
+/Assemblies/
+/Referenced/
+
+Multiplayer-Compatibility.zip
+/Multiplayer-Compatibility

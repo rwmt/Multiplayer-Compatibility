@@ -6,6 +6,7 @@ using Multiplayer.API;
 namespace Multiplayer.Compat
 {
     /// <summary>RunAndGun by roolo</summary>
+    /// <see href="https://github.com/rheirman/RunAndGun"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550"/>
     [MpCompatFor("roolo.RunAndGun")]
     class RunandGun

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Multiplayer.API;
 
 namespace Multiplayer.Compat
@@ -28,7 +29,7 @@ namespace Multiplayer.Compat
             return num;
         }
 
-        public static void SetDebugOnly(this ISyncMethod[] syncMethods)
+        public static void SetDebugOnly(this IEnumerable<ISyncMethod> syncMethods)
         {
             foreach (var method in syncMethods)
             {
@@ -36,7 +37,7 @@ namespace Multiplayer.Compat
             }
         }
 
-        public static void SetDebugOnly(this ISyncDelegate[] syncMethods)
+        public static void SetDebugOnly(this IEnumerable<ISyncDelegate> syncMethods)
         {
             foreach (var method in syncMethods)
             {
@@ -44,7 +45,7 @@ namespace Multiplayer.Compat
             }
         }
 
-        public static void SetContext(this ISyncMethod[] syncDelegates, SyncContext context)
+        public static void SetContext(this IEnumerable<ISyncMethod> syncDelegates, SyncContext context)
         {
             foreach (var method in syncDelegates)
             {
@@ -52,7 +53,7 @@ namespace Multiplayer.Compat
             }
         }
 
-        public static void SetContext(this ISyncDelegate[] syncDelegates, SyncContext context)
+        public static void SetContext(this IEnumerable<ISyncDelegate> syncDelegates, SyncContext context)
         {
             foreach (var method in syncDelegates)
             {
