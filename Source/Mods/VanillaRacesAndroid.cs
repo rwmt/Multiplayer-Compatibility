@@ -17,6 +17,8 @@ namespace Multiplayer.Compat
     [MpCompatFor("vanillaracesexpanded.android")]
     public class VanillaRacesAndroid
     {
+        #region Fields
+
         // Android creation
         private static Type androidCreationWindowType;
         private static AccessTools.FieldRef<GeneCreationDialogBase, Building> androidCreationWindowStationField;
@@ -54,9 +56,17 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<ChoiceLetter, int> traitChoiceCountField;
         private static AccessTools.FieldRef<ChoiceLetter, List<SkillDef>> passionChoicesField;
         private static AccessTools.FieldRef<ChoiceLetter, List<Trait>> traitChoicesField;
-        
+
         // Utils
         private static FastInvokeHandler recipeForAndroidMethod;
+
+        // HealthCardUtility patch
+        private static ISyncField syncSelfTend;
+        private static ISyncField syncAutoRepair;
+
+        #endregion
+
+        #region Main patch
 
         public VanillaRacesAndroid(ModContentPack mod)
         {
@@ -143,6 +153,17 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(NeutrocasketGetInspectStringPrefix)),
                     transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceSetMedicalCall)),
                     finalizer: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(NeutrocasketGetInspectStringFinalizer)));
+
+                // HealthCardUtility.DrawOverviewTab patch, replaces vanilla drawing for androids.
+                // Since MP WatchBegin prefix runs after VRE-A patch, it won't catch self tend changes,
+                // so we have to watch it in here (as well as the mod specific field).
+                // And as opposed to MP, we don't need to watch medCare field as androids don't use medicine.
+                syncSelfTend = MP.RegisterSyncField(typeof(Pawn_PlayerSettings), nameof(Pawn_PlayerSettings.selfTend));
+                syncAutoRepair = MP.RegisterSyncField(AccessTools.DeclaredField("VREAndroids.Gene_SyntheticBody:autoRepair"));
+
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VREAndroids.HealthCardUtility_DrawOverviewTab_Patch:DrawOverviewTabAndroid"),
+                    prefix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(PreDrawOverviewTabAndroid)),
+                    postfix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(WatchEndPostfix)));
             }
         }
 
@@ -251,6 +272,8 @@ namespace Multiplayer.Compat
                     transpiler: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ReplaceAddBillCall)));
             }
         }
+
+        #endregion
 
         #region Dialog patches
 
@@ -500,6 +523,24 @@ namespace Multiplayer.Compat
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
                 Log.Warning($"Patched incorrect number of Building_Bed.Medical calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
+        }
+
+        private static void PreDrawOverviewTabAndroid(Pawn pawn, Gene gene)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            MP.WatchBegin();
+
+            if (pawn.playerSettings != null)
+                syncSelfTend.Watch(pawn.playerSettings);
+            syncAutoRepair.Watch(gene);
+        }
+
+        private static void WatchEndPostfix()
+        {
+            if (MP.IsInMultiplayer)
+                MP.WatchEnd();
         }
 
         #endregion

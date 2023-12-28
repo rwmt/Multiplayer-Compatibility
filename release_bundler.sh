@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 cd Source
 dotnet build -c Release
 cd ../Source_Referenced
