@@ -33,16 +33,12 @@ namespace Multiplayer.Compat
 
             // Choice letters
             {
-                var type = AccessTools.TypeByName("Multiplayer.Client.Patches.CloseDialogsForExpiredLetters");
-                // We should probably add this to the API the next time we update it
-                var registerAction = AccessTools.DeclaredMethod(type, "RegisterDefaultLetterChoice");
-
-                type = AccessTools.TypeByName("Spaceports.Letters.PrisonerTransferLetter");
+                var type = AccessTools.TypeByName("Spaceports.Letters.PrisonerTransferLetter");
                 var methods = MpMethodUtil.GetLambda(type, "Choices", MethodType.Getter, null, 0, 1, 2).ToArray();
                 MP.RegisterSyncMethod(methods[0]);
                 MP.RegisterSyncMethod(methods[1]);
                 MP.RegisterSyncMethod(methods[2]);
-                registerAction.Invoke(null, new object[] { methods[2], type });
+                MP.RegisterDefaultLetterChoice(methods[2], type);
 
                 var typeNames = new[]
                 {
@@ -58,7 +54,7 @@ namespace Multiplayer.Compat
                     methods = MpMethodUtil.GetLambda(type, "Choices", MethodType.Getter, null, 0, 1).ToArray();
                     MP.RegisterSyncMethod(methods[0]);
                     MP.RegisterSyncMethod(methods[1]);
-                    registerAction.Invoke(null, new object[] { methods[1], type });
+                    MP.RegisterDefaultLetterChoice(methods[1], type);
                 }
             }
         }

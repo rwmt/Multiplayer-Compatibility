@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
+using Multiplayer.API;
 using RimWorld;
 using Verse;
 
@@ -262,17 +263,6 @@ namespace Multiplayer.Compat
 
         #region Cancel in interface
 
-        /// <summary>
-        /// <para>Returns <see langword="true"/> during ticking and synced commands.</para>
-        /// <para>Should be used to prevent any gameplay-related changes from being executed from UI or other unsafe contexts.</para>
-        /// <para>Requires calling <see cref="InitCancelInInterface"/> or any <see cref="PatchCancelInInterface"/> method, otherwise it will always be <see langword="false"/>.</para>
-        /// </summary>
-        public static bool ShouldCancel => inInterfaceMethod();
-
-        private delegate bool InInterfaceDelegate();
-        private static InInterfaceDelegate inInterfaceMethod = () => false;
-        private static bool inInterfaceMethodInitialized = false;
-
         /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
         /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
         public static void PatchCancelInInterface(params string[] methodNames) => PatchCancelInInterface(methodNames as IEnumerable<string>);
@@ -298,7 +288,6 @@ namespace Multiplayer.Compat
         /// <param name="methods">Methods to patch</param>
         public static void PatchCancelInInterface(IEnumerable<MethodBase> methods)
         {
-            InitCancelInInterface();
             var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelInInterface));
             foreach (var method in methods)
                 PatchCancelInInterfaceInternal(method, patch);
@@ -329,7 +318,6 @@ namespace Multiplayer.Compat
         /// <param name="methods">Methods to patch</param>
         public static void PatchCancelInInterfaceSetResultToTrue(IEnumerable<MethodBase> methods)
         {
-            InitCancelInInterface();
             var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelInInterfaceSetResultToTrue));
             foreach (var method in methods)
                 PatchCancelInInterfaceInternal(method, patch);
@@ -338,40 +326,11 @@ namespace Multiplayer.Compat
         private static void PatchCancelInInterfaceInternal(MethodBase method, HarmonyMethod patch) 
             => MpCompat.harmony.Patch(method, prefix: patch);
 
-        /// <summary>
-        /// <para>Gets access to Multiplayer.Client.Multiplayer:InInterface getter to check if execution should be cancelled.</para>
-        /// <para>Called automatically from any <see cref="PatchCancelInInterface"/> method.</para>
-        /// </summary>
-        public static void InitCancelInInterface()
-        {
-            if (inInterfaceMethodInitialized)
-                return;
-
-            // Stop repeated attempts to initialize when finished or failed
-            inInterfaceMethodInitialized = true;
-
-            var inInterface = AccessTools.PropertyGetter("Multiplayer.Client.Multiplayer:InInterface");
-            if (inInterface == null)
-            {
-                Log.Error("Failed getting InInterface getter, was its location changed in MP?");
-                return;
-            }
-
-            try
-            {
-                inInterfaceMethod = AccessTools.MethodDelegate<InInterfaceDelegate>(inInterface);
-            }
-            catch (Exception e)
-            {
-                Log.Error($"Failed setting up InInterface delegate with exception:\n{e}");
-            }
-        }
-
-        private static bool CancelInInterface() => !ShouldCancel;
+        private static bool CancelInInterface() => !MP.InInterface;
 
         private static bool CancelInInterfaceSetResultToTrue(ref bool __result)
         {
-            if (!ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             __result = true;

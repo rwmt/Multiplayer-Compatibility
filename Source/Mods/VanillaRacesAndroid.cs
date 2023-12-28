@@ -222,10 +222,7 @@ namespace Multiplayer.Compat
                 // https://github.com/rwmt/Multiplayer/blob/c7a673a63178257fbcbbe4812b0d48f0e8df2593/Source/Client/Syncing/Game/SyncDelegates.cs#L277-L279
                 // https://github.com/rwmt/Multiplayer/blob/c7a673a63178257fbcbbe4812b0d48f0e8df2593/Source/Client/Syncing/Game/SyncDelegates.cs#L331-L356
 
-                var type = AccessTools.TypeByName("Multiplayer.Client.Patches.CloseDialogsForExpiredLetters");
-                var registerAction = AccessTools.DeclaredMethod(type, "RegisterDefaultLetterChoice");
-
-                type = AccessTools.TypeByName("VREAndroids.ChoiceLetter_AndroidAwakened");
+                var type = AccessTools.TypeByName("VREAndroids.ChoiceLetter_AndroidAwakened");
 
                 var method = AccessTools.DeclaredMethod(type, "MakeChoices");
                 MP.RegisterSyncMethod(method).ExposeParameter(1);
@@ -243,13 +240,7 @@ namespace Multiplayer.Compat
                 passionChoicesField = AccessTools.FieldRefAccess<List<SkillDef>>(type, "passionChoices");
                 traitChoicesField = AccessTools.FieldRefAccess<List<Trait>>(type, "traitChoices");
 
-                registerAction.Invoke(
-                    null,
-                    new object[]
-                    {
-                        AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(DefaultDialogSelection)),
-                        type
-                    });
+                MP.RegisterDefaultLetterChoice(AccessTools.DeclaredMethod(typeof(VanillaRacesAndroid), nameof(DefaultDialogSelection)), type);
 
                 type = AccessTools.TypeByName("VREAndroids.Dialog_AndroidAwakenedChoices");
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents)),

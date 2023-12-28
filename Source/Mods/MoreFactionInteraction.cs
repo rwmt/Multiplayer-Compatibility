@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -14,16 +13,11 @@ namespace Multiplayer.Compat
     {
         public MoreFactionInteraction(ModContentPack mod)
         {
-            Type type = AccessTools.TypeByName("Multiplayer.Client.Patches.CloseDialogsForExpiredLetters");
-            // We should probably add this to the API the next time we update it
-            // TODO: Expose in API
-            var registerAction = AccessTools.Method(type, "RegisterDefaultLetterChoice");
-
-            type = AccessTools.TypeByName("MoreFactionInteraction.ChoiceLetter_ReverseTradeRequest");
+            var type = AccessTools.TypeByName("MoreFactionInteraction.ChoiceLetter_ReverseTradeRequest");
             var methods = MpMethodUtil.GetLambda(type, "Choices", MethodType.Getter, null, 0, 3).ToArray();
             MP.RegisterSyncDelegate(type, methods[0].DeclaringType.Name, methods[0].Name);
             MP.RegisterSyncMethod(methods[1]);
-            registerAction.Invoke(null, new object[] {methods[1], type});
+            MP.RegisterDefaultLetterChoice(methods[1], type);
 
             var typeNames = new[]
             {
@@ -38,7 +32,7 @@ namespace Multiplayer.Compat
                 methods = MpMethodUtil.GetLambda(type, "Choices", MethodType.Getter, null, 0, 1).ToArray();
                 MP.RegisterSyncMethod(methods[0]);
                 MP.RegisterSyncMethod(methods[1]);
-                registerAction.Invoke(null, new object[] {methods[1], type});
+                MP.RegisterDefaultLetterChoice(methods[1], type);
             }
 
             typeNames = new[]
