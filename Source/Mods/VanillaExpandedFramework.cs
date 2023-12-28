@@ -47,6 +47,7 @@ namespace Multiplayer.Compat
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
                 (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
+                (PatchExpandableProjectile, "Expandable projectile", false),
             };
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -191,6 +192,30 @@ namespace Multiplayer.Compat
                 "VFECore.SocialCardUtility_DrawPregnancyApproach_Patch", 
                 "AddPregnancyApproachOptions",
                 0, 1); // Disable extra approaches (0), set extra approach (1)
+        }
+
+        private static void PatchExpandableProjectile()
+        {
+            PatchingUtilities.InitCancelInInterface();
+            MpCompat.harmony.Patch(AccessTools.DeclaredPropertyGetter("VFECore.ExpandableProjectile:StartingPosition"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreStartingPositionGetter)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostStartingPositionGetter)));
+        }
+
+        private static void PreStartingPositionGetter(Vector3 ___startingPosition, bool ___pawnMoved, ref (Vector3, bool)? __state)
+        {
+            // If in interface, store the current values.
+            if (PatchingUtilities.ShouldCancel)
+                __state = (___startingPosition, ___pawnMoved);
+        }
+
+        private static void PostStartingPositionGetter(ref Vector3 ___startingPosition, ref bool ___pawnMoved, (Vector3, bool)? __state)
+        {
+            // If state not null (in interface), restore previous values.
+            // Alternatively, we could also have separate values for interface and simulation,
+            // but seems a bit pointless to do it like this since it's just a minor thing.
+            if (__state != null)
+                (___startingPosition, ___pawnMoved) = __state.Value;
         }
 
         #endregion
@@ -1185,7 +1210,7 @@ namespace Multiplayer.Compat
         private static void PostIsConstruction(WorkGiver w, ref bool __result)
         {
             // If __result is true, the work type was construction, so MP allowed it.
-            if (__result || lastThing is not Thing thing || thing.def?.entityDefToBuild == null)
+            if (__result || lastThing is not Thing thing || thing.def?.entityDefToBuild?.modExtensions == null)
             {
                 lastThing = null;
                 return;
@@ -1194,17 +1219,19 @@ namespace Multiplayer.Compat
             // Look for the VFE def mod extension
             foreach (var extension in thing.def.entityDefToBuild.modExtensions)
             {
-                if (thingDefExtensionType.IsInstanceOfType(extension))
+                if (extension != null && thingDefExtensionType.IsInstanceOfType(extension))
                 {
                     // Get the construction skill requirement object
                     var constructionRequirement = thingDefExtensionConstructionSkillRequirementField(extension);
+                    if (constructionRequirement == null)
+                        break;
+
                     // Get the WorkTypeDef of the correct work requirement
                     var constructionWorkType = constructionSkillRequirementWorkTypeField(constructionRequirement);
                     // Set the result based on if the construction work type is the same as extension's work type.
                     __result = w.def.workType == constructionWorkType;
 
-                    lastThing = null;
-                    return;
+                    break;
                 }
             }
 
