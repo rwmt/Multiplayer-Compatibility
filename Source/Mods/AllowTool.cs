@@ -143,9 +143,6 @@ namespace Multiplayer.Compat
 
             // Recache haul urgently deterministically (currently uses Time.unscaledTime)
             {
-                // Used by DeterministicallyHandleReCaching
-                PatchingUtilities.InitCancelInInterface();
-
                 var type = AccessTools.TypeByName("AllowTool.HaulUrgentlyCacheHandler");
                 MpCompat.harmony.Patch(AccessTools.Method(type, "RecacheIfNeeded"),
                     prefix: new HarmonyMethod(typeof(AllowTool), nameof(DeterministicallyHandleReCaching)));
@@ -306,7 +303,7 @@ namespace Multiplayer.Compat
             if (!MP.IsInMultiplayer)
                 return true;
             // Can be called from MonoBehaviour.FixedUpdate and operates on a single map only, cancel in such cases
-            if (PatchingUtilities.ShouldCancel)
+            if (MP.InInterface)
                 return false;
 
             currentTime = Find.TickManager.TicksGame;

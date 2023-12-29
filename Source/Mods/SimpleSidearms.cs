@@ -123,7 +123,7 @@ namespace Multiplayer.Compat
         [MpCompatPrefix("PeteTimesSix.SimpleSidearms.Utilities.GettersFilters", "findBestRangedWeapon", 8)]
         private static bool PrePrimaryVerbMethodCall(ThingWithComps __0, ref bool __result)
         {
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             var comp = __0.GetComp<CompEquippable>();

@@ -174,7 +174,7 @@ namespace Multiplayer.Compat
                 return null;
 
             // If simulation, return normal cache
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return simulationCache;
 
             // If interface, try to return the cache from our dictionary

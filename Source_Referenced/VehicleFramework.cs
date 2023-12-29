@@ -69,7 +69,6 @@ namespace Multiplayer.Compat
 
             // Should be initialized by PatchCancelInInterface calls later on,
             // so this exists here as an extra safety in case those ever get removed later on.
-            PatchingUtilities.InitCancelInInterface();
             MpCompatPatchLoader.LoadPatch<VehicleFramework>();
 
             #endregion
@@ -916,7 +915,7 @@ namespace Multiplayer.Compat
         // the current mouse position, which we don't want and it's a feature we've disabled in MP.
         // There's however only 1 situation that it's not the case, this will handle it.
         // The situation is pressing the gizmo's cancel button to stop targetting att all.
-        private static bool CancelTurretSetTargetSync() => shouldSyncInInterface || !PatchingUtilities.ShouldCancel;
+        private static bool CancelTurretSetTargetSync() => shouldSyncInInterface || !MP.InInterface;
 
         private static void SyncSetTarget(VehicleTurret turret, LocalTargetInfo target)
         {
@@ -1658,7 +1657,7 @@ namespace Multiplayer.Compat
 
         private static bool PreNotifyChoseRoute(Dialog_FormVehicleCaravan __instance, int destinationTile)
         {
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             MP.GetLocalSessionManager(__instance.map).GetFirstOfType<FormVehicleCaravanSession>()?.ChooseRoute(destinationTile);
@@ -1667,7 +1666,7 @@ namespace Multiplayer.Compat
 
         private static bool PreTryReformCaravan(Dialog_FormVehicleCaravan __instance)
         {
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             MP.GetLocalSessionManager(__instance.map).GetFirstOfType<FormVehicleCaravanSession>()?.TryReformCaravan();
@@ -1676,7 +1675,7 @@ namespace Multiplayer.Compat
 
         private static bool PreTryFormAndSendCaravan(Dialog_FormVehicleCaravan __instance)
         {
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             MP.GetLocalSessionManager(__instance.map).GetFirstOfType<FormVehicleCaravanSession>()?.TryFormAndSendCaravan();
@@ -1685,7 +1684,7 @@ namespace Multiplayer.Compat
 
         private static bool PreDebugTryFormCaravanInstantly(Dialog_FormVehicleCaravan __instance)
         {
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             MP.GetLocalSessionManager(__instance.map).GetFirstOfType<FormVehicleCaravanSession>()?.DebugTryFormCaravanInstantly();
@@ -2494,7 +2493,7 @@ namespace Multiplayer.Compat
         [MpCompatPrefix(typeof(VehicleTurret), nameof(VehicleTurret.TurretRotation), methodType: MethodType.Getter)]
         private static void PreTurretRotation(VehicleTurret __instance, float ___rotation, ref float? __state)
         {
-            if (PatchingUtilities.ShouldCancel)
+            if (MP.InInterface)
                 __state = ___rotation;
         }
 
@@ -2511,7 +2510,7 @@ namespace Multiplayer.Compat
             // A couple of places during ticking check the current turret from the targeter. This will cause
             // issues due to conditional statements based on `TurretTargeter.Turret != this`, etc. so just
             // prevent the mod from returning the actual turret in interface (return default value/null).
-            return PatchingUtilities.ShouldCancel; // The inverse of what PatchingUtilities.PatchCancelInInterface does
+            return MP.InInterface; // The inverse of what PatchingUtilities.PatchCancelInInterface does
         }
 
         #endregion

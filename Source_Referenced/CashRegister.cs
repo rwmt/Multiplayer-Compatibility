@@ -33,7 +33,6 @@ namespace Multiplayer.Compat
 
                 MP.RegisterSyncWorker<Shift>(SyncShift);
 
-                PatchingUtilities.InitCancelInInterface();
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(CompAssignableToPawn), nameof(CompAssignableToPawn.TryAssignPawn)),
                     prefix: new HarmonyMethod(typeof(CashRegister), nameof(PreTryAssignPawn)));
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(CompAssignableToPawn), nameof(CompAssignableToPawn.TryUnassignPawn)),
@@ -195,7 +194,7 @@ namespace Multiplayer.Compat
         private static bool PreTryAssignPawn(CompAssignableToPawn __instance, Pawn pawn)
         {
             // Only catch the comp from CashRegister mod
-            if (!MP.IsInMultiplayer || !PatchingUtilities.ShouldCancel || __instance is not CompAssignableToPawn_Shifts shift)
+            if (!MP.IsInMultiplayer || !MP.InInterface || __instance is not CompAssignableToPawn_Shifts shift)
                 return true;
 
             SyncedTryAssignPawnShifts(shift, pawn, GetRegisterShiftToIndex(shift));
@@ -207,7 +206,7 @@ namespace Multiplayer.Compat
         private static bool PreTryUnassignPawn(CompAssignableToPawn __instance, Pawn pawn)
         {
             // Only catch the comp from CashRegister mod
-            if (!MP.IsInMultiplayer || !PatchingUtilities.ShouldCancel || __instance is not CompAssignableToPawn_Shifts shift)
+            if (!MP.IsInMultiplayer || !MP.InInterface || __instance is not CompAssignableToPawn_Shifts shift)
                 return true;
 
             SyncedTryUnassignPawnShifts(shift, pawn, GetRegisterShiftToIndex(shift));

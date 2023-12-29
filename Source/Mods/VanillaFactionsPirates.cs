@@ -50,7 +50,6 @@ namespace Multiplayer.Compat
                 // The code using the ability returns true, and we need to make sure it happens because
                 // as far as I understand, sync method on non-void methods returns default value (which
                 // would be false for bool)
-                PatchingUtilities.InitCancelInInterface();
                 MP.RegisterSyncMethod(typeof(VanillaFactionsPirates), nameof(SyncedShieldDetonation));
                 MpCompat.harmony.Patch(AccessTools.Method("VFEPirates.Verb_ShieldDetonation:TryCastShot"),
                     prefix: new HarmonyMethod(typeof(VanillaFactionsPirates), nameof(PreShieldDetonation)));
@@ -246,7 +245,7 @@ namespace Multiplayer.Compat
 
         private static bool PreShieldDetonation(Verb __instance, ref bool __result)
         {
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             // We need to sync as ThingComp, as MP only supports 2 comps - CompEquippable and CompReloadable
