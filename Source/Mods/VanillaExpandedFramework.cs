@@ -184,7 +184,7 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaDelegate(
                 "VFECore.SocialCardUtility_DrawPregnancyApproach_Patch", 
                 "AddPregnancyApproachOptions",
-                0, 1); // Disable extra approaches (0), set extra approach (1)
+                0, 2); // Disable extra approaches (0), set extra approach (2)
         }
 
         private static void PatchExpandableProjectile()
