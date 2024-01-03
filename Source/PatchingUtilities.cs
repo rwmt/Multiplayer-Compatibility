@@ -645,7 +645,7 @@ namespace Multiplayer.Compat
         }
 
         #endregion
-        
+
         #region TryGainMemory early thought init
 
         public delegate bool TryHandleGainMemory(Thought_Memory thought);
@@ -690,6 +690,41 @@ namespace Multiplayer.Compat
                 if (tryGainMemoryHandlers[i](newThought))
                     return;
             }
+        }
+
+        #endregion
+
+        #region Shared Cross Refs
+
+        private static bool initializedSharedCrossRefs = false;
+        // Get SharedCrossRefs, an MP subtype of LoadedObjectDirectory
+        private static FastInvokeHandler sharedCrossRefsGetter;
+        // Unregister method added in the MP subtype
+        private static FastInvokeHandler sharedCrossRefsUnregisterMethod;
+
+        public static void InitializeSharedCrossRefs()
+        {
+            if (initializedSharedCrossRefs)
+                return;
+
+            initializedSharedCrossRefs = true;
+
+            sharedCrossRefsGetter = MethodInvoker.GetHandler(
+                AccessTools.DeclaredPropertyGetter("Multiplayer.Client.ScribeUtil:sharedCrossRefs"));
+            sharedCrossRefsUnregisterMethod = MethodInvoker.GetHandler(
+                AccessTools.DeclaredMethod("Multiplayer.Client.SharedCrossRefs:Unregister"));
+        }
+
+        public static void RegisterSharedCrossRef(ILoadReferenceable reffable)
+        {
+            (sharedCrossRefsGetter(null) as LoadedObjectDirectory)?.RegisterLoaded(reffable);
+        }
+
+        public static void UnregisterSharedCrossRef(ILoadReferenceable reffable)
+        {
+            var crossRefs = sharedCrossRefsGetter(null);
+            if (crossRefs != null)
+                sharedCrossRefsUnregisterMethod(crossRefs, reffable);
         }
 
         #endregion
