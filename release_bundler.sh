@@ -11,7 +11,7 @@ cd ..
 rm -rf Multiplayer-Compatibility/
 mkdir -p Multiplayer-Compatibility
 
-cp -r About Assemblies Referenced Multiplayer-Compatibility
+cp -r About Assemblies Referenced Languages Multiplayer-Compatibility
 
 # Zip for Github releases
 rm -f Multiplayer-Compatibility.zip
