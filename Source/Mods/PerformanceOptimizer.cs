@@ -38,9 +38,18 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(CancelIfAutosaving)));
                 refreshCache = MethodInvoker.GetHandler(resetDataMethod);
 
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("Multiplayer.Client.MultiplayerSession:SaveGameToFile_Overwrite"),
-                    prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PreSaveToFile)),
-                    postfix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PostSaveToFile)));
+                var method = AccessTools.DeclaredMethod("Multiplayer.Client.Autosaving:SaveGameToFile_Overwrite");
+                // Backwards compat
+                method ??= AccessTools.DeclaredMethod("Multiplayer.Client.MultiplayerSession:SaveGameToFile_Overwrite");
+                // Even more backwards compat
+                method ??= AccessTools.DeclaredMethod("Multiplayer.Client.MultiplayerSession:SaveGameToFile");
+                if (method != null)
+                {
+                    MpCompat.harmony.Patch(method,
+                        prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PreSaveToFile)),
+                        postfix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PostSaveToFile)));
+                }
+                else Log.Error("Couldn't find MP SaveGameToFile method, PerformanceOptimizer will now likely cause desyncs because the patch failed.");
 
                 // Big shoutout to NotFood for pointing me to the correct method to clear the cache in.
                 // I spent hours trying to find a correct method where to clear the cache but failed.
