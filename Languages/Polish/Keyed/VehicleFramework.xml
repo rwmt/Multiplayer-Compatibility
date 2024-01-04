@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <LanguageData>
 
-<MpVehicleCaravanFormingSession>Sesja formowania karawany pojazdów</MpVehicleCaravanFormingSession>
+  <MpVehicleCaravanFormingSession>Sesja formowania karawany pojazdów</MpVehicleCaravanFormingSession>
   <MpVehicleCargoLoadingSession>Sesja ładowania ładunku pojazdu</MpVehicleCargoLoadingSession>
   <MpVehicleAerialLandingSession>Sesja lądowania pojazdu powietrznego</MpVehicleAerialLandingSession>
 
