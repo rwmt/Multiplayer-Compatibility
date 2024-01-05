@@ -2510,7 +2510,7 @@ namespace Multiplayer.Compat
             // A couple of places during ticking check the current turret from the targeter. This will cause
             // issues due to conditional statements based on `TurretTargeter.Turret != this`, etc. so just
             // prevent the mod from returning the actual turret in interface (return default value/null).
-            return MP.InInterface; // The inverse of what PatchingUtilities.PatchCancelInInterface does
+            return !MP.IsInMultiplayer || MP.InInterface; // The inverse of what PatchingUtilities.PatchCancelInInterface does
         }
 
         #endregion
