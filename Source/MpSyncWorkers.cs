@@ -74,20 +74,21 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
             {
-                sync.Write(designation?.designationManager);
+                var canSync = designation?.designationManager != null;
+                sync.Write(canSync);
 
-                if (designation != null)
+                if (canSync)
                 {
+                    sync.Write(designation.designationManager);
                     sync.Write(designation.target);
                     sync.Write(designation.def);
                 }
             }
             else
             {
-                var manager = sync.Read<DesignationManager>();
-
-                if (manager != null)
+                if (sync.Read<bool>())
                 {
+                    var manager = sync.Read<DesignationManager>();
                     var target = sync.Read<LocalTargetInfo>();
                     var def = sync.Read<DesignationDef>();
 
@@ -102,9 +103,9 @@ namespace Multiplayer.Compat
         private static void SyncDesignationManager(SyncWorker sync, ref DesignationManager manager)
         {
             if (sync.isWriting)
-                sync.Write(manager?.map);
+                sync.Write(manager.map);
             else
-                manager = sync.Read<Map>()?.designationManager;
+                manager = sync.Read<Map>().designationManager;
         }
 
         private static bool HasSyncWorker(Type type)
