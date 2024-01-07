@@ -16,6 +16,8 @@ namespace Multiplayer.Compat
     [MpCompatFor("Orion.Gastronomy")]
     internal class Gastronomy
     {
+        #region Fields
+
         // RestaurantController
         private static ISyncField openForBusinessField;
         private static ISyncField allowGuestsField;
@@ -23,6 +25,10 @@ namespace Multiplayer.Compat
         private static ISyncField allowPrisonersField;
         private static ISyncField allowSlavesField;
         private static ISyncField guestPricePercentageField;
+
+        #endregion
+
+        #region Main patch
 
         public Gastronomy(ModContentPack mod)
         {
@@ -66,6 +72,10 @@ namespace Multiplayer.Compat
                 postfix: new HarmonyMethod(typeof(Gastronomy), nameof(PostRestaurantMenuConstructor)));
         }
 
+        #endregion
+
+        #region Sync Workers
+
         private static void SyncRestaurantController(SyncWorker sync, ref RestaurantController controller)
         {
             if (sync.isWriting)
@@ -85,9 +95,15 @@ namespace Multiplayer.Compat
                     var manager = sync.Read<RestaurantsManager>();
                     if (manager.restaurants.Count > index)
                         controller = manager.restaurants[index];
+                    else
+                        Log.Error($"Received out-of-range store index, received={index}, count={manager.restaurants.Count}");
                 }
             }
         }
+
+        #endregion
+
+        #region Patches
 
         private static void PreFillTab(ITab_Register_Restaurant __instance, out bool __state)
         {
@@ -133,6 +149,8 @@ namespace Multiplayer.Compat
 
             __result.LinkRegister((Building_CashRegister)Find.Selector.SingleSelectedThing);
 
+            // If the player added a restaurant, in SP it would have opened up the new one.
+            // Due to us syncing it, it doesn't happen by default so this should ensure it does.
             if (MP.IsExecutingSyncCommandIssuedBySelf && Find.MainTabsRoot.OpenTab == MainButtonDefOf.Inspect)
             {
                 var mainTabWindow_Inspect = (MainTabWindow_Inspect)Find.MainTabsRoot.OpenTab.TabWindow;
@@ -148,6 +166,10 @@ namespace Multiplayer.Compat
         private static void PostRestaurantMenuConstructor(RestaurantMenu __instance)
             => __instance.GetMenuFilters(out _, out _);
 
+        #endregion
+
+        #region Thing Filter Context
+
         public record RestaurantWrapper(RestaurantController Controller) : ThingFilterContext
         {
             public override ThingFilter Filter => Controller.Menu.menuFilter;
@@ -160,5 +182,7 @@ namespace Multiplayer.Compat
 
             public RestaurantController Controller { get; } = Controller;
         }
+
+        #endregion
     }
 }
