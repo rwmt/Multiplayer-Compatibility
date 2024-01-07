@@ -353,7 +353,7 @@ namespace Multiplayer.Compat
         {
         }
 
-        public MpCompatTranspilerAttribute(Type type, string method, Type[] argTypes, MethodType methodType = MethodType.Normal) : base(type, method, argTypes, methodType)
+        public MpCompatTranspilerAttribute(Type type, string method, Type[] argTypes = null, MethodType methodType = MethodType.Normal) : base(type, method, argTypes, methodType)
         {
         }
 
