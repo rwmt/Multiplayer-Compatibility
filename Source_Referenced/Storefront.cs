@@ -11,8 +11,14 @@ namespace Multiplayer.Compat
     [MpCompatFor("Adamas.Storefront")]
     public class Storefront
     {
+        #region Fields
+
         private static ISyncField openForBusinessField;
         private static ISyncField guestPricePercentageField;
+
+        #endregion
+
+        #region Main Patch
 
         public Storefront(ModContentPack mod)
         {
@@ -28,6 +34,10 @@ namespace Multiplayer.Compat
                 prefix: new HarmonyMethod(typeof(Storefront), nameof(PreFillTab)),
                 finalizer: new HarmonyMethod(typeof(Storefront), nameof(PostFillTab)));
         }
+
+        #endregion
+
+        #region Sync Workers
 
         private static void SyncStoreController(SyncWorker sync, ref StoreController controller)
         {
@@ -46,19 +56,31 @@ namespace Multiplayer.Compat
                 if (index >= 0)
                 {
                     var manager = sync.Read<StoresManager>();
-                    if (manager.Stores.Count < index)
+                    if (manager.Stores.Count > index)
                         controller = manager.Stores[index];
+                    else
+                        Log.Error($"Received out-of-range store index, received={index}, count={manager.Stores.Count}");
                 }
             }
         }
 
+        #endregion
+
+        #region Patches
+
         private static void PreFillTab(ITab_Register_Store __instance, out bool __state)
         {
-            if (!MP.IsInMultiplayer || __instance.store == null)
+            if (!MP.IsInMultiplayer)
             {
                 __state = false;
                 return;
             }
+
+            // Basically a double call, as the method itself will call it. Needed to fix
+            // an error when opening the menu initially, and a very unlikely issue where
+            // (for a frame) the incorrect store would be active, which could (in theory)
+            // allow for editing the incorrect active store settings.
+            __instance.store = __instance.Register.GetStore();
 
             MP.SetThingFilterContext(new StoreWrapper(__instance.store));
             
@@ -78,6 +100,10 @@ namespace Multiplayer.Compat
             MP.WatchEnd();
         }
 
+        #endregion
+
+        #region Thing Filter Context
+
         private record StoreWrapper(StoreController Controller) : ThingFilterContext
         {
             public override ThingFilter Filter => Controller.GetStoreFilter();
@@ -85,5 +111,7 @@ namespace Multiplayer.Compat
 
             public StoreController Controller { get; } = Controller;
         }
+
+        #endregion
     }
 }

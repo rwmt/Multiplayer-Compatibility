@@ -15,6 +15,14 @@ namespace Multiplayer.Compat
     [MpCompatFor("Orion.CashRegister")]
     internal class CashRegister
     {
+        #region Fields
+
+        private const int CheckInterval = 60;
+
+        #endregion
+
+        #region Main patch
+
         public CashRegister(ModContentPack mod)
         {
             // Input
@@ -50,8 +58,15 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Building_CashRegister), nameof(Building_CashRegister.HasToWork)),
                     prefix: new HarmonyMethod(typeof(CashRegister), nameof(PreHasToWork)),
                     postfix: new HarmonyMethod(typeof(CashRegister), nameof(PostHasToWork)));
+
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Building_CashRegister), nameof(Building_CashRegister.ExposeData)),
+                    prefix: new HarmonyMethod(typeof(CashRegister), nameof(InitFieldsExposeData)));
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Building_CashRegister), nameof(Building_CashRegister.PostMake)),
+                    prefix: new HarmonyMethod(typeof(CashRegister), nameof(InitFieldsPostMake)));
             }
         }
+
+        #endregion
 
         #region Input
 
@@ -282,7 +297,7 @@ namespace Multiplayer.Compat
                 return true;
             }
 
-            if (___lastActiveCheck >= Find.TickManager.TicksGame)
+            if (!MP.InInterface && ___lastActiveCheck <= Find.TickManager.TicksGame)
             {
                 // Force the code to re-check isActive
                 ___lastActiveCheck = float.MinValue;
@@ -301,7 +316,7 @@ namespace Multiplayer.Compat
         {
             // If prefix forced the original code to run, we need to change it to use ticks
             if (__state)
-                ___lastActiveCheck = Find.TickManager.TicksGame + 60;
+                ___lastActiveCheck = Find.TickManager.TicksGame + CheckInterval;
         }
 
         private static bool PreHasToWork(Pawn pawn, ref float ___lastCheckActivePawns, HashSet<Pawn> ___activePawns, ref bool __result, out bool __state)
@@ -313,7 +328,7 @@ namespace Multiplayer.Compat
                 return true;
             }
 
-            if (___lastCheckActivePawns >= Find.TickManager.TicksGame)
+            if (!MP.InInterface && ___lastCheckActivePawns <= Find.TickManager.TicksGame)
             {
                 // Force the code to re-check isActive
                 ___lastCheckActivePawns = float.MinValue;
@@ -332,7 +347,30 @@ namespace Multiplayer.Compat
         {
             // If prefix forced the original code to run, we need to change it to use ticks
             if (__state)
-                ___lastCheckActivePawns = Find.TickManager.TicksGame + 60;
+                ___lastCheckActivePawns = Find.TickManager.TicksGame + CheckInterval;
+        }
+
+        private static void InitFieldsPostMake(Building_CashRegister __instance, ref float ___lastActiveCheck, ref float ___lastCheckActivePawns)
+        {
+            if (MP.IsInMultiplayer)
+                InitCheckTicks(__instance, out ___lastActiveCheck, out ___lastCheckActivePawns);
+        }
+
+        private static void InitFieldsExposeData(Building_CashRegister __instance, ref float ___lastActiveCheck, ref float ___lastCheckActivePawns)
+        {
+            if (MP.IsInMultiplayer && Scribe.mode == LoadSaveMode.PostLoadInit)
+                InitCheckTicks(__instance, out ___lastActiveCheck, out ___lastCheckActivePawns);
+        }
+
+        private static void InitCheckTicks(Building_CashRegister instance, out float lastActiveCheck, out float lastCheckActivePawns)
+        {
+            // Ensure the tick at which the checks happen will be slightly staggered
+            // so they all aren't done at the same tick for every single register.
+            // It won't happen every 60 ticks anyway, as the checks tend to be done
+            // much less frequently.
+            var offset = instance.HashOffset() % CheckInterval;
+            lastActiveCheck = Find.TickManager.TicksGame + offset;
+            lastCheckActivePawns = Find.TickManager.TicksGame + offset + 7;
         }
 
         #endregion
