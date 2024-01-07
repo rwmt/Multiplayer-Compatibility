@@ -2514,5 +2514,48 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+        #region Route Planner
+
+        // Route planner has some checks if it should be stopped, like: is it set to active,
+        // is the world rendered, is the game state ProgramState.Playing, is the time paused,
+        // and finally - the last 2 are skipped in dev mode. Replace the dev mode check with
+        // dev mode or MP check, so it'll let people have the route planner open with MP no
+        // matter the game speed settings.
+        // We could make a simple prefix and basically replace part of the method, but if
+        // the method ever ends up getting modified we'd have to do so as well... it'll be
+        // more future-proof if we just replace the specific check.
+
+        private static bool ReplacedDevModeCheck() => Prefs.DevMode || MP.IsInMultiplayer;
+
+        [MpCompatTranspiler(typeof(VehicleRoutePlanner), nameof(VehicleRoutePlanner.ShouldStop), methodType: MethodType.Getter)]
+        private static IEnumerable<CodeInstruction> LogResult(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var target = AccessTools.DeclaredPropertyGetter(typeof(VehicleRoutePlanner), nameof(VehicleRoutePlanner.ShouldStop));
+            var replacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedDevModeCheck));
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                if (ci.Calls(target))
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+
+                    replacedCount++;
+                }
+
+                yield return ci;
+            }
+
+            const int expected = 1;
+            if (replacedCount != expected)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Replaced incorrect number of Intercepts.AddNewInstance calls to Intercepts.RemoveInstance (is it still needed?) (replaced {replacedCount}, expected {expected}) for method {name}");
+            }
+        }
+
+        #endregion
     }
 }
