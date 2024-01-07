@@ -2531,7 +2531,7 @@ namespace Multiplayer.Compat
         [MpCompatTranspiler(typeof(VehicleRoutePlanner), nameof(VehicleRoutePlanner.ShouldStop), methodType: MethodType.Getter)]
         private static IEnumerable<CodeInstruction> LogResult(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
-            var target = AccessTools.DeclaredPropertyGetter(typeof(VehicleRoutePlanner), nameof(VehicleRoutePlanner.ShouldStop));
+            var target = AccessTools.DeclaredPropertyGetter(typeof(Prefs), nameof(Prefs.DevMode));
             var replacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(ReplacedDevModeCheck));
             var replacedCount = 0;
 
@@ -2552,7 +2552,7 @@ namespace Multiplayer.Compat
             if (replacedCount != expected)
             {
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
-                Log.Warning($"Replaced incorrect number of Intercepts.AddNewInstance calls to Intercepts.RemoveInstance (is it still needed?) (replaced {replacedCount}, expected {expected}) for method {name}");
+                Log.Warning($"Patched incorrect number of Prefs.DevMode calls (replaced {replacedCount}, expected {expected}) for method {name}");
             }
         }
 
