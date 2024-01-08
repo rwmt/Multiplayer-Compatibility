@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HarmonyLib;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 using Random = System.Random;
@@ -61,7 +62,9 @@ namespace Multiplayer.Compat
 
         private static readonly HashSet<MethodInfo> NonTickingUpdateMethodsOverrides = new[] 
         {
+            AccessTools.DeclaredMethod(typeof(MapComponent), nameof(MapComponent.MapComponentUpdate)),
             AccessTools.DeclaredMethod(typeof(GameComponent), nameof(GameComponent.GameComponentUpdate)),
+            AccessTools.DeclaredMethod(typeof(WorldComponent), nameof(WorldComponent.WorldComponentUpdate)),
             AccessTools.DeclaredMethod("HugsLib.ModBase:Update"),
             AccessTools.DeclaredMethod("HugsLib.ModBase:FixedUpdate"),
             AccessTools.DeclaredMethod("HugsLib.ModBase:OnGUI"),
@@ -278,7 +281,7 @@ namespace Multiplayer.Compat
                 {
                     try
                     {
-                        foreach (var found in FindRng(type, method))
+                        foreach (var found in FindRng(method))
                         {
                             lock (log[found])
                                 log[found].Add($"{type.FullName}:{method.Name} ({type.Assembly.GetName().Name})");
@@ -296,12 +299,13 @@ namespace Multiplayer.Compat
             }
         }
 
-        internal static HashSet<StuffToSearch> FindRng(Type baseType, MethodBase baseMethod)
+        internal static HashSet<StuffToSearch> FindRng(MethodBase baseMethod)
         {
             var instr = PatchProcessor.GetCurrentInstructions(baseMethod);
             var foundStuff = new HashSet<StuffToSearch>();
+            var baseMethodInfo = baseMethod as MethodInfo; // Potentially null
 
-            if (baseType != baseMethod.DeclaringType && NonTickingUpdateMethodsOverrides.Contains(baseMethod))
+            if (IsOverrideOfAny(baseMethodInfo, NonTickingUpdateMethodsOverrides))
                 foundStuff.Add(StuffToSearch.NonTickingUpdate);
 
             foreach (var ci in instr)
@@ -309,47 +313,47 @@ namespace Multiplayer.Compat
                 switch (ci.operand)
                 {
                     // Constructors
-                    case ConstructorInfo { DeclaringType: not null } ctor when ctor.DeclaringType == typeof(Random):
+                    case ConstructorInfo { DeclaringType: not null } ctor when ctor.DeclaringType != typeof(PatchingUtilities.RandRedirector) && typeof(Random).IsAssignableFrom(ctor.DeclaringType):
                         foundStuff.Add(StuffToSearch.SystemRng);
                         break;
-                    case ConstructorInfo { DeclaringType: not null } ctor when ctor.DeclaringType == typeof(Thread) || ctor.DeclaringType == typeof(ThreadStart):
+                    case ConstructorInfo { DeclaringType: not null } ctor when typeof(Thread).IsAssignableFrom(ctor.DeclaringType) || typeof(ThreadStart).IsAssignableFrom(ctor.DeclaringType):
                         foundStuff.Add(StuffToSearch.Multithreading);
                         break;
-                    case ConstructorInfo { DeclaringType: not null } ctor when ctor.DeclaringType == typeof(Stopwatch):
+                    case ConstructorInfo { DeclaringType: not null } ctor when typeof(Stopwatch).IsAssignableFrom(ctor.DeclaringType):
                         foundStuff.Add(StuffToSearch.Stopwatch);
                         break;
                     // Methods
-                    case MethodInfo { DeclaringType: not null } method when method.DeclaringType == typeof(UnityEngine.Random):
+                    case MethodInfo { DeclaringType: not null } method when typeof(UnityEngine.Random).IsAssignableFrom(method.DeclaringType):
                         foundStuff.Add(StuffToSearch.UnityRng);
                         break;
-                    case MethodInfo { DeclaringType: not null } method when method.DeclaringType == typeof(GenView):
+                    case MethodInfo { DeclaringType: not null } method when typeof(GenView).IsAssignableFrom(method.DeclaringType):
                         foundStuff.Add(StuffToSearch.GenView);
                         break;
                     // StartCoroutine, etc.
                     // We could check for the methods themselves, but it's much easier to just check for return
                     // as there'll probably not be all that many methods returning it.
-                    case MethodInfo { DeclaringType: not null } method when method.ReturnType == typeof(Coroutine):
+                    case MethodInfo { DeclaringType: not null } method when typeof(Coroutine).IsAssignableFrom(method.ReturnType):
                         foundStuff.Add(StuffToSearch.Coroutines);
                         break;
                     // Player dependent stuff, like current camera position, current map, currently selected things
-                    case MethodInfo { DeclaringType: not null } method when method.ReturnType == typeof(CameraDriver):
+                    case MethodInfo { DeclaringType: not null } method when typeof(CameraDriver).IsAssignableFrom(method.ReturnType):
                         foundStuff.Add(StuffToSearch.CameraDriver);
                         break;
                     case MethodInfo method when method == FindCurrentMap || method == GameCurrentMap:
                         foundStuff.Add(StuffToSearch.CurrentMap);
                         break;
-                    case MethodInfo method when method.DeclaringType == typeof(Selector):
+                    case MethodInfo method when typeof(Selector).IsAssignableFrom(method.DeclaringType):
                         foundStuff.Add(StuffToSearch.Selector);
                         break;
                     // Operating on time instead of ticks
-                    case MethodInfo method when method.DeclaringType == typeof(Time):
+                    case MethodInfo method when typeof(Time).IsAssignableFrom(method.DeclaringType):
                         foundStuff.Add(StuffToSearch.TimeManager);
                         break;
-                    // Calls .GetHashCode, unless it's the method we're currently checking
-                    case MethodInfo method when method == GetHashCodeMethod && baseMethod != GetHashCodeMethod:
+                    // Calls GetHashCode, unless it's an override of GetHashCode (no base.GetHashCode calls)
+                    case MethodInfo method when method == GetHashCodeMethod && !IsOverrideOf(baseMethodInfo, GetHashCodeMethod):
                         foundStuff.Add(StuffToSearch.GetHashCode);
                         break;
-                    case MethodInfo method when NonTickingUpdateMethodCalls.Contains(method):
+                    case MethodInfo method when IsOverrideOfAny(method, NonTickingUpdateMethodCalls):
                         foundStuff.Add(StuffToSearch.NonTickingUpdate);
                         break;
                 }
@@ -411,6 +415,37 @@ namespace Multiplayer.Compat
                         log[StuffToSearch.PatchedSyncMethods].Add($"{type?.FullName}:{method.Name} ({type?.Assembly.GetName().Name}) (patched by: {patches.Select(p => p.owner).ToStringSafeEnumerable()})");
                 }
             });
+        }
+
+        private static bool IsOverrideOf(MethodInfo method, MethodInfo target)
+        {
+            if (method == null)
+                return false;
+
+            var baseDefinition = method.GetBaseDefinition();
+            // If base definition is the same as current method, then
+            // it's not an override but a method declared in current type.
+            if (baseDefinition == method)
+                return false;
+
+            return baseDefinition == target;
+        }
+
+        private static bool IsOverrideOfAny(MethodInfo method, HashSet<MethodInfo> possibleTargets)
+        {
+            if (method == null)
+                return false;
+            // Skip if empty collection
+            if (!possibleTargets.Any())
+                return false;
+
+            var baseDefinition = method.GetBaseDefinition();
+            // If base definition is the same as current method, then
+            // it's not an override but a method declared in current type.
+            if (baseDefinition == method)
+                return false;
+
+            return possibleTargets.Contains(baseDefinition);
         }
 
         #endregion
