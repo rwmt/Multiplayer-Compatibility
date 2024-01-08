@@ -15,13 +15,7 @@ namespace Multiplayer.Compat
     {
         public HospitalityCasino(ModContentPack mod)
         {
-            var type = AccessTools.TypeByName("HospitalityCasino.CompVendingMachine");
-
-            // Gizmos
-            MP.RegisterSyncMethod(type, "ToggleActive");
-            MP.RegisterSyncMethod(type, "SetPricing");
-            // The setter is never used, but may as well sync it in case it's ever used in the future.
-            MP.RegisterSyncMethod(type, "Pricing");
+            InitializeGizmos("HospitalityCasino");
 
             // The method is called from SlotMachineComp.CompTick and calls ThingMaker.MakeThing.
             // The method itself is only called once (sets initialized to true and skips execution
@@ -34,6 +28,17 @@ namespace Multiplayer.Compat
             LongEventHandler.ExecuteWhenFinished(
                 () => AccessTools.DeclaredMethod("HospitalityCasino.HospitalityCasinoMod:InitialiseTextures")
                     .Invoke(null, Array.Empty<object>()));
+        }
+
+        public static void InitializeGizmos(string targetNamespace)
+        {
+            var type = AccessTools.TypeByName($"{targetNamespace}.CompVendingMachine");
+
+            // Gizmos
+            MP.RegisterSyncMethod(type, "ToggleActive");
+            MP.RegisterSyncMethod(type, "SetPricing");
+            // The setter is never used, but may as well sync it in case it's ever used in the future.
+            MP.RegisterSyncMethod(type, "Pricing");
         }
     }
 }
