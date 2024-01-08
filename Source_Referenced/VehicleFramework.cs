@@ -2513,6 +2513,38 @@ namespace Multiplayer.Compat
             return !MP.IsInMultiplayer || MP.InInterface; // The inverse of what PatchingUtilities.PatchCancelInInterface does
         }
 
+        [MpCompatPrefix(typeof(VehicleTweener), nameof(VehicleTweener.TweenedPos), methodType: MethodType.Getter)]
+        private static bool PreTweenedPosGetter(VehicleTweener __instance, ref Vector3 __result)
+        {
+            // Out of MP or in interface, return the tweened pos
+            if (!MP.IsInMultiplayer || MP.InInterface)
+                return true;
+
+            // Give the root position during ticking, same as MP does with pawns.
+            __result = __instance.TweenedPosRoot();
+            return false;
+        }
+
+        [MpCompatPrefix(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
+            new[] { typeof(Vector3), typeof(bool) })]
+        [MpCompatPrefix(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
+            new[] { typeof(Vector3), typeof(Rot8), typeof(float), typeof(bool), typeof(bool) })]
+        private static void PreRenderPawnInternal(VehiclePawn __instance, ref (Rot4 rotation, float angle)? __state)
+        {
+            if (MP.InInterface)
+                __state = (__instance.Rotation, __instance.angle);
+        }
+
+        [MpCompatFinalizer(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
+            new[] { typeof(Vector3), typeof(bool) })]
+        [MpCompatFinalizer(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
+            new[] { typeof(Vector3), typeof(Rot8), typeof(float), typeof(bool), typeof(bool) })]
+        private static void PostRenderPawnInternal(VehiclePawn __instance, ref (Rot4 rotation, float angle)? __state)
+        {
+            if (__state is {} state)
+                (__instance.Rotation, __instance.angle) = (state.rotation, state.angle);
+        }
+
         #endregion
 
         #region Route Planner
