@@ -222,7 +222,7 @@ namespace Multiplayer.Compat
             {
                 // Enter vehicle. Can't sync through TryTakeOrderedJob, as the method does a bit more stuff.
                 MpCompat.RegisterLambdaDelegate(typeof(VehiclePawn), nameof(VehiclePawn.GetFloatMenuOptions), 0);
-                MpCompat.RegisterLambdaDelegate(typeof(VehiclePawn), nameof(VehiclePawn.MultiplePawnFloatMenuOptions), 0);
+                MpCompat.RegisterLambdaDelegate(typeof(VehiclePawn), nameof(VehiclePawn.MultiplePawnFloatMenuOptions), 1);
             }
 
             #endregion
