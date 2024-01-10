@@ -693,5 +693,42 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+        #region Async Time
+
+        private static bool isAsyncTimeSetup = false;
+        private static bool isAsyncTimeSuccessful = false;
+        private static AccessTools.FieldRef<object> multiplayerGameField;
+        private static AccessTools.FieldRef<object, object> gameGameCompField;
+        private static AccessTools.FieldRef<object, bool> gameCompAsyncTimeField;
+
+        public static bool IsAsyncTime
+            => isAsyncTimeSuccessful &&
+               gameCompAsyncTimeField(gameGameCompField(multiplayerGameField()));
+
+        public static void SetupAsyncTime()
+        {
+            if (isAsyncTimeSetup)
+                return;
+            isAsyncTimeSetup = true;
+
+            try
+            {
+                multiplayerGameField = AccessTools.StaticFieldRefAccess<object>(
+                    AccessTools.DeclaredField("Multiplayer.Client.Multiplayer:game"));
+                gameGameCompField = AccessTools.FieldRefAccess<object>(
+                    "Multiplayer.Client.MultiplayerGame:gameComp");
+                gameCompAsyncTimeField = AccessTools.FieldRefAccess<bool>(
+                    "Multiplayer.Client.Comp.MultiplayerGameComp:asyncTime");
+
+                isAsyncTimeSuccessful = true;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Encountered an exception while settings up async time:\n{e}");
+            }
+        }
+
+        #endregion
     }
 }
