@@ -672,11 +672,11 @@ namespace Multiplayer.Compat
         private static IEnumerable<string> mvcfEnabledFeaturesSet;
 
         // VerbManager
-        private static FastInvokeHandler mvcfPawnGetter;
-        private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
+        private static FastInvokeHandler mvcfVerbManagerPawnGetter;
+        private static FastInvokeHandler mvcfVerbManagerTickMethod;
+        private static AccessTools.FieldRef<object, IList> mvcfVerbManagerVerbsField;
 
         // PawnVerbUtility
-        private static AccessTools.FieldRef<object, object> mvcfPawnVerbUtilityField;
         private delegate object GetManager(Pawn p, bool createIfMissing);
         private static GetManager mvcfPawnVerbUtilityGetManager;
 
@@ -689,8 +689,17 @@ namespace Multiplayer.Compat
         // VerbComp
         private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
 
+        // WorldComponent_MVCF
+        private static AccessTools.FieldRef<WorldComponent> mvcfWorldCompInstanceField;
+        private static AccessTools.FieldRef<WorldComponent, IList> mvcfWorldCompTickManagersField;
+
+        // WeakReference<VerbManager>
+        private static FastInvokeHandler mvcfWeakReferenceTryGetVerbManagerMethod;
+
         private static void PatchMVCF()
         {
+            PatchingUtilities.SetupAsyncTime();
+
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.SpawnSetup)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(EverybodyGetsVerbManager)));
 
@@ -702,12 +711,15 @@ namespace Multiplayer.Compat
 
             type = AccessTools.TypeByName("MVCF.Utilities.PawnVerbUtility");
             mvcfPawnVerbUtilityGetManager = AccessTools.MethodDelegate<GetManager>(AccessTools.Method(type, "Manager"));
-            mvcfPawnVerbUtilityField = AccessTools.FieldRefAccess<object>(type, "managers");
 
             type = AccessTools.TypeByName("MVCF.VerbManager");
             MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
-            mvcfPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
-            mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
+            mvcfVerbManagerPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
+            mvcfVerbManagerTickMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "Tick"));
+            mvcfVerbManagerVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
+
+            type = typeof(System.WeakReference<>).MakeGenericType(type);
+            mvcfWeakReferenceTryGetVerbManagerMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "TryGetTarget"));
 
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
             mvcfManagedVerbManagerGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Manager"));
@@ -738,6 +750,16 @@ namespace Multiplayer.Compat
 
             // Changes the verb, so when called before syncing (especially if the original method is canceled by another mod) - will cause issues.
             PatchingUtilities.PatchCancelInInterfaceSetResultToTrue("MVCF.PatchSets.PatchSet_MultiVerb:Prefix_OrderForceTarget");
+
+            // Verb ticking
+            type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
+            mvcfWorldCompInstanceField = AccessTools.StaticFieldRefAccess<WorldComponent>(AccessTools.DeclaredField(type, "Instance"));
+            mvcfWorldCompTickManagersField = AccessTools.FieldRefAccess<IList>(type, "TickManagers");
+
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(WorldComponent.WorldComponentTick)),
+                transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(ReplaceTickWithConditionalTick)));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(MapComponentUtility), nameof(MapComponentUtility.MapComponentTick)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(TickVerbManagersForMap)));
         }
 
         // Initialize the VerbManager early, we expect it to exist on every player.
@@ -768,7 +790,7 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
                 // Sync the pawn that has the VerbManager
-                sync.Write((Pawn)mvcfPawnGetter(obj, Array.Empty<object>()));
+                sync.Write((Pawn)mvcfVerbManagerPawnGetter(obj, Array.Empty<object>()));
             else
             {
                 var pawn = sync.Read<Pawn>();
@@ -787,7 +809,7 @@ namespace Multiplayer.Compat
                 // Get the VerbManager from inside of the ManagedVerb itself
                 var verbManager = mvcfManagedVerbManagerGetter(obj);
                 // Find the ManagedVerb inside of list of all verbs
-                var managedVerbsList = mvcfVerbsField(verbManager);
+                var managedVerbsList = mvcfVerbManagerVerbsField(verbManager);
                 var index = managedVerbsList.IndexOf(obj);
 
                 // Sync the index of the verb as well as the manager (if it's valid)
@@ -807,7 +829,7 @@ namespace Multiplayer.Compat
                     SyncVerbManager(sync, ref verbManager);
 
                     // Find the ManagedVerb with specific index inside of list of all verbs
-                    var managedVerbsList = mvcfVerbsField(verbManager);
+                    var managedVerbsList = mvcfVerbManagerVerbsField(verbManager);
                     obj = managedVerbsList[index];
                 }
             }
@@ -834,6 +856,70 @@ namespace Multiplayer.Compat
                 {
                     verbComp = mvcfVerbWithCompsField(verb)[index];
                 }
+            }
+        }
+
+        private static void TickVerbManagersForMap(Map map)
+        {
+            // Map-specific ticking is only enabled in MP with async on.
+            if (!MP.IsInMultiplayer || !PatchingUtilities.IsAsyncTime)
+                return;
+
+            var managers = mvcfWorldCompTickManagersField(mvcfWorldCompInstanceField());
+            // Null or empty check
+            if (managers is not { Count: > 0 })
+                return;
+
+            // out parameter
+            var args = new object[1];
+            foreach (var weakRef in managers)
+            {
+                if ((bool)mvcfWeakReferenceTryGetVerbManagerMethod(weakRef, args))
+                {
+                    var manager = args[0];
+                    if (mvcfVerbManagerPawnGetter(manager) is Pawn pawn && pawn.MapHeld == map)
+                        mvcfVerbManagerTickMethod(manager);
+                }
+            }
+        }
+
+        private static void TickOnlyNonMapManagers(object manager)
+        {
+            // Normal ticking (tied to world). Only do if not in MP, async is off,
+            // the pawn is null (shouldn't happen?) or the pawn has no map.
+            if (!MP.IsInMultiplayer ||
+                !PatchingUtilities.IsAsyncTime ||
+                mvcfVerbManagerPawnGetter(manager) is not Pawn pawn ||
+                pawn.MapHeld == null)
+            {
+                mvcfVerbManagerTickMethod(manager);
+            }
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceTickWithConditionalTick(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var target = AccessTools.DeclaredMethod("MVCF.VerbManager:Tick", Type.EmptyTypes);
+            var replacement = AccessTools.DeclaredMethod(typeof(VanillaExpandedFramework), nameof(TickOnlyNonMapManagers));
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                if (ci.Calls(target))
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+
+                    replacedCount++;
+                }
+
+                yield return ci;
+            }
+
+            const int expected = 1;
+            if (replacedCount != expected)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Patched incorrect number of VerbManager.Tick calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
         }
 
