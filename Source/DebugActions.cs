@@ -68,6 +68,12 @@ namespace Multiplayer.Compat
             AccessTools.DeclaredMethod("HugsLib.ModBase:Update"),
             AccessTools.DeclaredMethod("HugsLib.ModBase:FixedUpdate"),
             AccessTools.DeclaredMethod("HugsLib.ModBase:OnGUI"),
+            AccessTools.DeclaredMethod("BiomesCore.TerrainInstance:Update"),
+            AccessTools.DeclaredMethod("BiomesCore.TerrainComp:CompUpdate"),
+            AccessTools.DeclaredMethod("BiomesCore.DefExtensionActive:DoWork", new [] { AccessTools.TypeByName("Verse.TerrainDef") }),
+            AccessTools.DeclaredMethod("VFECore.TerrainInstance:Update"),
+            AccessTools.DeclaredMethod("VFECore.TerrainComp:CompUpdate"),
+            AccessTools.DeclaredMethod("VFECore.DefExtensionActive:DoWork", new [] { AccessTools.TypeByName("Verse.TerrainDef") }),
         }.Where(x => x != null).ToHashSet();
 
         private static readonly HashSet<MethodInfo> NonTickingUpdateMethodCalls = new[]
