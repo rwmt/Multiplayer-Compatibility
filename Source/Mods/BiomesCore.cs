@@ -11,14 +11,8 @@ namespace Multiplayer.Compat
     [MpCompatFor("BiomesTeam.BiomesCore")]
     public class BiomesCore
     {
-        private static Type terrainCompType;
-        private static AccessTools.FieldRef<object, object> terrainCompParentField;
-        private static AccessTools.FieldRef<object, IntVec3> terrainInstancePositionField;
-
         public BiomesCore(ModContentPack mod)
         {
-            LongEventHandler.ExecuteWhenFinished(LatePatch);
-
             // Gizmos (only dev mode gizmos)
             {
                 var typeNames = new[]
@@ -51,61 +45,17 @@ namespace Multiplayer.Compat
 
             // RNG + GenView.ShouldSpawnMotesAt
             {
-                // BiomesCore.GenSteps.ValleyPatch:Postfix - System RNG called, but never used
+                PatchingUtilities.PatchSystemRand(new[]
+                {
+                    // Two 'new Random()' calls, one is never used
+                    "BiomesCore.GenSteps.ValleyPatch:Postfix",
+                }, false);
 
                 PatchingUtilities.PatchPushPopRand(new[]
                 {
                     "BiomesCore.CompPlantReleaseSpore:ThrowPoisonSmoke",
                     "BiomesCore.TerrainComp_MoteSpawner:ThrowMote",
                 });
-            }
-
-            // Stopwatch
-            {
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("BiomesCore.SpecialTerrainList:TerrainUpdate"),
-                    prefix: new HarmonyMethod(typeof(BiomesCore), nameof(RemoveTerrainUpdateTimeBudget)));
-            }
-        }
-
-        private static void LatePatch()
-        {
-            // HashCode on unsafe type
-            {
-                // Some extra setup for stuff that will be used by the patch
-                terrainCompType = AccessTools.TypeByName("BiomesCore.TerrainComp");
-                terrainCompParentField = AccessTools.FieldRefAccess<object>(terrainCompType, "parent");
-                terrainInstancePositionField = AccessTools.FieldRefAccess<IntVec3>("BiomesCore.TerrainInstance:positionInt");
-
-                // Patch the method using hash code to use different object if it's unsupported
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("BiomesCore.ActiveTerrainUtility:HashCodeToMod"),
-                    prefix: new HarmonyMethod(typeof(BiomesCore), nameof(HashCodeOnSafeObject)));
-            }
-        }
-
-        private static void RemoveTerrainUpdateTimeBudget(ref long timeBudget)
-        {
-            if (MP.IsInMultiplayer)
-                timeBudget = long.MaxValue; // Basically limitless time
-
-            // The method is limited in updating a max of 1/3 of all active special terrains.
-            // If we'd want to work on having a performance option of some sort, we'd have to
-            // base it around amount of terrain updates per tick, instead of basing it on actual time.
-        }
-
-        private static void HashCodeOnSafeObject(ref object obj)
-        {
-            // We don't care out of MP
-            if (!MP.IsInMultiplayer)
-                return;
-
-            if (obj is ThingComp comp)
-                obj = comp.parent;
-            else if (obj.GetType().IsAssignableFrom(terrainCompType))
-            {
-                // Get the parent field (TerrainInstance)
-                obj = terrainCompParentField(obj);
-                // Get the IntVec3 and use that for hash code (since it's safe for MP)
-                obj = terrainInstancePositionField(obj);
             }
         }
     }
