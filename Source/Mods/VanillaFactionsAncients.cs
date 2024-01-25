@@ -32,6 +32,13 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("VFEAncients.Operation");
             operationPodField = AccessTools.FieldRefAccess<ThingComp>(type, "Pod");
 
+            // Dev add/remove power from pawn (edit mode)
+            type = AccessTools.TypeByName("VFEAncients.ITab_Pawn_Powers");
+            MP.RegisterSyncDelegateLambda(type, "DoEmptyRect", 2)
+                .SetContext(SyncContext.MapSelected).SetDebugOnly();
+            MP.RegisterSyncDelegateLambda(type, "DoPowerIcon", 0)
+                .SetContext(SyncContext.MapSelected).SetDebugOnly();
+
             LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 
@@ -89,6 +96,12 @@ namespace Multiplayer.Compat
                 window = Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == choosePowerDialogType);
         }
 
+        // Only needed in cases object needs to be created (shouldConstruct), but we don't care about any data inside of it
+        [MpCompatSyncWorker("VFEAncients.ITab_Pawn_Powers", shouldConstruct = true)]
+        private static void NoSync(SyncWorker sync, ref object obj)
+        {
+        }
+
         #endregion
 
         #region Dialog
@@ -135,7 +148,7 @@ namespace Multiplayer.Compat
 
                 yield return ci;
             }
-            
+
             if (!anythingPatched) Log.Warning("Failed to sync choose power for Vanilla Factions Ancients");
         }
 
