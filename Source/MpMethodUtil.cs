@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -267,40 +266,19 @@ namespace Multiplayer.Compat
         /// <summary>
         /// <para>Taken from Fishery</para>
         /// <para>Original source: <see href="https://github.com/bbradson/Fishery/blob/af759661bdc404b85309ad5d8ca3d36607fc79d3/Source/FisheryLib/Aliases.cs#L18"/></para>
-        /// <para>More convenient than the alternative, but only works properly with static methods (returns delegate instead of the method).</para>
-        /// <para>Comparison between the two approaches: <see href="https://dotnetfiddle.net/Cmt774"/></para>
+        /// <para>This method will return a <see cref="MethodInfo"/> of a delegate which was passed in as an argument.</para>
+        /// <para>Only works on static methods. <see cref="SymbolExtensions"/> supports non-static method, but is less convenient and will return base method when trying to pass an overriden method.</para>
         /// </summary>
         /// <example>
         /// <code>
         /// var staticMethod = MethodOf(() => MethodOf(TestClass.TestStaticMethod);
         /// var staticMethodWithConflict = MethodOf(() => MethodOf(new Action&lt;int&gt;(TestClass.TestStaticMethodWithNameConflicts));
-        /// // Instance methods not supported, as it will return a delegate instead of the original method.
-        /// // Use the other MethodOf method or AccessTools to access those.
         /// </code>
         /// </example>
         /// <param name="method">The delegate from which to get the <see cref="MethodInfo"/> for.</param>
         /// <returns>The target method for the delegate.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static MethodInfo MethodOf(Delegate method) => method.Method;
-
-        /// <summary>
-        /// <para>Taken from Microsoft Bot Builder SDK V3</para>
-        /// <para>Original source: <see href="https://github.com/microsoft/BotBuilder-V3/blob/c5a89ce198e17441dd68ed3ffba0a6884f1d60dc/CSharp/Library/Microsoft.Bot.Builder/Base/Types.cs#L47-L51"/></para>
-        /// <para>Works with both static and non-static methods, however it's not as convenient as the alternative approach.</para>
-        /// <para>Comparison between the two approaches: <see href="https://dotnetfiddle.net/Cmt774"/></para>
-        /// </summary>
-        /// <example>
-        /// <code>
-        /// var staticMethod = MethodOf(() => TestClass.TestStaticMethod());
-        /// var staticMethodWithConflict = MethodOf(() => TestClass.TestStaticMethodWithNameConflicts(default));
-        /// var instanceMethod = MethodOf(() => ((TestClass)null).TestInstanceMethod());
-        /// var instanceMethodWithConflicts = MethodOf(() => ((TestClass)null).TestInstanceMethodWithNameConflicts(default));
-        /// </code>
-        /// </example>
-        /// <param name="method">The expression from which to get the <see cref="MethodInfo"/> for.</param>
-        /// <returns>The method that was called by the expression.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MethodInfo MethodOf(Expression<Action> method) => ((MethodCallExpression)method.Body).Method;
 
         #endregion
     }
