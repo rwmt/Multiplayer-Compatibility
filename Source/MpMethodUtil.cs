@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 
 namespace Multiplayer.Compat
 {
-    // From Multiplayer.Client.Util
     public static class MpMethodUtil
     {
+        #region Lambdas
+
+        // From Multiplayer.Client.Util, modified to handle generics.
         const string DisplayClassPrefix = "<>c__DisplayClass";
         const string SharedDisplayClass = "<>c";
         const string LambdaMethodInfix = "b__";
@@ -255,5 +258,28 @@ namespace Multiplayer.Compat
             }
             return null;
         }
+
+        #endregion
+
+        #region MethodOf
+
+        /// <summary>
+        /// <para>Taken from Fishery</para>
+        /// <para>Original source: <see href="https://github.com/bbradson/Fishery/blob/af759661bdc404b85309ad5d8ca3d36607fc79d3/Source/FisheryLib/Aliases.cs#L18"/></para>
+        /// <para>This method will return a <see cref="MethodInfo"/> of a delegate which was passed in as an argument.</para>
+        /// <para>Only works on static methods. <see cref="SymbolExtensions"/> supports non-static method, but is less convenient and will return base method when trying to pass an overriden method.</para>
+        /// </summary>
+        /// <example>
+        /// <code>
+        /// var staticMethod = MethodOf(() => MethodOf(TestClass.TestStaticMethod);
+        /// var staticMethodWithConflict = MethodOf(() => MethodOf(new Action&lt;int&gt;(TestClass.TestStaticMethodWithNameConflicts));
+        /// </code>
+        /// </example>
+        /// <param name="method">The delegate from which to get the <see cref="MethodInfo"/> for.</param>
+        /// <returns>The target method for the delegate.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static MethodInfo MethodOf(Delegate method) => method.Method;
+
+        #endregion
     }
 }
