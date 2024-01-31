@@ -67,7 +67,7 @@ namespace Multiplayer.Compat
 
         public static void LoadPatch(Type type)
         {
-            foreach (var method in AccessTools.GetDeclaredMethods(type).Where(m => m.IsStatic))
+            foreach (var method in AccessTools.GetDeclaredMethods(type))
             {
                 foreach (var attr in Attribute.GetCustomAttributes(method))
                 {
@@ -77,6 +77,9 @@ namespace Multiplayer.Compat
                         {
                             case MpCompatPatchAttribute mpPatch:
                             {
+                                if (!method.IsStatic)
+                                    throw new Exception("Cannot register harmony patch: method must be static");
+
                                 var patch = new HarmonyMethod(method);
                                 MpCompat.harmony.Patch(mpPatch.Method,
                                     mpPatch is MpCompatPrefixAttribute ? patch : null,
@@ -109,13 +112,16 @@ namespace Multiplayer.Compat
                             {
                                 if (RegisterSyncWorker == null)
                                     continue;
+                                const string syncWorkerExceptionText = "Cannot register sync worker:";
+                                if (!method.IsStatic)
+                                    throw new Exception($"{syncWorkerExceptionText} method must be static");
                                 if (method.ReturnType != typeof(void))
-                                    throw new Exception("Cannot register sync worker: return type must be null.");
+                                    throw new Exception($"{syncWorkerExceptionText} return type must be null");
                                 var parms = method.GetParameters();
                                 if (parms is not { Length: 2 })
-                                    throw new Exception("Cannot register sync worker: delegate doesn't have 2 parameters");
+                                    throw new Exception($"{syncWorkerExceptionText} delegate doesn't have 2 parameters");
                                 if (parms[0].ParameterType != typeof(SyncWorker))
-                                    throw new Exception($"Cannot register sync worker: the first argument isn't of type {nameof(SyncWorker)}");
+                                    throw new Exception($"{syncWorkerExceptionText} the first argument isn't of type {nameof(SyncWorker)}");
 
                                 // The type is normally a ref type, get one that isn't
                                 var genericNonRefType = parms[1].ParameterType.GetElementType();
@@ -136,12 +142,18 @@ namespace Multiplayer.Compat
                 }
             }
 
-            foreach (var field in AccessTools.GetDeclaredFields(type).Where(f => f.IsStatic && typeof(ISyncField).IsAssignableFrom(f.FieldType)))
+            foreach (var field in AccessTools.GetDeclaredFields(type))
             {
                 try
                 {
                     if (field.TryGetAttribute<MpCompatSyncFieldAttribute>(out var attribute))
                     {
+                        const string syncFieldExceptionText = "Cannot register sync field:";
+                        if (!field.IsStatic)
+                            throw new Exception($"{syncFieldExceptionText} field must be static");
+                        if (!typeof(ISyncField).IsAssignableFrom(field.FieldType))
+                            throw new Exception($"{syncFieldExceptionText} cannot assign object of type {nameof(ISyncField)} to the field (field type: {field.FieldType})");
+
                         var sync = MP.RegisterSyncField(attribute.Field);
 
                         // It seems Context is unused in MP
