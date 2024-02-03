@@ -211,11 +211,16 @@ namespace Multiplayer.Compat
                     return AccessTools.DeclaredConstructor(type, args);
 
                 case MethodType.StaticConstructor:
-                    return Enumerable.FirstOrDefault(AccessTools
-                            .GetDeclaredConstructors(type), c => c.IsStatic);
-            }
+                    return AccessTools.GetDeclaredConstructors(type).FirstOrDefault(c => c.IsStatic);
 
-            return null;
+                case MethodType.Enumerator:
+                    if (methodName == null)
+                        return null;
+                    return AccessTools.EnumeratorMoveNext(AccessTools.DeclaredMethod(type, methodName, args));
+
+                default:
+                    return null;
+            }
         }
 
         /// <summary>Get the first method in the given type that matches the specified signature, return null if failed.</summary>
