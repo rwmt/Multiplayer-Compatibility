@@ -2446,7 +2446,7 @@ namespace Multiplayer.Compat
             using (new TextBlock(GameFont.Tiny))
             {
                 // TODO: Switch to the MP translation once it's included in the mod
-                var switchToMapText = "MpVehiclesSwitchToMap".Translate();
+                var switchToMapText = "MpCompatSwitchToMap".Translate();
                 var width = switchToMapText.GetWidthCached() + 25;
 
                 if (Widgets.ButtonText(new Rect(__0.xMax - width, 5, width, 24), switchToMapText))

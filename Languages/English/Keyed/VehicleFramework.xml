@@ -7,8 +7,5 @@
 
   <!-- Used for float menu to display the list of vehicles that still need to land. -->
   <MpVehiclesWaitingToLand>Vehicles waiting to land</MpVehiclesWaitingToLand>
-  
-  <!-- TODO: remove once included in MP itself -->
-  <MpVehiclesSwitchToMap>Switch to map</MpVehiclesSwitchToMap>
 
 </LanguageData>
