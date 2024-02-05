@@ -71,9 +71,9 @@ namespace Multiplayer.Compat
         // GameComponent_Tribals
         private static AccessTools.FieldRef<GameComponent> tribalsGameCompInstance;
         [MpCompatSyncField("VFETribals.GameComponent_Tribals", "ethos")]
-        private static ISyncField tribalsGameCompEthosField;
+        protected static ISyncField tribalsGameCompEthosField;
         [MpCompatSyncField("VFETribals.GameComponent_Tribals", "ethosLocked")]
-        private static ISyncField tribalsGameCompEthosLockedField;
+        protected static ISyncField tribalsGameCompEthosLockedField;
 
         // Window_CustomizeCornerstones
         private static Type customizeCornerstonesWindowType;
