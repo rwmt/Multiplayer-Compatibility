@@ -16,7 +16,7 @@ namespace Multiplayer.Compat
     {
         // TODO: Suggest the author to encapsulate this, would simplify things so much
         [MpCompatSyncField("SimpleSidearms.rimworld.CompSidearmMemory", "primaryWeaponMode")]
-        private static ISyncField primaryWeaponModeSyncField;
+        protected static ISyncField primaryWeaponModeSyncField;
 
         public SimpleSidearmsCompat(ModContentPack mod)
         {
