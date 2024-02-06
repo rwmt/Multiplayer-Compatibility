@@ -91,7 +91,9 @@ namespace Multiplayer.Compat
         {
             if (isPauseLockInitialized) return;
 
+#pragma warning disable CS0618 // Type or member is obsolete
             MP.RegisterPauseLock(IsPausingDialogOpen);
+#pragma warning restore CS0618 // Type or member is obsolete
             isPauseLockInitialized = true;
         }
 
