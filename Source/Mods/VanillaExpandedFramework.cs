@@ -43,7 +43,7 @@ namespace Multiplayer.Compat
                 (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
                 (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", true),
                 (PatchDoorTeleporter, "Teleporter Doors", true),
-                (PatchSpecialTerrain, "Special Terrain", false),
+                (PatchSpecialTerrain, "Special Terrain", true),
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
                 (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
@@ -1079,10 +1079,22 @@ namespace Multiplayer.Compat
 
         #region Special Terrain
 
+        private static Type terrainCompType;
+        private static AccessTools.FieldRef<object, object> terrainCompParentField;
+        private static AccessTools.FieldRef<object, IntVec3> terrainInstancePositionField;
+
         private static void PatchSpecialTerrain()
         {
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.SpecialTerrainList:TerrainUpdate"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(RemoveTerrainUpdateTimeBudget)));
+
+            // Fix unsafe GetHashCode call
+            terrainCompType = AccessTools.TypeByName("VFECore.TerrainComp");
+            terrainCompParentField = AccessTools.FieldRefAccess<object>(terrainCompType, "parent");
+            terrainInstancePositionField = AccessTools.FieldRefAccess<IntVec3>("VFECore.TerrainInstance:positionInt");
+
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.ActiveTerrainUtility:HashCodeToMod"),
+                prefix: new HarmonyMethod(MpMethodUtil.MethodOf(SaferGetHashCode)));
         }
 
         private static void RemoveTerrainUpdateTimeBudget(ref long timeBudget)
@@ -1093,6 +1105,20 @@ namespace Multiplayer.Compat
             // The method is limited in updating a max of 1/3 of all active special terrains.
             // If we'd want to work on having a performance option of some sort, we'd have to
             // base it around amount of terrain updates per tick, instead of basing it on actual time.
+        }
+
+        private static void SaferGetHashCode(ref object obj)
+        {
+            if (!MP.IsInMultiplayer || obj is IntVec3)
+                return;
+            if (terrainCompType.IsInstanceOfType(obj))
+            {
+                // Use parent IntVec3 position, since it'll be safe to call GetHashCode on
+                obj = terrainInstancePositionField(terrainCompParentField(obj));
+                return;
+            }
+
+            Log.ErrorOnce($"Potentially unsupported type for HashCodeToMod call in Multiplayer, desyncs likely to happen. Object type: {obj.GetType()}", obj.GetHashCode());
         }
 
         #endregion
