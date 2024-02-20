@@ -98,7 +98,7 @@ namespace Multiplayer.Compat
             return DropCellFinder.TradeDropSpot(Find.CurrentMap);
         }
 
-        [MpCompatTranspiler("AlphaPrefabs.Window_Prefab", "OrderPrefab")]
+        [MpCompatTranspiler("AlphaPrefabs.Window_Prefab", "GetPosition")]
         private static IEnumerable<CodeInstruction> ReplaceCameraMapPosition(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
             var target = AccessTools.PropertyGetter(typeof(CameraDriver), nameof(CameraDriver.MapPosition));
