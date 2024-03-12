@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -151,8 +152,8 @@ namespace Multiplayer.Compat
         #endregion
 
         #region System RNG transpiler
-        private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Type.EmptyTypes);
-        private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(System.Random).GetConstructor(new[] { typeof(int) });
+        private static readonly ConstructorInfo SystemRandConstructor = typeof(Random).GetConstructor(Type.EmptyTypes);
+        private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(Random).GetConstructor(new[] { typeof(int) });
         private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Type.EmptyTypes);
         private static readonly ConstructorInfo RandRedirectorSeededConstructor = typeof(RandRedirector).GetConstructor(new[] { typeof(int) });
 
@@ -697,13 +698,23 @@ namespace Multiplayer.Compat
         #region Async Time
 
         private static bool isAsyncTimeSetup = false;
-        private static bool isAsyncTimeSuccessful = false;
+        private static bool isAsyncTimeGameCompSuccessful = false;
+        private static bool isAsyncTimeMapCompSuccessful = false;
+        // Multiplayer
         private static AccessTools.FieldRef<object> multiplayerGameField;
+        // MultiplayerGame
         private static AccessTools.FieldRef<object, object> gameGameCompField;
+        // MultiplayerGameComp
         private static AccessTools.FieldRef<object, bool> gameCompAsyncTimeField;
+        // Extensions
+        private static FastInvokeHandler getAsyncTimeCompForMapMethod;
+        // AsyncTimeComp
+        private static AccessTools.FieldRef<object, int> asyncTimeMapTicksField;
+        private static AccessTools.FieldRef<object, TimeSlower> asyncTimeSlowerField;
+        private static AccessTools.FieldRef<object, TimeSpeed> asyncTimeTimeSpeedIntField;
 
         public static bool IsAsyncTime
-            => isAsyncTimeSuccessful &&
+            => isAsyncTimeGameCompSuccessful &&
                gameCompAsyncTimeField(gameGameCompField(multiplayerGameField()));
 
         public static void SetupAsyncTime()
@@ -714,18 +725,180 @@ namespace Multiplayer.Compat
 
             try
             {
+                // Multiplayer
                 multiplayerGameField = AccessTools.StaticFieldRefAccess<object>(
                     AccessTools.DeclaredField("Multiplayer.Client.Multiplayer:game"));
-                gameGameCompField = AccessTools.FieldRefAccess<object>(
-                    "Multiplayer.Client.MultiplayerGame:gameComp");
-                gameCompAsyncTimeField = AccessTools.FieldRefAccess<bool>(
-                    "Multiplayer.Client.Comp.MultiplayerGameComp:asyncTime");
-
-                isAsyncTimeSuccessful = true;
             }
             catch (Exception e)
             {
-                Log.Error($"Encountered an exception while settings up async time:\n{e}");
+                Log.Error($"Encountered an exception while settings up core async time functionality:\n{e}");
+                // Nothing else will work here without this, just return early.
+                return;
+            }
+
+            try
+            {
+                // MultiplayerGame
+                gameGameCompField = AccessTools.FieldRefAccess<object>(
+                    "Multiplayer.Client.MultiplayerGame:gameComp");
+                // MultiplayerGameComp
+                gameCompAsyncTimeField = AccessTools.FieldRefAccess<bool>(
+                    "Multiplayer.Client.Comp.MultiplayerGameComp:asyncTime");
+
+                isAsyncTimeGameCompSuccessful = true;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Encountered an exception while settings up game async time:\n{e}");
+            }
+
+            try
+            {
+                getAsyncTimeCompForMapMethod = MethodInvoker.GetHandler(
+                    AccessTools.DeclaredMethod("Multiplayer.Client.Extensions:AsyncTime"));
+
+                var type = AccessTools.TypeByName("Multiplayer.Client.AsyncTimeComp");
+                asyncTimeMapTicksField = AccessTools.FieldRefAccess<int>(type, "mapTicks");
+                asyncTimeSlowerField = AccessTools.FieldRefAccess<TimeSlower>(type, "slower");
+                asyncTimeTimeSpeedIntField = AccessTools.FieldRefAccess<TimeSpeed>(type, "timeSpeedInt");
+
+                isAsyncTimeMapCompSuccessful = true;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Encountered an exception while settings up map async time:\n{e}");
+            }
+        }
+
+        // Taken from MP, GetAndSetFromMap was slightly modified.
+        // https://github.com/rwmt/Multiplayer/blob/master/Source/Client/AsyncTime/SetMapTime.cs#L166-L204
+        // We could access MP's struct and methods using reflection, but there were some issues
+        // in that approach - mainly performance wasn't perfect, as MethodInfo.Invoke call was required.
+        // Having an identical struct in MP Compat won't cause issues, as there's nothing to conflict with MP.
+        // On top of that - if the struct ever gets renamed or moved to a different namespace in MP, it won't
+        // affect MP Compat. However, in case there's any logic changes in MP - they won't be reflected here.
+        // Ideally, we'll make something like this in the MP API.
+        public struct TimeSnapshot
+        {
+            public int ticks;
+            public TimeSpeed speed;
+            public TimeSlower slower;
+
+            public void Set()
+            {
+                Find.TickManager.ticksGameInt = ticks;
+                Find.TickManager.slower = slower;
+                Find.TickManager.curTimeSpeed = speed;
+            }
+
+            public static TimeSnapshot Current()
+            {
+                return new TimeSnapshot
+                {
+                    ticks = Find.TickManager.ticksGameInt,
+                    speed = Find.TickManager.curTimeSpeed,
+                    slower = Find.TickManager.slower
+                };
+            }
+
+            public static TimeSnapshot? GetAndSetFromMap(Map map)
+            {
+                if (map == null) return null;
+                if (!isAsyncTimeMapCompSuccessful) return null;
+
+                var prev = Current();
+
+                var tickManager = Find.TickManager;
+                var mapComp = getAsyncTimeCompForMapMethod(null, map);
+
+                tickManager.ticksGameInt = asyncTimeMapTicksField(mapComp);
+                tickManager.slower = asyncTimeSlowerField(mapComp);
+                tickManager.CurTimeSpeed = asyncTimeTimeSpeedIntField(mapComp);
+
+                return prev;
+            }
+        }
+
+        #endregion
+
+        #region Timestamp Fixer
+
+        private static bool isTimestampFixerInitialized = false;
+        private static Type timestampFixerDelegateType;
+        private static Type timestampFixerListType;
+        private static AccessTools.FieldRef<IDictionary> timestampFieldsDictionaryField;
+
+        public static void RegisterTimestampFixer(Type type, MethodInfo timestampFixerMethod)
+        {
+            if (type == null || timestampFixerMethod == null)
+            {
+                Log.Error($"Trying to register timestamp fixer failed - value null. Type={type.ToStringSafe()}, Method={timestampFixerMethod.ToStringSafe()}");
+                return;
+            }
+
+            InitializeTimestampFixer();
+
+            // Initialize call will display proper errors if needed
+            if (timestampFixerDelegateType == null || timestampFixerListType == null || timestampFieldsDictionaryField == null)
+                return;
+
+            try
+            {
+                var dict = timestampFieldsDictionaryField();
+                IList list;
+                // If the dictionary already contains list of timestamp fixers for
+                // a given type, use that list and add another one to it.
+                if (dict.Contains(type))
+                    list = (IList)dict[type];
+                // If needed, create a new list of timestamp fixers for a given type.
+                else
+                    dict[type] = list = (IList)Activator.CreateInstance(timestampFixerListType);
+
+                // Create a FieldGetter<IExposable> delegate using the provided method
+                list.Add(Delegate.CreateDelegate(timestampFixerDelegateType, timestampFixerMethod));
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Trying to initialize timestamp fixer failed, exception caught:\n{e}");
+            }
+        }
+
+        public static void InitializeTimestampFixer()
+        {
+            if (isTimestampFixerInitialized)
+                return;
+            isTimestampFixerInitialized = true;
+
+            try
+            {
+                var type = AccessTools.TypeByName("Multiplayer.Client.Patches.TimestampFixer");
+                if (type == null)
+                {
+                    Log.Error("Trying to initialize timestamp fixer failed, could not find TimestampFixer type.");
+                    return;
+                }
+
+                // Get the type of the delegate. We need to specify `1 as it's a generic delegate.
+                var delType = AccessTools.Inner(type, "FieldGetter`1");
+                if (delType == null)
+                {
+                    Log.Error("Trying to initialize timestamp fixer failed, could not find FieldGetter inner type.");
+                    return;
+                }
+
+                timestampFieldsDictionaryField = AccessTools.StaticFieldRefAccess<IDictionary>(
+                    AccessTools.DeclaredField(type, "timestampFields"));
+                // The list only accepts FieldGetter<IExposable>
+                timestampFixerDelegateType = delType.MakeGenericType(typeof(IExposable));
+                timestampFixerListType = typeof(List<>).MakeGenericType(timestampFixerDelegateType);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Trying to initialize timestamp fixer failed, exception caught:\n{e}");
+
+                timestampFixerDelegateType = null;
+                timestampFixerListType = null;
+                timestampFieldsDictionaryField = null;
             }
         }
 
