@@ -110,11 +110,26 @@ namespace Multiplayer.Compat
                 curseWorkerDisactivateMethod = AccessTools.Method(type, "Disactivate");
                 curseWorkerStartMethod = AccessTools.Method(type, "Start");
             }
-            
+
             // Flecks
             {
                 // Uses GenView.ShouldSpawnMotesAt, which is based on camera position
                 PatchingUtilities.PatchPushPopRand("VFEPirates.IncomingSmoker:ThrowBlackSmoke");
+            }
+
+            // Ability cooldown
+            {
+                LongEventHandler.ExecuteWhenFinished(() =>
+                {
+                    // Setup snapshots just in case, but they should be setup by VFE compat.
+                    PatchingUtilities.SetupAsyncTime();
+                    // Just re-use the patch from VFE. It's not a subtype of Command_Ability
+                    // but Verse.Command_Toggle. However it still has the same fields and works
+                    // the same way with cooldowns as the VFE Ability class.
+                    MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFEPirates.CommandAbilityToggle:GizmoOnGUIInt"),
+                        prefix: new HarmonyMethod(MpMethodUtil.MethodOf(VanillaExpandedFramework.PreAbilityGizmoGui)),
+                        finalizer: new HarmonyMethod(MpMethodUtil.MethodOf(VanillaExpandedFramework.RestoreProperTimeSnapshot)));
+                });
             }
         }
 
