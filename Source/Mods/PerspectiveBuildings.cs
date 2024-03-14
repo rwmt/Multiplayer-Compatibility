@@ -12,6 +12,11 @@ namespace Multiplayer.Compat
     {
         public PerspectiveBuildings(ModContentPack mod)
         {
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
+        }
+
+        private static void LatePatch()
+        {
             var type = AccessTools.TypeByName("Perspective.CompOffsetter");
             MP.RegisterSyncMethod(type, "SetCurrentOffset");
             MP.RegisterSyncMethod(type, "SetMirroredState");
