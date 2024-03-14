@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
@@ -14,16 +13,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("onyxae.dragonsdescent")]
     public class DragonsDescent
     {
-        //// Gizmos ////
-        // CompHostileResponse
-        // Inner class inside of CompHostileResponse
-        private static AccessTools.FieldRef<object, ThingComp> compHostileResponseParentField;
-        private static AccessTools.FieldRef<object, IList> compHostileResponseOptionsField;
-        private static AccessTools.FieldRef<object, int> compHostileResponseIndexField;
-
-        // CompProperties_HostileResponse
-        private static AccessTools.FieldRef<object, IList> compHostileResponsePropsOptionsField;
-
         //// Altar and Rituals ////
         // Command_RitualEffect
         private static ConstructorInfo ritualEffectCommandCtor;
@@ -58,23 +47,7 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaDelegate("DD.CompProperties_EggIncubator", "CreateGizmo", 0);
             }
 
-            // AbilityCom_AbilityControl seems unused, skipping this gizmo
-
-            // Hostility response type changing
-            {
-                var type = AccessTools.TypeByName("DD.CompHostileResponse");
-                var method = MpMethodUtil.GetLambda(type, "Gizmo", MethodType.Getter, null, 1);
-                var inner = method.DeclaringType;
-
-                compHostileResponseParentField = AccessTools.FieldRefAccess<ThingComp>(inner, "<>4__this");
-                compHostileResponseOptionsField = AccessTools.FieldRefAccess<IList>(inner, "options");
-                compHostileResponseIndexField = AccessTools.FieldRefAccess<int>(inner, "index");
-
-                compHostileResponsePropsOptionsField = AccessTools.FieldRefAccess<IList>("DD.CompProperties_HostileResponse:options");
-
-                MP.RegisterSyncMethod(method);
-                MP.RegisterSyncWorker<object>(SyncHostileResponseOptionInnerClass, inner, shouldConstruct: true);
-            }
+            // AbilityComp_AbilityControl seems unused, skipping this gizmo
 
             // Altar and Rituals
             {
@@ -91,9 +64,6 @@ namespace Multiplayer.Compat
                 // RitualTracker
                 var ritualTrackerType = AccessTools.TypeByName("DD.RitualTracker");
                 ritualTrackerMapField = AccessTools.FieldRefAccess<Map>(ritualTrackerType, "map");
-
-                // CompRitualAltar
-                MpCompat.RegisterLambdaDelegate("DD.CompRitualAltar", "CompGetGizmosExtra", 0, 1, 2, 3, 4, 5).SetDebugOnly();
                 MP.RegisterSyncWorker<object>(SyncRitualTracker, ritualTrackerType);
             }
 
@@ -118,25 +88,6 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(ritualEffectCommand, "ActivateOnLocalTarget").SetPreInvoke(PreActivateRitual);
             MP.RegisterSyncMethod(ritualEffectCommand, "ActivateOnGlobalTarget").SetPreInvoke(PreActivateRitual);
             MP.RegisterSyncWorker<Command>(SyncRitualEffectCommand, ritualEffectCommand);
-        }
-
-        private static void SyncHostileResponseOptionInnerClass(SyncWorker sync, ref object obj)
-        {
-            if (sync.isWriting)
-            {
-                sync.Write(compHostileResponseParentField(obj));
-                sync.Write(compHostileResponseIndexField(obj));
-            }
-            else
-            {
-                var comp = sync.Read<ThingComp>();
-                var index = sync.Read<int>();
-                var options = compHostileResponsePropsOptionsField(comp.props);
-
-                compHostileResponseParentField(obj) = comp;
-                compHostileResponseOptionsField(obj) = options;
-                compHostileResponseIndexField(obj) = index;
-            }
         }
 
         private static void SyncRitualTracker(SyncWorker sync, ref object tracker)
