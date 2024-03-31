@@ -51,11 +51,7 @@ namespace Multiplayer.Compat
                     "BiomesCore.GenSteps.ValleyPatch:Postfix",
                 }, false);
 
-                PatchingUtilities.PatchPushPopRand(new[]
-                {
-                    "BiomesCore.CompPlantReleaseSpore:ThrowPoisonSmoke",
-                    "BiomesCore.TerrainComp_MoteSpawner:ThrowMote",
-                });
+                PatchingUtilities.PatchPushPopRand("BiomesCore.CompPlantReleaseSpore:ThrowPoisonSmoke");
             }
         }
     }
