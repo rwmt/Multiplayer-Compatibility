@@ -1214,37 +1214,6 @@ namespace Multiplayer.Compat
             renameDoorTeleporterDialogThingField = AccessTools.FieldRefAccess<ThingWithComps>(renameDoorTeleporterDialogType, "DoorTeleporter");
 
             PatchingUtilities.PatchPushPopRand(renameDoorTeleporterDialogConstructor);
-            MP.RegisterSyncWorker<Dialog_Rename>(SyncDialogRenameDoorTeleporter, renameDoorTeleporterDialogType);
-            MP.RegisterSyncMethod(renameDoorTeleporterDialogType, nameof(Dialog_Rename.SetName))
-                // Since we sync the "SetName" method and nothing else, it'll leave the dialog open for
-                // players who didn't click the button to rename it - we need to manually close it.
-                .SetPostInvoke((dialog, _) =>
-                {
-                    if (dialog is Window w)
-                        Find.WindowStack.TryRemove(w);
-                });
-        }
-
-        private static void SyncDialogRenameDoorTeleporter(SyncWorker sync, ref Dialog_Rename dialog)
-        {
-            if (sync.isWriting)
-            {
-                sync.Write(renameDoorTeleporterDialogThingField(dialog));
-                sync.Write(dialog.curName);
-            }
-            else
-            {
-                var doorTeleporter = sync.Read<ThingWithComps>();
-                var name = sync.Read<string>();
-
-                // The dialog may be already open
-                dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == renameDoorTeleporterDialogType) as Dialog_Rename;
-                // If the dialog is not open, or the open dialog is for a different door - create a new dialog instead
-                if (dialog == null || renameDoorTeleporterDialogThingField(dialog) != doorTeleporter)
-                    dialog = (Dialog_Rename)renameDoorTeleporterDialogConstructor.Invoke(new object[] { doorTeleporter });
-
-                dialog.curName = name;
-            }
         }
 
         #endregion

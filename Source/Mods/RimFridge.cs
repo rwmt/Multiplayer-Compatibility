@@ -26,7 +26,7 @@ namespace Multiplayer.Compat
                 dialogType = AccessTools.TypeByName("RimFridge.Dialog_RenameFridge");
                 fridgeField = AccessTools.FieldRefAccess<ThingComp>(dialogType, "fridge");
 
-                MP.RegisterSyncWorker<Dialog_Rename>(SyncFridgeName, dialogType);
+                MP.RegisterSyncWorker<object>(SyncFridgeName, dialogType);
                 MP.RegisterSyncMethod(dialogType, "SetName");
             }
 
@@ -36,13 +36,13 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static void SyncFridgeName(SyncWorker sync, ref Dialog_Rename dialog)
+        private static void SyncFridgeName(SyncWorker sync, ref object dialog)
         {
             if (sync.isWriting)
                 sync.Write(fridgeField(dialog));
             else
             {
-                dialog = (Dialog_Rename)FormatterServices.GetUninitializedObject(dialogType);
+                dialog = FormatterServices.GetUninitializedObject(dialogType);
                 fridgeField(dialog) = sync.Read<ThingComp>();
             }
         }

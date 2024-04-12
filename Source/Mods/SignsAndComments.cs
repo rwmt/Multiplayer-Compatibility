@@ -13,8 +13,8 @@ namespace Multiplayer.Compat
     public class SignsAndComments
     {
         private static ConstructorInfo renameSignDialogCtor;
-        private static AccessTools.FieldRef<Dialog_Rename, Color> dialogColorField;
-        private static AccessTools.FieldRef<Dialog_Rename, ThingComp> dialogSignCompField;
+        private static AccessTools.FieldRef<object, Color> dialogColorField;
+        private static AccessTools.FieldRef<object, ThingComp> dialogSignCompField;
 
         public SignsAndComments(ModContentPack mod)
         {
@@ -33,11 +33,11 @@ namespace Multiplayer.Compat
             dialogColorField = AccessTools.FieldRefAccess<Color>(renameDialogType, "curColor");
             dialogSignCompField = AccessTools.FieldRefAccess<ThingComp>(renameDialogType, "signComp");
 
-            MP.RegisterSyncMethod(renameDialogType, nameof(Dialog_Rename.SetName));
-            MP.RegisterSyncWorker<Dialog_Rename>(SyncRenameSignDialog, renameDialogType);
+            MP.RegisterSyncMethod(renameDialogType, nameof(IRenameable.RenamableLabel));
+            MP.RegisterSyncWorker<object>(SyncRenameSignDialog, renameDialogType);
         }
 
-        private static void SyncRenameSignDialog(SyncWorker sync, ref Dialog_Rename dialog)
+        private static void SyncRenameSignDialog(SyncWorker sync, ref object dialog)
         {
             if (sync.isWriting)
             {
@@ -49,7 +49,7 @@ namespace Multiplayer.Compat
                 var comp = sync.Read<ThingComp>();
                 var color = sync.Read<Color>();
 
-                dialog = (Dialog_Rename)renameSignDialogCtor.Invoke(new object[] { comp });
+                dialog = renameSignDialogCtor.Invoke(new object[] { comp });
                 dialogColorField(dialog) = color;
             }
         }

@@ -2,11 +2,7 @@
 
 set -e
 
-cd Source
 dotnet build -c Release
-cd ../Source_Referenced
-dotnet build -c Release
-cd ..
 
 rm -rf Multiplayer-Compatibility/
 mkdir -p Multiplayer-Compatibility
