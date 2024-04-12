@@ -33,6 +33,6 @@
   </ItemGroup>
 
 	<ItemGroup>
-		<Publicize Include="Assembly-CSharp" />
+		<Publicize Include="Assembly-CSharp;0Harmony" />
 	</ItemGroup>
 </Project>

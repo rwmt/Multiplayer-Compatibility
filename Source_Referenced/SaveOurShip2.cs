@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿#if false
+using System.Collections.Generic;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -371,3 +372,4 @@ namespace Multiplayer.Compat
         }
     }
 }
+#endif
