@@ -1,5 +1,4 @@
-﻿#if false
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -80,7 +79,7 @@ namespace Multiplayer.Compat
                 // Re-cache intel amount
                 // Since we change how it's handled by allowing players to open the dialog locally without forcing pause,
                 // we need to re-cache the value in case it ends up changing due to decay/other player actions.
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_DeserterNetwork), nameof(Dialog_Debug.DoWindowContents)),
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_DeserterNetwork), nameof(Dialog_DeserterNetwork.DoWindowContents)),
                     prefix: new HarmonyMethod(typeof(VanillaFactionsDeserters), nameof(PreDeserterNetworkDraw)));
 
                 #endregion
@@ -548,4 +547,3 @@ namespace Multiplayer.Compat
         #endregion
     }
 }
-#endif
