@@ -49,10 +49,10 @@ namespace Multiplayer.Compat
         {
             // Cache
             {
-                var type = AccessTools.TypeByName("Hospitality.CompUtility");
+                var type = AccessTools.TypeByName("Hospitality.Utilities.CompUtility");
                 guestCompsField = AccessTools.StaticFieldRefAccess<IDictionary>(AccessTools.DeclaredField(type, "guestComps"));
 
-                type = AccessTools.TypeByName("Hospitality.RelationUtility");
+                type = AccessTools.TypeByName("Hospitality.Utilities.RelationUtility");
                 relationCacheField = AccessTools.StaticFieldRefAccess<IDictionary>(AccessTools.DeclaredField(type, "relationCache"));
 
                 type = AccessTools.TypeByName("Hospitality.Utilities.GenericUtility");
@@ -73,7 +73,7 @@ namespace Multiplayer.Compat
                 syncFields = AccessTools.StaticFieldRefAccess<ISyncField[]>(AccessTools.DeclaredField("Hospitality.Multiplayer:guestFields"));
 
                 // Basically an extension method to pawn.GetComp<CompGuest>, but with extra caching and null.
-                compGuestMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Hospitality.CompUtility:CompGuest"));
+                compGuestMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Hospitality.Utilities.CompUtility:CompGuest"));
 
                 // Hospitality starts watching in this DoHeader is called before DoCell, so it should be good enough of a place to put it in.
                 var type = AccessTools.TypeByName("Hospitality.MainTab.PawnColumnWorker_Relationship");
