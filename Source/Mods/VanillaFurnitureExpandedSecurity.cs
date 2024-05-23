@@ -49,14 +49,7 @@ namespace Multiplayer.Compat
 
             // RNG fix
             {
-                var methods = new[]
-                {
-                    "VFESecurity.Building_Shield:Notify_EnergyDepleted",
-                    "VFESecurity.Building_Shield:Draw",
-                };
-
-                PatchingUtilities.PatchPushPopRand(AccessTools.Method("VFESecurity.Building_Shield:AbsorbDamage", new[] { typeof(float), typeof(DamageDef), typeof(float) }));
-                PatchingUtilities.PatchPushPopRand(methods);
+                PatchingUtilities.PatchPushPopRand("VFESecurity.Building_Shield:DrawAt");
             }
         }
 

@@ -4,6 +4,7 @@ using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
+using RimWorld.QuestGen;
 using Verse;
 using Verse.AI.Group;
 using VFEEmpire;
@@ -116,6 +117,26 @@ namespace Multiplayer.Compat
                 // Basically when called, it removes the pawns from list with pawns with titles, and if they still have them - they get re-added.
                 // Causes the order to change, which could cause issues before the method is synced.
                 PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(typeof(ColonistTitleCache.RoyaltyTracker), nameof(ColonistTitleCache.RoyaltyTracker.Postfix)));
+            }
+
+            // Quest gen error
+            {
+                var types = new[]
+                {
+                    typeof(Questnode_Root_ArtExhibit),
+                    typeof(QuestNode_Root_DeserterHideout),
+                    typeof(QuestNode_Root_GrandBall),
+                    typeof(QuestNode_Root_NobleVisit),
+                };
+
+                foreach (var type in types)
+                {
+                    var method = AccessTools.DeclaredMethod(type, nameof(QuestNode.TestRunInt));
+                    if (method == null)
+                        Log.Error($"Failed patching {nameof(QuestNode)}.{nameof(QuestNode.TestRunInt)} for type {type}");
+                    else
+                        MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VanillaFactionsEmpire), nameof(PreTestRun)));
+                }
             }
         }
 
@@ -337,6 +358,22 @@ namespace Multiplayer.Compat
             permitWorker.faction = faction;
             permitWorker.origin = origin;
             permitWorker.OrderForceTarget(target);
+        }
+
+        #endregion
+
+        #region Quest error fix
+
+        private static bool PreTestRun(ref bool __result)
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            if (QuestGen_Get.GetMap() != null)
+                return true;
+
+            __result = false;
+            return false;
         }
 
         #endregion

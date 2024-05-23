@@ -21,21 +21,42 @@ namespace Multiplayer.Compat
 
         public VanillaPsycastsExpanded(ModContentPack mod)
         {
-            InitializeCommonData();
-            PatchPsysets();
-            PatchPsyringDialog();
-            RegisterSyncMethods();
+            (Action patchMethod, string componentName, bool latePatch)[] patches =
+            [
+                (InitializeCommonData, "Shared patch data", false),
+                (PatchPsysets, "Psysets", false),
+                (PatchPsyringDialog, "Psyring", false),
+                (RegisterSyncGizmos, "General gizmos", true),
+                (PatchPsychicStatusGizmo, "Psychic status gizmo", true),
+                (PatchPsycasterHediff, "Skill point usage", true),
+                (PatchMotesAndFlecks, "Motes and flecks", true),
+                (PatchITab, "Psychic abilities tab transpiler (psysets)", true),
+            ];
 
-            LongEventHandler.ExecuteWhenFinished(LatePatch);
-        }
+            foreach (var (patchMethod, componentName, latePatch) in patches)
+            {
+                if (latePatch)
+                    LongEventHandler.ExecuteWhenFinished(ApplyPatch);
+                else
+                    ApplyPatch();
 
-        private static void LatePatch()
-        {
-            PatchPsychicStatusGizmo();
-            PatchPsycasterHediff();
-            PatchGizmosAndFlecks();
-            PatchITab();
-            PatchSkipdoor();
+                void ApplyPatch()
+                {
+                    try
+                    {
+#if DEBUG
+                        Log.Message($"Patching Vanilla Psycasts Expanded - {componentName}");
+#endif
+
+                        patchMethod();
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error($"Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
+                        Log.Error(e.ToString());
+                    }
+                }
+            }
         }
 
         #endregion
@@ -45,7 +66,6 @@ namespace Multiplayer.Compat
         private static ISyncField syncPsychicEntropyLimit;
         private static ISyncField syncPsychicEntropyTargetFocus;
         private static AccessTools.FieldRef<object, Pawn_PsychicEntropyTracker> psychicEntropyGetter;
-        private static Hediff currentHediff;
 
         // Hediff_PsycastAbilities
         private static FastInvokeHandler removePsysetMethod;
@@ -110,11 +130,15 @@ namespace Multiplayer.Compat
         // HashSet<AbilityDef>
         private static Type abilityDefHashSetType;
         private static FastInvokeHandler abilityDefHashSetAddMethod;
-        
 
         private static void PatchPsysets()
         {
             // Init
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncPsyset));
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRemovePsyset));
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncEnsurePsysetExists));
+            MP.RegisterSyncWorker<PsysetRenameHolder>(SyncPsysetRenameHolder);
+
             var abilityDefType = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
             abilityDefHashSetType = typeof(HashSet<>).MakeGenericType(abilityDefType);
             abilityDefHashSetAddMethod = MethodInvoker.GetHandler(AccessTools.Method(abilityDefHashSetType, "Add"));
@@ -143,10 +167,6 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(method,
                 prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PrePsysetInnerClassMethod)),
                 postfix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PostPsysetInnerClassMethod)));
-
-            // Set name dialog
-            MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.Dialog_RenamePsyset:SetName"),
-                prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PreSetPsysetName)));
         }
 
         private static void ReplacedRemovePsyset(Hediff hediff, object psyset)
@@ -257,46 +277,19 @@ namespace Multiplayer.Compat
             psysetAbilitiesField(psyset) = (IEnumerable)set;
         }
 
-        private static bool PreSetPsysetName(string name, object ___psyset)
+        private static IEnumerable<CodeInstruction> PatchPsycastsITab(IEnumerable<CodeInstruction> instr)
         {
-            if (!MP.IsInMultiplayer || currentHediff == null)
-                return true;
-
-            // We use currentHediff to sync the psyset being renamed
-            // No way to access hediff/pawn/anything useful from this dialog or psyset itself
-            var hediff = currentHediff;
-            currentHediff = null;
-            var index = hediffPsysetsList(hediff).IndexOf(___psyset);
-            if (index < 0)
-                return true;
-
-            SyncRenamePsyset(hediff, index, name);
-
-            return false;
-        }
-
-        private static void SyncRenamePsyset(Hediff hediff, int index, string name)
-        {
-            var psyset = hediffPsysetsList(hediff)[index];
-            psysetNameField(psyset) = name;
-        }
-
-        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instr)
-        {
-            var codeInstructions = instr as CodeInstruction[] ?? instr.ToArray();
-
             var target = AccessTools.Method("VanillaPsycastsExpanded.Hediff_PsycastAbilities:RemovePsySet");
             var replacement = AccessTools.Method(typeof(VanillaPsycastsExpanded), nameof(ReplacedRemovePsyset));
 
             var dialogRenameType = AccessTools.TypeByName("VanillaPsycastsExpanded.UI.Dialog_RenamePsyset");
+            var replacedDialogRenameType = AccessTools.DeclaredConstructor(typeof(Dialog_RenamePsysetMp),
+                [typeof(IRenameable), typeof(Hediff)]);
 
             var originalHediffField = AccessTools.Field("VanillaPsycastsExpanded.UI.ITab_Pawn_Psycasts:hediff");
-            var ourHediffField = AccessTools.Field(typeof(VanillaPsycastsExpanded), nameof(currentHediff));
 
-            for (var i = 0; i < codeInstructions.Length; i++)
+            foreach (var ci in instr)
             {
-                var ci = codeInstructions[i];
-
                 if (ci.opcode == OpCodes.Callvirt && ci.operand is MethodInfo method && method == target)
                 {
                     ci.opcode = OpCodes.Call;
@@ -304,21 +297,66 @@ namespace Multiplayer.Compat
                 }
                 else if (ci.opcode == OpCodes.Newobj && ci.operand is ConstructorInfo ctor && ctor.DeclaringType == dialogRenameType)
                 {
-                    // Skip the current and next instruction
-                    yield return ci;
-                    yield return codeInstructions[++i];
-
-                    // Get the hediff field and set our static one to it.
-                    // We use it for syncing, as we need it for syncing PsySet,
-                    // and it has no way to reference it directly.
+                    // Load the current hediff onto the stack
                     yield return new CodeInstruction(OpCodes.Ldarg_0);
                     yield return new CodeInstruction(OpCodes.Ldfld, originalHediffField);
-                    ci = new CodeInstruction(OpCodes.Stsfld, ourHediffField);
+                
+                    // Replace the VE rename dialog with our own
+                    ci.operand = replacedDialogRenameType;
                 }
 
                 yield return ci;
             }
         }
+
+        private static void SyncPsysetRenameHolder(SyncWorker sync, ref PsysetRenameHolder holder)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(holder.hediff);
+                if (holder.hediff != null)
+                    sync.Write(hediffPsysetsList(holder.hediff).IndexOf(holder.psyset));
+            }
+            else
+            {
+                var hediff = sync.Read<Hediff>();
+                IRenameable psyset = null;
+
+                if (hediff != null)
+                {
+                    var index = sync.Read<int>();
+                    var list = hediffPsysetsList(hediff);
+                    if (index >= 0 && index < list.Count)
+                        psyset = list[index] as IRenameable;
+                }
+
+                holder = new PsysetRenameHolder(psyset, hediff);
+            }
+        }
+
+        // Our syncable holder for the psyset. We need the hediff itself to sync the psyset,
+        // so we need a custom solution for syncing.
+        private class PsysetRenameHolder(IRenameable psyset, Hediff hediff) : IRenameable
+        {
+            public readonly IRenameable psyset = psyset;
+            public readonly Hediff hediff = hediff;
+
+            // The setter should be automatically synced by MP, since the type is syncable (#443)
+            public string RenamableLabel
+            {
+                get => psyset?.RenamableLabel ?? string.Empty;
+                set
+                {
+                    if (psyset != null) psyset.RenamableLabel = value;
+                }
+            }
+
+            public string BaseLabel => psyset?.BaseLabel ?? string.Empty;
+            public string InspectLabel => psyset?.InspectLabel ?? string.Empty;
+        }
+
+        // Rename dialog for PsysetRenameHolder
+        private class Dialog_RenamePsysetMp(IRenameable psyset, Hediff hediff) : Dialog_Rename<PsysetRenameHolder>(new PsysetRenameHolder(psyset, hediff));
 
         #endregion
 
@@ -386,19 +424,17 @@ namespace Multiplayer.Compat
 
         #region Other
 
-        private static void RegisterSyncMethods()
+        private static void RegisterSyncGizmos()
         {
-            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncPsyset));
-            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRemovePsyset));
-            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncEnsurePsysetExists));
-            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncRenamePsyset));
-
             // Gizmos
             MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.CompBreakLink", "GetGizmos", 0);
             MpCompat.RegisterLambdaDelegate("VanillaPsycastsExpanded.Ability_GuardianSkipBarrier", "GetGizmo", 0);
+
+            // Destroy
+            MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.Skipmaster.Skipdoor", "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
         }
 
-        private static void PatchGizmosAndFlecks()
+        private static void PatchMotesAndFlecks()
         {
             // Uses RNG after GenView.ShouldSpawnMotesAt, gonna cause desyncs
             PatchingUtilities.PatchPushPopRand(new[]
@@ -408,20 +444,10 @@ namespace Multiplayer.Compat
             });
         }
 
-        private static void PatchCurrentMapUsage()
-        {
-        }
-
         private static void PatchITab()
         {
             MpCompat.harmony.Patch(AccessTools.Method("VanillaPsycastsExpanded.UI.ITab_Pawn_Psycasts:DoPsysets"),
-                transpiler: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(Transpiler)));
-        }
-
-        private static void PatchSkipdoor()
-        {
-            // Destroy
-            MpCompat.RegisterLambdaMethod("VanillaPsycastsExpanded.Skipmaster.Skipdoor", "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
+                transpiler: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PatchPsycastsITab)));
         }
 
         #endregion

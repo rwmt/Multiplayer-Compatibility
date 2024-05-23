@@ -23,13 +23,13 @@ namespace Multiplayer.Compat
         public VanillaExpandedFramework(ModContentPack mod)
         {
             (Action patchMethod, string componentName, bool latePatch)[] patches =
-            {
+            [
                 (PatchItemProcessor, "Item Processor", false),
                 (PatchOtherRng, "Other RNG", false),
                 (PatchVFECoreDebug, "Debug Gizmos", false),
                 (PatchAbilities, "Abilities", true),
                 (PatchHireableFactions, "Hireable Factions", false),
-                (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", false),
+                (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", true),
                 (PatchVanillaFactionMechanoids, "Vanilla Faction Mechanoids", false),
                 (PatchAnimalBehaviour, "Animal Behaviour", false),
                 (PatchExplosiveTrialsEffect, "Explosive Trials Effect", false),
@@ -47,21 +47,30 @@ namespace Multiplayer.Compat
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
                 (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
                 (PatchExpandableProjectile, "Expandable projectile", false),
-            };
+            ];
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
             {
-                try
+                if (latePatch)
+                    LongEventHandler.ExecuteWhenFinished(ApplyPatch);
+                else
+                    ApplyPatch();
+
+                void ApplyPatch()
                 {
-                    if (latePatch)
-                        LongEventHandler.ExecuteWhenFinished(patchMethod);
-                    else
+                    try
+                    {
+#if DEBUG
+                        Log.Message($"Patching Vanilla Expanded Framework - {componentName}");
+#endif
+
                         patchMethod();
-                }
-                catch (Exception e)
-                {
-                    Log.Error($"Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
-                    Log.Error(e.ToString());
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error($"Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
+                        Log.Error(e.ToString());
+                    }
                 }
             }
         }

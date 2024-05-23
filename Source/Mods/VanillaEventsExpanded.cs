@@ -20,16 +20,13 @@ namespace Multiplayer.Compat
                 "VEE.RegularEvents.CaravanAnimalWI:GenerateGroup",
                 "VEE.RegularEvents.MeteoriteShower:TryExecuteWorker",
                 "VEE.RegularEvents.WeaponPod:TryExecuteWorker",
+                "VEE.RegularEvents.EarthQuake:DamageInRadius",
             };
 
             PatchingUtilities.PatchSystemRand(methodsForAll, false);
-            // This method only calls other methods that use RNG calls
-            PatchingUtilities.PatchPushPopRand("VEE.RegularEvents.EarthQuake:TryExecuteWorker");
-            // Only patch System.Random out, as this methods is only called by other ones
-            PatchingUtilities.PatchSystemRand("VEE.RegularEvents.EarthQuake:DamageInRadius", false);
 
             // Unity RNG
-            PatchingUtilities.PatchUnityRand("VEE.Shuttle:Tick");
+            PatchingUtilities.PatchUnityRand("VEE.Shuttle:Tick", false);
 
             // Current map usage, picks between rain and snow based on current map temperature, instead of using map it affects
             PatchingUtilities.ReplaceCurrentMapUsage("VEE.PurpleEvents.PsychicRain:ForcedWeather");
