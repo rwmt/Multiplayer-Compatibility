@@ -110,24 +110,54 @@ namespace Multiplayer.Compat
 
         private static bool HasSyncWorker(Type type)
         {
-            const string methodPath = "Multiplayer.Client.SyncSerialization:CanHandle";
+            const string fieldPath = "Multiplayer.Client.Multiplayer:serialization";
+            const string methodName = "CanHandle";
+            void Error(string message) => Log.Error($"Failed to check if sync worker for type {type} is already registered in MP - {message}");
 
-            // Don't cache the method, it'll be used very rarely (assuming it'll even be used at all), so there's no point in having a field for it.
-            var method = AccessTools.DeclaredMethod(methodPath, new[] { typeof(SyncType) });
+            // Don't cache the field/method, they will be used very rarely (assuming they will even be used at all), so there's no point in having a field for it.
+            var field = AccessTools.DeclaredField(fieldPath);
+
+            if (field == null)
+            {
+                Error($"failed to find field {fieldPath}");
+                return false;
+            }
+
+            if (!field.IsStatic)
+            {
+                Error($"field {fieldPath} is not static");
+                return false;
+            }
+
+            var instance = field.GetValue(null);
+
+            if (instance == null)
+            {
+                Error($"field {fieldPath} is null");
+                return false;
+            }
+
+            var method = AccessTools.DeclaredMethod(field.FieldType, methodName, [typeof(SyncType)]);
 
             if (method == null)
             {
-                Log.Error($"Failed to check if sync worker for type {type} is already registered in MP - failed to find method {methodPath}");
+                Error($"failed to find method {methodName}");
                 return false;
             }
 
             if (method.ReturnType != typeof(bool))
             {
-                Log.Error($"Failed to check if sync worker for type {type} is already registered in MP - return type is not bool but {method.ReturnType} for method {methodPath}");
+                Error($"return type is not bool but {method.ReturnType} for method {methodName}");
                 return false;
             }
 
-            return (bool)method.Invoke(null, new object[] { new SyncType(type) });
+            if (method.IsStatic)
+            {
+                Log.Warning($"Method {methodName} is static, but we expected it to be non-static - the results may potentially be incorrect.");
+                return (bool)method.Invoke(null, [new SyncType(type)]);
+            }
+
+            return (bool)method.Invoke(instance, [new SyncType(type)]);
         }
     }
 }
