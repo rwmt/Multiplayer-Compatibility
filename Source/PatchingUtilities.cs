@@ -917,5 +917,69 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+        #region Unsafe long event cancelling
+
+        public static bool AllowedToRunLongEvents { get; private set; } = true;
+        private static bool longEventMarkerPatchActive = false;
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(params string[] methodNames) => CancelCallIfLongEventsAreUnsafe(methodNames as IEnumerable<string>);
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(IEnumerable<string> methodNames)
+            => CancelCallIfLongEventsAreUnsafe(methodNames
+                .Select(m =>
+                {
+                    var method = AccessTools.DeclaredMethod(m) ?? AccessTools.Method(m);
+                    if (method == null)
+                        Log.Error($"({nameof(PatchingUtilities)}) Could not find method {m}");
+                    return method;
+                })
+                .Where(m => m != null));
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(params MethodBase[] methods) => CancelCallIfLongEventsAreUnsafe(methods as IEnumerable<MethodBase>);
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(IEnumerable<MethodBase> methods)
+        {
+            PatchLongEventMarkers();
+
+            var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(StopSecondHostCall));
+            foreach (var method in methods)
+                MpCompat.harmony.Patch(method, prefix: patch);
+        }
+
+        public static void PatchLongEventMarkers()
+        {
+            if (longEventMarkerPatchActive)
+                return;
+
+            longEventMarkerPatchActive = true;
+
+            // Patch to MP to mark when to stop long events Perspective: Ores
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("Multiplayer.Client.SaveLoad:LoadInMainThread"),
+                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(SetDisallowedToRun)),
+                finalizer: new HarmonyMethod(typeof(PatchingUtilities), nameof(SetAllowedToRun)));
+        }
+
+        private static void SetDisallowedToRun() => AllowedToRunLongEvents = false;
+
+        private static void SetAllowedToRun() => AllowedToRunLongEvents = true;
+
+        private static bool StopSecondHostCall()
+        {
+            // Stop the host from running it for the second time. It messes stuff up due to the place it's called from.
+            // It can cause the host to start generating non-local IDs when they should generate local ones. This causes
+            // the host to assign higher IDs than all the connected clients.
+            return AllowedToRunLongEvents;
+        }
+
+        #endregion
     }
 }
