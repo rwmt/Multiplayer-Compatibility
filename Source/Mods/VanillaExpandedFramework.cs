@@ -47,6 +47,7 @@ namespace Multiplayer.Compat
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
                 (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
                 (PatchExpandableProjectile, "Expandable projectile", false),
+                (PatchStaticCaches, "Static caches", false),
             ];
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -1434,6 +1435,89 @@ namespace Multiplayer.Compat
             }
 
             lastThing = null;
+        }
+
+        #endregion
+
+        #region Caches
+
+        private static FastInvokeHandler[] cacheGetterList;
+
+        private static void PatchStaticCaches()
+        {
+            cacheGetterList = new[]
+                {
+                    // Currently the only cache in the mod.
+                    // They also technically access DictCache<Pawn, CachedPawnData> directly, but
+                    // PawnDataCache uses the same generics, and they end up sharing the dictionary.
+                    "VFECore.PawnDataCache",
+                }
+                .Select(AccessTools.TypeByName)
+                .Select(t => AccessTools.PropertyGetter(t, "Cache"))
+                .Select(m => MethodInvoker.GetHandler(m))
+                .ToArray();
+
+            var patch = AccessTools.DeclaredMethod("VFECore.Pawn_DrawTracker_Patch:Postfix");
+            MpCompat.harmony.Unpatch(AccessTools.DeclaredPropertyGetter(typeof(Pawn_DrawTracker), nameof(Pawn_DrawTracker.DrawPos)), patch);
+
+            // The recaching happens (by default) every 180 ticks or 2 seconds.
+            // Disable recaching caused by real time passing in MP.
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.CacheTimer:TimeOutSeconds"),
+                prefix: new HarmonyMethod(MpMethodUtil.MethodOf(NeverTimeoutDueToRealTime)));
+
+            // Clear the caches
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(ClearCache)));
+
+            // Prevent the timers from being reset in interface.
+            PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod("VFECore.CacheTimer:ResetTimers"));
+            // Prevent the cache from being regenerated in interface.
+            // List of all types implementing ICacheable to patch, currently only 1 type does it.
+            var typeNames = new[]
+            {
+                "VFECore.CachedPawnData",
+            };
+            foreach (var typeName in typeNames)
+            {
+                const string regenerateCacheMethodName = "RegenerateCache";
+                var type = AccessTools.TypeByName(typeName);
+                // Look for the method with no arguments in case there's an overload with different arguments.
+                var method = AccessTools.DeclaredMethod(type, regenerateCacheMethodName, []);
+
+                if (method == null)
+                    Log.Error($"Could not find {typeName}:{regenerateCacheMethodName}");
+                else if (method.ReturnType != typeof(bool))
+                    Log.Error($"{typeName}:{regenerateCacheMethodName} has a return type of {method.ReturnType}, we were expecting bool.");
+                else
+                    PatchingUtilities.PatchCancelInInterface(method);
+            }
+        }
+
+        private static void ClearCache()
+        {
+            foreach (var getter in cacheGetterList)
+                (getter(null) as IDictionary)?.Clear();
+        }
+
+        private static bool NeverTimeoutDueToRealTime(ref bool __result, ref int ___UpdateIntervalTicks, ref int ___UpdateIntervalSeconds)
+        {
+            // Result defaults to false, so if <= -1 just stop original from running
+            if (___UpdateIntervalSeconds <= -1)
+                return false;
+            // Let SP do its own thing
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            // As a backup, enable tick based recaching (if it isn't enabled already)
+            if (___UpdateIntervalTicks <= -1)
+            {
+                Log.WarningOnce("Real time recaching disabled in MP but tick based recaching is disabled. Enabling tick based recaching (and disabling further warnings).", 652857559);
+                ___UpdateIntervalTicks = ___UpdateIntervalSeconds * 90;
+            }
+
+            // Disable real time recaching
+            ___UpdateIntervalSeconds = -1;
+            return false;
         }
 
         #endregion
