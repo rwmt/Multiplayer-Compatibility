@@ -143,10 +143,10 @@ namespace Multiplayer.Compat
                 // Comps
 
                 // Target fuel level setter, used from Gizmo_RefuelableFuelTravel
-                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.TargetFuelLevel));
+                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.TargetFuelPercent));
                 // Refuel from inventory, used from Gizmo_RefuelableFuelTravel
-                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), new SyncType[] { typeof(List<Thing>) });
-                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), new SyncType[] { typeof(float) });
+                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), [typeof(List<Thing>)]);
+                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), [typeof(float)]);
                 // Toggle connect/disconnect from power for electric vehicles
                 MpCompat.RegisterLambdaMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.CompGetGizmosExtra), 1);
                 // (Dev) set fuel to 0/0.1/half/max
@@ -372,7 +372,7 @@ namespace Multiplayer.Compat
                 foreach (var type in types)
                 {
                     MpCompat.harmony.Patch(
-                        AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents), new[] { typeof(Rect) }),
+                        AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents), [typeof(Rect)]),
                         postfix: new HarmonyMethod(typeof(VehicleFramework), nameof(InsertSwitchToMap)));
                 }
 
@@ -445,6 +445,30 @@ namespace Multiplayer.Compat
                     typesTransferable,
                     0);
                 MP.RegisterSyncDelegate(typeof(AerialVehicleAbandonOrBanishHelper), method.DeclaringType!.Name, method.Name);
+
+                // CompUpgradeTree, methods called from ITab_Vehicle_Upgrades
+                // Serializer for UpgradeNode for CompUpgradeTree specifically.
+                // Making a sync worker for it would likely require iterating over each UpgradeTreeDef.
+                var upgradeNodeSerializer = Serializer.New(
+                    (UpgradeNode upgrade, object target, object[] _) => (target: ((CompUpgradeTree)target).Props.def, key: upgrade.key),
+                    tuple => tuple.target.GetNode(tuple.key)
+                );
+                // Start installing upgrade
+                MP.RegisterSyncMethod(typeof(CompUpgradeTree), nameof(CompUpgradeTree.StartUnlock))
+                    .TransformArgument(0, upgradeNodeSerializer);
+                // Start removing upgrade
+                MP.RegisterSyncMethod(typeof(CompUpgradeTree), nameof(CompUpgradeTree.RemoveUnlock))
+                    .TransformArgument(0, upgradeNodeSerializer);
+                // Cancel upgrading, doesn't use UpgradeNode
+                MP.RegisterSyncMethod(typeof(CompUpgradeTree), nameof(CompUpgradeTree.ClearUpgrade));
+                // Dev mode upgrade instantly
+                MP.RegisterSyncMethod(typeof(CompUpgradeTree), nameof(CompUpgradeTree.FinishUnlock))
+                    .TransformArgument(0, upgradeNodeSerializer)
+                    .SetDebugOnly();
+                // Dev mode remove upgrade
+                MP.RegisterSyncMethod(typeof(CompUpgradeTree), nameof(CompUpgradeTree.ResetUnlock))
+                    .TransformArgument(0, upgradeNodeSerializer)
+                    .SetDebugOnly();
             }
 
             #endregion
@@ -511,7 +535,7 @@ namespace Multiplayer.Compat
                 // FloatMenuOption_ReconMap is unused for now, so let's not sync it yet just in case it gets removed, renamed, etc.
                 // FloatMenuOption_StrafeMap may be slightly more complex due to continuing targetting, despite immediately registering the action. Right now unused, so we don't really care.
 
-                // Generic method, inside of a generic nested type. The normal way of acquiring those
+                // Generic method, inside a generic nested type. The normal way of acquiring those
                 // won't really work here, so a slight change was needed to the method itself.
                 // As for the patch itself, we replace the mod's actual call in MP with our own,
                 // which will either call our synced method (SyncedLaunchOrFlyTo), or pass it to
@@ -523,8 +547,8 @@ namespace Multiplayer.Compat
                         nameof(VehicleArrivalActionUtility.GetFloatMenuOptions),
                         MethodType.Normal,
                         null,
-                        new[] { typeof(AerialVehicleArrivalAction) },
-                        new[] { typeof(AerialVehicleArrivalAction) },
+                        [typeof(AerialVehicleArrivalAction)],
+                        [typeof(AerialVehicleArrivalAction)],
                         0),
                     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreVehicleArrivalActionUtility)));
 
@@ -539,7 +563,7 @@ namespace Multiplayer.Compat
                     MpMethodUtil.GetLocalFunc(
                         typeof(LaunchProtocol),
                         nameof(LaunchProtocol.ChoseWorldTarget),
-                        parentArgs: new[] { typeof(GlobalTargetInfo), typeof(float) },
+                        parentArgs: [typeof(GlobalTargetInfo), typeof(float)],
                         localFunc: "Validator"),
                     transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(NoForcedRotationInInterface)));
 
@@ -556,7 +580,7 @@ namespace Multiplayer.Compat
 
                 // Prevent the map from being removed if the landing session is active
                 MpCompat.harmony.Patch(AccessTools.DeclaredPropertyGetter(typeof(MapPawns), nameof(MapPawns.AnyPawnBlockingMapRemoval)),
-                    postfix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreventMapRemovalForLandingSessions)) { after = new[] { "SmashPhil.VehicleFramework" } });
+                    postfix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreventMapRemovalForLandingSessions)) { after = ["SmashPhil.VehicleFramework"] });
 
                 MP.RegisterSyncMethod(typeof(FlyingVehicleTargetedLandingSession), nameof(FlyingVehicleTargetedLandingSession.Remove));
                 MP.RegisterSyncMethod(typeof(FlyingVehicleTargetedLandingSession), nameof(FlyingVehicleTargetedLandingSession.VehicleArrivalById));
@@ -597,7 +621,7 @@ namespace Multiplayer.Compat
                 // Insert VehicleHandler as supported thing holder for syncing.
                 // The mod uses VehicleHandler as IThingHolder and ends up being synced.
                 // We should add support for adding more supported thing holders soon... I think the PokéWorld mod would benefit from it as well.
-                const string supportedThingHoldersFieldPath = "Multiplayer.Client.RwImplSerialization:supportedThingHolders";
+                const string supportedThingHoldersFieldPath = "Multiplayer.Client.RwSerialization:supportedThingHolders";
                 var supportedThingHoldersField = AccessTools.DeclaredField(supportedThingHoldersFieldPath);
                 if (supportedThingHoldersField == null)
                     Log.Error($"Trying to access {supportedThingHoldersFieldPath} failed, field is null.");
@@ -912,7 +936,7 @@ namespace Multiplayer.Compat
 
         // In almost every situation that `SetTarget` is called, we want to cancel it in interface.
         // This is due to the `SetTarget` being called with intent to make the turret start following
-        // the current mouse position, which we don't want and it's a feature we've disabled in MP.
+        // the current mouse position, which we don't want, and it's a feature we've disabled in MP.
         // There's however only 1 situation that it's not the case, this will handle it.
         // The situation is pressing the gizmo's cancel button to stop targetting att all.
         private static bool CancelTurretSetTargetSync() => shouldSyncInInterface || !MP.InInterface;
@@ -1007,7 +1031,7 @@ namespace Multiplayer.Compat
 
         private static bool PreVehicleArrivalActionUtility(Action<Action> ___uiConfirmationCallback, Func<FloatMenuAcceptanceReport> ___acceptanceReportGetter, Func<AerialVehicleArrivalAction> ___arrivalActionGetter, VehiclePawn ___vehicle, int ___destinationTile)
         {
-            // If not in MP, let it run normally..
+            // If not in MP, let it run normally.
             // If in MP and not accepted, let it run to display error.
             if (!MP.IsInMultiplayer || !___acceptanceReportGetter().Accepted)
                 return true;
@@ -1390,7 +1414,7 @@ namespace Multiplayer.Compat
             private bool reform;
             public int startingTile = -1;
             public int destinationTile = -1;
-            private List<TransferableOneWay> transferables = new();
+            private List<TransferableOneWay> transferables = [];
             public Dictionary<Pawn, AssignedSeat> assignedSeats = new();
 
             public bool uiDirty;
@@ -1536,7 +1560,7 @@ namespace Multiplayer.Compat
                     return;
                 }
 
-                // Set the session as active before doing the operation, and unset afterwards.
+                // Set the session as active before doing the operation, and unset afterward.
                 try
                 {
                     SetCurrentFormVehicleCaravanSessionState(this, dialog);
@@ -1811,7 +1835,7 @@ namespace Multiplayer.Compat
             {
                 foreach (var pawn in handler.handlers)
                 {
-                    // Add only if doesn't exist
+                    // Add only if value doesn't exist
                     __instance.assignedSeats.TryAdd(pawn, (vehicle, handler));
                 }
             }
@@ -1820,7 +1844,7 @@ namespace Multiplayer.Compat
             {
                 if (__instance.assignedSeats.TryGetValue(pawn, out var current) && current.vehicle == vehicle)
                 {
-                    // Add only if doesn't exist
+                    // Add only if value doesn't exist
                     __instance.assignedSeats.TryAdd(pawn, seat);
                 }
             }
@@ -1896,7 +1920,7 @@ namespace Multiplayer.Compat
             public override Map Map => vehicle.Map;
 
             private VehiclePawn vehicle;
-            public List<TransferableOneWay> transferables = new();
+            public List<TransferableOneWay> transferables = [];
 
             public bool uiDirty;
             public bool widgetDirty;
@@ -2224,7 +2248,7 @@ namespace Multiplayer.Compat
         [MpCompatRequireMod("SmashPhil.VehicleFramework")]
         private class FlyingVehicleTargetedLandingSession : ExposableSession, ISessionWithCreationRestrictions
         {
-            private List<VehiclePawn> vehicles = new();
+            private List<VehiclePawn> vehicles = [];
             public override Map Map { get; }
             public override bool IsSessionValid => !vehicles.NullOrEmpty();
 
@@ -2381,7 +2405,7 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> ReplaceButtonsTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
             var target = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonText),
-                new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
+                [typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?)]);
             var buttonReplacements = new Dictionary<string, MethodInfo>();
             int expected;
 
@@ -2477,7 +2501,7 @@ namespace Multiplayer.Compat
                 return;
 
             // This would normally be done during ticking or drawing for each turret inside
-            // of TurretRotation getter. However, calling it during drawing will cause issues,
+            // TurretRotation getter. However, calling it during drawing will cause issues,
             // and the turrets don't always tick, so we need to ensure this is updated when
             // the turret is not ticking, and it's done in a deterministic manner.
             foreach (var turret in turretsComp.turrets)
@@ -2526,9 +2550,9 @@ namespace Multiplayer.Compat
         }
 
         [MpCompatPrefix(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
-            new[] { typeof(Vector3), typeof(bool) })]
+            [typeof(Vector3), typeof(bool)])]
         [MpCompatPrefix(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
-            new[] { typeof(Vector3), typeof(Rot8), typeof(float), typeof(bool), typeof(bool) })]
+            [typeof(Vector3), typeof(Rot8), typeof(float), typeof(bool), typeof(bool)])]
         private static void PreRenderPawnInternal(VehiclePawn __instance, ref (Rot4 rotation, float angle)? __state)
         {
             if (MP.InInterface)
@@ -2536,9 +2560,9 @@ namespace Multiplayer.Compat
         }
 
         [MpCompatFinalizer(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
-            new[] { typeof(Vector3), typeof(bool) })]
+            [typeof(Vector3), typeof(bool)])]
         [MpCompatFinalizer(typeof(VehiclePawn), nameof(VehiclePawn.DrawAt),
-            new[] { typeof(Vector3), typeof(Rot8), typeof(float), typeof(bool), typeof(bool) })]
+            [typeof(Vector3), typeof(Rot8), typeof(float), typeof(bool), typeof(bool)])]
         private static void PostRenderPawnInternal(VehiclePawn __instance, ref (Rot4 rotation, float angle)? __state)
         {
             if (__state is {} state)
