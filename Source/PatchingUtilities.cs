@@ -369,7 +369,7 @@ namespace Multiplayer.Compat
             }
         }
 
-        public static void ReplaceCurrentMapUsage(string typeColonName, bool logIfNothingPatched = true)
+        public static void ReplaceCurrentMapUsage(string typeColonName, bool logIfNothingPatched = true, bool logIfMissingMethod = true)
         {
             if (typeColonName.NullOrEmpty())
             {
@@ -379,12 +379,12 @@ namespace Multiplayer.Compat
 
             var method = AccessTools.DeclaredMethod(typeColonName) ?? AccessTools.Method(typeColonName);
             if (method != null)
-                ReplaceCurrentMapUsage(method, logIfNothingPatched);
-            else
+                ReplaceCurrentMapUsage(method, logIfNothingPatched, logIfMissingMethod);
+            else if (logIfMissingMethod)
                 Log.Warning($"Trying to patch current map usage for null method ({typeColonName}). Was the method removed or renamed?");
         }
 
-        public static void ReplaceCurrentMapUsage(MethodBase method, bool logIfNothingPatched = true)
+        public static void ReplaceCurrentMapUsage(MethodBase method, bool logIfNothingPatched = true, bool logIfMissingMethod = true)
         {
             if (method != null)
             {
@@ -394,7 +394,7 @@ namespace Multiplayer.Compat
 
                 MpCompat.harmony.Patch(method, transpiler: transpiler);
             }
-            else
+            else if (logIfMissingMethod)
                 Log.Warning("Trying to patch current map usage for null method. Was the method removed or renamed?");
         }
 
