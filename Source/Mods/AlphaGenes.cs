@@ -18,6 +18,9 @@ namespace Multiplayer.Compat
                 PatchingUtilities.PatchSystemRandCtor("AlphaGenes.CompAbilityOcularConversion", false);
                 PatchingUtilities.PatchSystemRand("AlphaGenes.CompInsanityBlast:Apply", false);
                 PatchingUtilities.PatchSystemRand("AlphaGenes.HediffComp_Parasites:Hatch", false);
+                // The following method is seeded, so it should be fine
+                // If not, then patching it as well should fix it
+                //"AlphaGenes.GameComponent_RandomMood:GameComponentTick",
             }
 
             // Abilities

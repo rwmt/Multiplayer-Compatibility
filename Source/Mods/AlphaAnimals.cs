@@ -19,21 +19,10 @@ namespace Multiplayer.Compat
                     "AlphaBehavioursAndEvents.Hediff_Crushing",
 
                     // Ocular plant conversion
-                    "AlphaBehavioursAndEvents.CompAbilityOcularConversion",
                     "AlphaBehavioursAndEvents.Gas_Ocular",
                 };
 
                 PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
-
-                var rngFixMethods = new[] //System.Random fixes
-                {
-                    "AlphaBehavioursAndEvents.Hediff_Crushing:RandomFilthGenerator",
-
-                    // Ocular plant conversion
-                    "AlphaBehavioursAndEvents.CompAbilityOcularConversion:Apply",
-                    "AlphaBehavioursAndEvents.Gas_Ocular:Tick",
-                };
-                PatchingUtilities.PatchPushPopRand(rngFixMethods);
 
                 var fixSystemRngMethods = new[]
                 {
