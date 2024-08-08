@@ -28,7 +28,7 @@ namespace Multiplayer.Compat
             // Current map usage
             // Not needed for the fork made by "Not Harry" (at the moment, the only 1.5 fork), but other forks may need this.
             {
-                PatchingUtilities.ReplaceCurrentMapUsage("RimFridge.Patch_ReachabilityUtility_CanReach:Prefix", false);
+                PatchingUtilities.ReplaceCurrentMapUsage("RimFridge.Patch_ReachabilityUtility_CanReach:Prefix", false, false);
             }
         }
     }
