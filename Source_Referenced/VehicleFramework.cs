@@ -37,6 +37,9 @@ namespace Multiplayer.Compat
 
         // VehiclePawn.<>c__DisplayClass250_0
         private static AccessTools.FieldRef<object, VehiclePawn> vehiclePawnInnerClassParentField;
+        
+        // Designator_AreaRoad
+        private static Designator_AreaRoad.RoadType localRoadType = Designator_AreaRoad.RoadType.Prioritize;
 
         #endregion
 
@@ -89,11 +92,6 @@ namespace Multiplayer.Compat
                 var transpiler = new HarmonyMethod(typeof(VehicleFramework), nameof(ReplaceThreadAvailable));
                 foreach (var m in methods.Where(m => m != null))
                     MpCompat.harmony.Patch(m, transpiler: transpiler);
-
-                // Disable an issue where a lot of red regions pop-up for 50 ticks when hosting,
-                // or when the `PathingHelper.ThingAffectingRegionsStateChange` method is called for things that spawned.
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(VehicleRegionDirtyer), nameof(VehicleRegionDirtyer.Notify_ThingAffectingRegionsSpawned)),
-                    transpiler: new HarmonyMethod(typeof(VehicleFramework), nameof(DisableDebugFlashing)));
 
                 // // Slightly replace how pathfinding is handled by the mod.
                 // // Currently, the vehicle will wait before moving for as long as the path is being calculated.
@@ -677,45 +675,6 @@ namespace Multiplayer.Compat
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
                 Log.Warning($"Failed to patch {nameof(VehicleMapping)}.{nameof(VehicleMapping.ThreadAvailable)} calls for method {name}");
             }
-        }
-
-        #endregion
-
-        #region Other fixes
-
-        private static IEnumerable<CodeInstruction> DisableDebugFlashing(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
-        {
-            var target = AccessTools.DeclaredMethod(typeof(Ext_Map), nameof(Ext_Map.DrawCell_ThreadSafe));
-            var replacement = AccessTools.DeclaredMethod(typeof(VehicleFramework), nameof(NoCellDrawing));
-            var replacedAnything = false;
-
-            foreach (var ci in instr)
-            {
-                if (ci.Calls(target))
-                {
-                    ci.opcode = OpCodes.Call;
-                    ci.operand = replacement;
-                    replacedAnything = true;
-                }
-
-                yield return ci;
-            }
-
-            if (!replacedAnything)
-            {
-                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
-                Log.Warning($"Failed to patch {nameof(Ext_Map)}.{nameof(Ext_Map.DrawCell_ThreadSafe)} calls (patch most likely no longer needed) for method {name}");
-            }
-        }
-
-        private static void NoCellDrawing(Map map, IntVec3 cell, float colorPct, string text, int duration)
-        {
-            // Do nothing in MP.
-            // We could prefix the method that we patch instead and prevent it from running, but
-            // it would prevent it from running it from other places in the mod.
-
-            if (!MP.IsInMultiplayer)
-                map.DrawCell_ThreadSafe(cell, colorPct, text, duration);
         }
 
         #endregion
@@ -1394,6 +1353,18 @@ namespace Multiplayer.Compat
                 sync.Write(node, type);
             else
                 node = sync.Read<FlightNode>(type);
+        }
+
+        [MpCompatSyncWorker(typeof(Designator_AreaRoadExpand), shouldConstruct = true)]
+        private static void SyncAreaRoadDesignator(SyncWorker sync, ref Designator_AreaRoadExpand designator)
+        {
+            // We need to sync the road type (prioritize/avoid) to properly sync the designator.
+            // Sync the local player's road type, as the normal one may become overwritten by
+            // this specific sync worker delegate.
+            if (sync.isWriting)
+                sync.Write(localRoadType);
+            else
+                Designator_AreaRoad.roadType = sync.Read<Designator_AreaRoad.RoadType>();
         }
 
         #endregion
@@ -2610,6 +2581,24 @@ namespace Multiplayer.Compat
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
                 Log.Warning($"Patched incorrect number of Prefs.DevMode calls (replaced {replacedCount}, expected {expected}) for method {name}");
             }
+        }
+
+        #endregion
+
+        #region Designator
+
+        [MpCompatPrefix(typeof(Designator_AreaRoad), nameof(Designator_AreaRoad.ProcessInput), 1)]
+        private static void StoreNewLocalRoadType(Designator_AreaRoad.RoadType ___roadType)
+            => localRoadType = ___roadType;
+
+        [MpCompatPrefix(typeof(Designator_AreaRoad), nameof(Designator_AreaRoad.DesignateSingleCell))]
+        [MpCompatPrefix(typeof(Designator_AreaRoad), nameof(Designator_AreaRoad.CanDesignateCell))]
+        private static void RestoreLocalRoadType()
+        {
+            // If in MP and not executing synced commands, restore the current player's road type.
+            // It may become overwritten by a different value when syncing.
+            if (MP.IsInMultiplayer && !MP.IsExecutingSyncCommand)
+                Designator_AreaRoad.roadType = localRoadType;
         }
 
         #endregion
