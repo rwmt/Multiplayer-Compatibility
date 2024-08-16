@@ -10,6 +10,8 @@ using Verse;
 namespace Multiplayer.Compat;
 
 /// <summary>Vanilla Aspirations Expanded by Oskar Potocki, Legodude17, Sarg Bjornson</summary>
+/// <see href="https://github.com/Vanilla-Expanded/VanillaAspirationsExpanded"/>
+/// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=3268401022"/>
 [MpCompatFor("VanillaExpanded.VanillaAspirationsExpanded")]
 public class VanillaAspirationsExpanded
 {
