@@ -1,18 +1,38 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
+using RimWorld.Planet;
 using Verse;
 
 namespace Multiplayer.Compat
 {
     public static class MpSyncWorkers
     {
+        private static readonly HashSet<Type> AlreadyRegistered = [];
+
         public static void Requires<T>() => Requires(typeof(T));
 
         public static void Requires(Type type)
         {
+            // Registering the same sync worker multiple times would result in
+            // the warning about sync worker existing in MP. Store a list of
+            // sync workers we registered to avoid the warning if we registered
+            // it, as well as prevent duplicate warnings if the sync worker exists
+            // in MP already, and we call this method multiple times for the same type.
+            if (!AlreadyRegistered.Add(type))
+                return;
+
+            // HasSyncWorker would return true, since MP has an implicit sync worker for
+            // WorldObject, but it currently cannot handle WorldObject (fixed by PR #504).
+            if (type == typeof(PocketMapParent))
+            {
+                MP.RegisterSyncWorker<PocketMapParent>(SyncPocketMapParent, isImplicit: true);
+                return;
+            }
+
             if (HasSyncWorker(type))
             {
                 Log.Warning($"Sync worker of type {type} already exists in MP, temporary sync worker can be removed from MP Compat");
@@ -106,6 +126,25 @@ namespace Multiplayer.Compat
                 sync.Write(manager.map);
             else
                 manager = sync.Read<Map>().designationManager;
+        }
+
+        private static void SyncPocketMapParent(SyncWorker sync, ref PocketMapParent pmp)
+        {
+            if (sync.isWriting)
+            {
+                // This will sync ID for PocketMapParent twice, since it'll also use
+                // the sync worker for WorldObject first. However, that sync worker
+                // will fail as it doesn't support pocket maps yet (fixed by PR #504).
+                sync.Write(pmp?.ID ?? -1);
+            }
+            else
+            {
+                var id = sync.Read<int>();
+                // Skip if the pocket map is null. Also make sure to not
+                // overwrite the object if it happens to not be null.
+                if (id != -1)
+                    pmp ??= Find.World.pocketMaps.Find(p => p.ID == id);
+            }
         }
 
         private static bool HasSyncWorker(Type type)
