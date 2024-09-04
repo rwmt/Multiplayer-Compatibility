@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LanguageData>
+
+  <MpVehicleCaravanFormingSession>Vehicle caravan forming session</MpVehicleCaravanFormingSession>
+  <MpVehicleCargoLoadingSession>Vehicle cargo loading session</MpVehicleCargoLoadingSession>
+  <MpVehicleAerialLandingSession>Aerial vehicle landing session</MpVehicleAerialLandingSession>
+
+  <!-- Used for float menu to display the list of vehicles that still need to land. -->
+  <MpVehiclesWaitingToLand>Vehicles waiting to land</MpVehiclesWaitingToLand>
+
+</LanguageData>

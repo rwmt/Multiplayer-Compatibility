@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
+using RimWorld.QuestGen;
 using Verse;
 using Verse.AI.Group;
 using VFEEmpire;
@@ -61,10 +61,8 @@ namespace Multiplayer.Compat
                 // (Re)generates data
                 MP.RegisterSyncMethod(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.Notify_Open));
                 // Invite pawn
-                // TODO: Uncomment the following two lines once TransformField method is included in API, and remove the temporary patches call/method
-                // MpCompat.RegisterLambdaDelegate(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.DoMainSection), 1)[0]
-                //     .TransformField("CS$<>8__locals2/CS$<>8__locals1/pawn", Serializer.New<Pawn, int>(WriteRoyalPawn, ReadRoyalPawn));
-                LongEventHandler.ExecuteWhenFinished(InitTemporaryPatches); // Inside of long event, in case something ever breaks here
+                MpCompat.RegisterLambdaDelegate(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.DoMainSection), 1)[0]
+                    .TransformField("CS$<>8__locals2/CS$<>8__locals1/pawn", Serializer.New<Pawn, int>(WriteRoyalPawn, ReadRoyalPawn));
 
                 // Syncing adding/removing honors
                 MP.RegisterSyncMethod(typeof(HonorUtility), nameof(HonorUtility.AddHonor));
@@ -120,6 +118,26 @@ namespace Multiplayer.Compat
                 // Causes the order to change, which could cause issues before the method is synced.
                 PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(typeof(ColonistTitleCache.RoyaltyTracker), nameof(ColonistTitleCache.RoyaltyTracker.Postfix)));
             }
+
+            // Quest gen error
+            {
+                var types = new[]
+                {
+                    typeof(Questnode_Root_ArtExhibit),
+                    typeof(QuestNode_Root_DeserterHideout),
+                    typeof(QuestNode_Root_GrandBall),
+                    typeof(QuestNode_Root_NobleVisit),
+                };
+
+                foreach (var type in types)
+                {
+                    var method = AccessTools.DeclaredMethod(type, nameof(QuestNode.TestRunInt));
+                    if (method == null)
+                        Log.Error($"Failed patching {nameof(QuestNode)}.{nameof(QuestNode.TestRunInt)} for type {type}");
+                    else
+                        MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VanillaFactionsEmpire), nameof(PreTestRun)));
+                }
+            }
         }
 
         #endregion
@@ -159,7 +177,7 @@ namespace Multiplayer.Compat
             sync.Bind(ref tab.CurCharacter);
 
             if (sync.isWriting)
-                sync.Write(/* MP.CanUseDevMode && */ tab.DevMode); // TODO: Uncomment the CanUseDevMode part once it's included in the API
+                sync.Write(MP.CanUseDevMode && tab.DevMode);
             else
                 tab.DevMode = sync.Read<bool>();
         }
@@ -261,12 +279,11 @@ namespace Multiplayer.Compat
 
         #region Transformers
 
-        // TODO: Uncomment those lines once sync transformers are included in the API
-        // private static int WriteRoyalPawn(Pawn pawn) 
-        //     => pawn.thingIDNumber;
-        //
-        // private static Pawn ReadRoyalPawn(int pawnId) 
-        //     => WorldComponent_Hierarchy.Instance.TitleHolders?.Find(pawn => pawn.thingIDNumber == pawnId);
+        private static int WriteRoyalPawn(Pawn pawn) 
+            => pawn.thingIDNumber;
+
+        private static Pawn ReadRoyalPawn(int pawnId) 
+            => WorldComponent_Hierarchy.Instance.TitleHolders?.Find(pawn => pawn.thingIDNumber == pawnId);
 
         #endregion
 
@@ -345,75 +362,18 @@ namespace Multiplayer.Compat
 
         #endregion
 
-        #region Temporary Patches
+        #region Quest error fix
 
-        // TODO: Once the new API is in, remove this region and uncomment the code under the other TODOs that use the new API.
-        private static Type firstInnerType;
-        private static Type secondInnerType;
-
-        private static AccessTools.FieldRef<object, Pawn> originalInnerTypePawnField;
-        private static AccessTools.FieldRef<object, int> originalInnerTypeHonorCostField;
-
-        private static AccessTools.FieldRef<object, Pawn> secondInnerTypePawnField;
-        private static AccessTools.FieldRef<object, RoyaltyTabWorker_Hierarchy> secondInnerTypeParentField;
-
-        private static AccessTools.FieldRef<object, object> firstInnerTypeField;
-        private static AccessTools.FieldRef<object, object> secondInnerTypeField;
-
-        private static void InitTemporaryPatches()
+        private static bool PreTestRun(ref bool __result)
         {
-            var method = MpMethodUtil.GetLambda(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.DoMainSection), MethodType.Normal, null, 1);
-            if (method?.DeclaringType == null)
-                return;
+            if (!MP.IsInMultiplayer)
+                return true;
 
-            var type = method.DeclaringType;
-            originalInnerTypePawnField = AccessTools.FieldRefAccess<Pawn>(type, "p");
-            originalInnerTypeHonorCostField = AccessTools.FieldRefAccess<int>(type, "honorCost");
-            var field = AccessTools.DeclaredField(type, "CS$<>8__locals2");
-            firstInnerType = field.FieldType;
-            firstInnerTypeField = AccessTools.FieldRefAccess<object, object>(field);
+            if (QuestGen_Get.GetMap() != null)
+                return true;
 
-            type = firstInnerType;
-            field = AccessTools.DeclaredField(type, "CS$<>8__locals1");
-            secondInnerType = field.FieldType;
-            secondInnerTypeField = AccessTools.FieldRefAccess<object, object>(field);
-
-            type = secondInnerType;
-            secondInnerTypePawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
-            secondInnerTypeParentField = AccessTools.FieldRefAccess<RoyaltyTabWorker_Hierarchy>(type, "<>4__this");
-
-            MP.RegisterSyncMethod(method);
-            MP.RegisterSyncWorker<object>(SyncHierarchyTabInnerType, method.DeclaringType, shouldConstruct: true);
-        }
-
-        private static void SyncHierarchyTabInnerType(SyncWorker sync, ref object obj)
-        {
-            if (sync.isWriting)
-            {
-                sync.Write(originalInnerTypePawnField(obj));
-                sync.Write(originalInnerTypeHonorCostField(obj));
-
-                var first = firstInnerTypeField(obj);
-                var second = secondInnerTypeField(first);
-                
-                sync.Write(secondInnerTypePawnField(second).thingIDNumber);
-                sync.Write(secondInnerTypeParentField(second));
-            }
-            else
-            {
-                originalInnerTypePawnField(obj) = sync.Read<Pawn>();
-                originalInnerTypeHonorCostField(obj) = sync.Read<int>();
-
-                var first = Activator.CreateInstance(firstInnerType);
-                firstInnerTypeField(obj) = first;
-
-                var second = Activator.CreateInstance(secondInnerType);
-                secondInnerTypeField(first) = second;
-
-                var pawnId = sync.Read<int>();
-                secondInnerTypePawnField(second) = WorldComponent_Hierarchy.Instance.TitleHolders?.Find(pawn => pawn.thingIDNumber == pawnId);
-                secondInnerTypeParentField(second) = sync.Read<RoyaltyTabWorker_Hierarchy>();
-            }
+            __result = false;
+            return false;
         }
 
         #endregion

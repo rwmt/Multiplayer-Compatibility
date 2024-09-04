@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LanguageData>
+
+  <MpVehicleCaravanFormingSession>Sesja formowania karawany pojazdów</MpVehicleCaravanFormingSession>
+  <MpVehicleCargoLoadingSession>Sesja ładowania ładunku pojazdu</MpVehicleCargoLoadingSession>
+  <MpVehicleAerialLandingSession>Sesja lądowania pojazdu powietrznego</MpVehicleAerialLandingSession>
+
+  <!-- Used for float menu to display the list of vehicles that still need to land. -->
+  <MpVehiclesWaitingToLand>Pojazdy oczekujące na lądowanie</MpVehiclesWaitingToLand>
+
+</LanguageData>

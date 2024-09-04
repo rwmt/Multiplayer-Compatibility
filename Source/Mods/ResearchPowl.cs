@@ -95,7 +95,7 @@ namespace Multiplayer.Compat
         private static bool PreSanityCheck(WorldComponent __instance, IList ____queue)
         {
             // Let it run normally in SP or in synced commands (or other contexts not needing syncing)
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             foreach (var node in ____queue)

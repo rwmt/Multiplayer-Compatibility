@@ -1,16 +1,16 @@
 #!/bin/bash
 
-cd Source
-dotnet build --configuration Release
-cd ..
+set -e
+
+dotnet build -c Release
 
 rm -rf Multiplayer-Compatibility/
 mkdir -p Multiplayer-Compatibility
 
-cp -r About Assemblies Referenced 1.3 Multiplayer-Compatibility
+cp -r About Assemblies Referenced Languages Multiplayer-Compatibility
 
 # Zip for Github releases
 rm -f Multiplayer-Compatibility.zip
 zip -r -q Multiplayer-Compatibility.zip Multiplayer-Compatibility
 
-echo "Ok, $PWD/Multiplayer-Compatibility.zip ready for uploading to Workshop"
+echo "Ok, $PWD/Multiplayer-Compatibility.zip ready"

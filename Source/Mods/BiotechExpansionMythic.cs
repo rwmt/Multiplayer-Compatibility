@@ -41,7 +41,7 @@ namespace Multiplayer.Compat
         {
             foreach (var typeName in new[] { "BTE_MY.GeneGizmo_ResourceAurum", "BTE_MY.GeneGizmo_ResourceReverence" })
             {
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod($"{typeName}:{nameof(GeneGizmo_Resource.DrawLabel)}"),
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod($"{typeName}:{nameof(GeneGizmo_Resource.DrawHeader)}"),
                     prefix: new HarmonyMethod(typeof(BiotechExpansionMythic), nameof(PreDrawLabel)));
             }
         }

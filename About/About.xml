@@ -2,9 +2,9 @@
 <ModMetaData>
   <packageId>rwmt.MultiplayerCompatibility</packageId>
   <name>Multiplayer Compatibility</name>
-  <author>notfood</author>
+  <author>RimWorld Multiplayer Team</author>
   <supportedVersions>
-    <li>1.4</li>
+    <li>1.5</li>
   </supportedVersions>
   <description>Miscellaneous patches to make Multiplayer work
     Mod Support:
@@ -84,5 +84,6 @@
   </loadAfter>
   <loadBefore>
     <li>UnlimitedHugs.HugsLib</li>
+    <li>OskarPotocki.VanillaFactionsExpanded.Core</li>
   </loadBefore>
 </ModMetaData>

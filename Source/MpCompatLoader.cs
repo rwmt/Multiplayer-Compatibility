@@ -92,14 +92,16 @@ namespace Multiplayer.Compat
             // GenTypes.ClearCache() on its own won't work, as MP isn't doing anything when it's called.
             var mpType = AccessTools.TypeByName("Multiplayer.Client.Util.TypeCache") ?? AccessTools.TypeByName("Multiplayer.Client.Multiplayer");
             ((IDictionary)AccessTools.Field(mpType, "subClasses").GetValue(null)).Clear();
+            ((IDictionary)AccessTools.Field(mpType, "subClassesOrdered").GetValue(null)).Clear();
             ((IDictionary)AccessTools.Field(mpType, "subClassesNonAbstract").GetValue(null)).Clear();
-            ((IDictionary)AccessTools.Field(mpType, "implementations").GetValue(null)).Clear();
-            AccessTools.Method(mpType, "CacheTypeHierarchy").Invoke(null, Array.Empty<object>());
+            ((IDictionary)AccessTools.Field(mpType, "interfaceImplementations").GetValue(null)).Clear();
+            ((IDictionary)AccessTools.Field(mpType, "interfaceImplementationsOrdered").GetValue(null)).Clear();
+            AccessTools.Method(mpType, "CacheTypeHierarchy").Invoke(null, []);
 
-            // Clear/re-init the list of ISyncSimple implementations.
-            AccessTools.Method("Multiplayer.Client.ImplSerialization:Init").Invoke(null, Array.Empty<object>());
+            // Clear/re-init the list of ISyncSimple implementations and Session subclasses.
+            AccessTools.Method("Multiplayer.Client.ApiSerialization:Init").Invoke(null, []);
             // Clear/re-init the localDefInfos dictionary so it contains the classes added from referenced assembly.
-            AccessTools.Method("Multiplayer.Client.MultiplayerData:CollectDefInfos").Invoke(null, Array.Empty<object>());
+            AccessTools.Method("Multiplayer.Client.MultiplayerData:CollectDefInfos").Invoke(null, []);
         }
     }
 }

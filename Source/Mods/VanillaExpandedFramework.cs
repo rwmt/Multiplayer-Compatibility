@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -24,13 +24,13 @@ namespace Multiplayer.Compat
         public VanillaExpandedFramework(ModContentPack mod)
         {
             (Action patchMethod, string componentName, bool latePatch)[] patches =
-            {
+            [
                 (PatchItemProcessor, "Item Processor", false),
                 (PatchOtherRng, "Other RNG", false),
                 (PatchVFECoreDebug, "Debug Gizmos", false),
                 (PatchAbilities, "Abilities", true),
                 (PatchHireableFactions, "Hireable Factions", false),
-                (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", false),
+                (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", true),
                 (PatchVanillaFactionMechanoids, "Vanilla Faction Mechanoids", false),
                 (PatchAnimalBehaviour, "Animal Behaviour", false),
                 (PatchExplosiveTrialsEffect, "Explosive Trials Effect", false),
@@ -43,36 +43,42 @@ namespace Multiplayer.Compat
                 (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
                 (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", true),
                 (PatchDoorTeleporter, "Teleporter Doors", true),
-                (PatchSpecialTerrain, "Special Terrain", false),
+                (PatchSpecialTerrain, "Special Terrain", true),
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
-            };
+                (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
+                (PatchExpandableProjectile, "Expandable projectile", false),
+                (PatchStaticCaches, "Static caches", false),
+                (PatchGraphicCustomizationDialog, "Graphic Customization Dialog", true),
+            ];
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
             {
-                try
+                if (latePatch)
+                    LongEventHandler.ExecuteWhenFinished(ApplyPatch);
+                else
+                    ApplyPatch();
+
+                void ApplyPatch()
                 {
-                    if (latePatch)
-                        LongEventHandler.ExecuteWhenFinished(patchMethod);
-                    else
+                    try
+                    {
+#if DEBUG
+                        Log.Message($"Patching Vanilla Expanded Framework - {componentName}");
+#endif
+
                         patchMethod();
-                }
-                catch (Exception e)
-                {
-                    Log.Error($"Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
-                    Log.Error(e.ToString());
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error($"Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
+                        Log.Error(e.ToString());
+                    }
                 }
             }
         }
 
         #region Shared sync workers and patches
-
-        // MP - ThingsById
-        private static Dictionary<int, Thing> thingsById;
-
-        // Right now only used by teleporter doors. Could potentially be used by other mods.
-        // It's a separate method instead of being always initialized in case this ever changes in MP and causes issues here.
-        private static void EnsureThingsByIdDictionaryActive() => thingsById ??= (Dictionary<int, Thing>)AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.ThingsById"), "thingsById").GetValue(null);
 
         private static void SyncCommandWithBuilding(SyncWorker sync, ref Command command)
         {
@@ -189,7 +195,30 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaDelegate(
                 "VFECore.SocialCardUtility_DrawPregnancyApproach_Patch", 
                 "AddPregnancyApproachOptions",
-                0, 1); // Disable extra approaches (0), set extra approach (1)
+                0, 2); // Disable extra approaches (0), set extra approach (2)
+        }
+
+        private static void PatchExpandableProjectile()
+        {
+            MpCompat.harmony.Patch(AccessTools.DeclaredPropertyGetter("VFECore.ExpandableProjectile:StartingPosition"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreStartingPositionGetter)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostStartingPositionGetter)));
+        }
+
+        private static void PreStartingPositionGetter(Vector3 ___startingPosition, bool ___pawnMoved, ref (Vector3, bool)? __state)
+        {
+            // If in interface, store the current values.
+            if (MP.InInterface)
+                __state = (___startingPosition, ___pawnMoved);
+        }
+
+        private static void PostStartingPositionGetter(ref Vector3 ___startingPosition, ref bool ___pawnMoved, (Vector3, bool)? __state)
+        {
+            // If state not null (in interface), restore previous values.
+            // Alternatively, we could also have separate values for interface and simulation,
+            // but seems a bit pointless to do it like this since it's just a minor thing.
+            if (__state != null)
+                (___startingPosition, ___pawnMoved) = __state.Value;
         }
 
         #endregion
@@ -265,10 +294,13 @@ namespace Multiplayer.Compat
         private static FastInvokeHandler abilityInitMethod;
         private static AccessTools.FieldRef<object, Thing> abilityHolderField;
         private static AccessTools.FieldRef<object, Pawn> abilityPawnField;
+        private static AccessTools.FieldRef<IExposable, int> abilityCooldownField;
         private static ISyncField abilityAutoCastField;
 
         private static void PatchAbilities()
         {
+            PatchingUtilities.SetupAsyncTime();
+
             // Comp holding ability
             // CompAbility
             compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
@@ -287,17 +319,54 @@ namespace Multiplayer.Compat
             abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
             abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
+            abilityCooldownField = AccessTools.FieldRefAccess<int>(type, "cooldown");
             // There's another method taking LocalTargetInfo. Harmony grabs the one we need, but just in case specify the types to avoid ambiguity.
-            MP.RegisterSyncMethod(type, "StartAbilityJob", new SyncType[] { typeof(GlobalTargetInfo[]) });
+            MP.RegisterSyncMethod(type, "StartAbilityJob", [typeof(GlobalTargetInfo[])]);
             MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
             abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
 
+            foreach (var target in type.AllSubclasses().Concat(type))
+            {
+                // Fix timestamp.
+                // We really could use implicit fixers, so we don't have to register one fixer per ability type.
+                if (!target.IsAbstract)
+                    PatchingUtilities.RegisterTimestampFixer(target, MpMethodUtil.MethodOf(FixAbilityTimestamp));
+
+                // We need to set this up in all subtypes that override GetGizmo, as we need to make sure
+                // that the call to Command_Ability constructor has the proper time. We could patch the
+                // constructor of all subtypes of Command_Ability, but the issue with that is that the
+                // gizmo are not guaranteed to be of that specific type. On top of that, their arguments
+                // (which we'd need to use to setup the time snapshot) may have different names, and may
+                // be in a different order. It's just simpler to patch this specific method for simplicity sake,
+                // instead of trying to patch every relevant constructor.
+                var method = AccessTools.DeclaredMethod(target, "GetGizmo");
+                if (method != null)
+                {
+                    MpCompat.harmony.Patch(method,
+                        prefix: new HarmonyMethod(MpMethodUtil.MethodOf(PreGetGizmo)),
+                        finalizer: new HarmonyMethod(MpMethodUtil.MethodOf(RestoreProperTimeSnapshot)));
+                }
+            }
+
             type = AccessTools.TypeByName("VFECore.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
+
+            // Time snapshot fix for gizmo itself
+            type = AccessTools.TypeByName("VFECore.Abilities.Command_Ability");
+            foreach (var targetType in type.AllSubclasses().Concat(type))
+            {
+                var method = AccessTools.DeclaredMethod(targetType, nameof(Command.GizmoOnGUIInt));
+                if (method != null)
+                {
+                    MpCompat.harmony.Patch(method,
+                        prefix: new HarmonyMethod(MpMethodUtil.MethodOf(PreAbilityGizmoGui)),
+                        finalizer: new HarmonyMethod(MpMethodUtil.MethodOf(RestoreProperTimeSnapshot)));
+                }
+            }
         }
 
         private static void SyncVEFAbility(SyncWorker sync, ref ITargetingSource source)
@@ -375,6 +444,35 @@ namespace Multiplayer.Compat
 
             MP.WatchEnd();
         }
+
+        // We need to set the time snapshot when constructing the gizmo since it's disabled in
+        // the constructor, meaning that it will be incorrectly disabled if we don't do it.
+        private static void PreGetGizmo(object __instance, out PatchingUtilities.TimeSnapshot? __state)
+            => __state = SetTemporaryTimeSnapshot(__instance);
+
+        // We need to set the time snapshot when drawing the gizmo GUI, as otherwise it'll
+        // display completely incorrect values for cooldown or will allow for the ability
+        // usage while it should still be on cooldown.
+        public static void PreAbilityGizmoGui(object ___ability, out PatchingUtilities.TimeSnapshot? __state)
+            => __state = SetTemporaryTimeSnapshot(___ability);
+
+        private static PatchingUtilities.TimeSnapshot? SetTemporaryTimeSnapshot(object ability)
+        {
+            if (!MP.IsInMultiplayer)
+                return null;
+
+            var target = abilityPawnField(ability) ?? abilityHolderField(ability);
+            if (target?.Map == null)
+                return null;
+
+            return PatchingUtilities.TimeSnapshot.GetAndSetFromMap(target.Map);
+        }
+
+        public static void RestoreProperTimeSnapshot(PatchingUtilities.TimeSnapshot? __state)
+            => __state?.Set();
+
+        private static ref int FixAbilityTimestamp(IExposable ability)
+            => ref abilityCooldownField(ability);
 
         #endregion
 
@@ -492,6 +590,11 @@ namespace Multiplayer.Compat
         private static Type randomBuildingGraphicCompType;
         private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
 
+        // Glowers
+        private static Type dummyGlowerType;
+        private static AccessTools.FieldRef<ThingComp, CompGlower> compGlowerExtendedGlowerField;
+        private static AccessTools.FieldRef<ThingWithComps, ThingComp> dummyGlowerParentCompField;
+
         private static void PatchVanillaFurnitureExpanded()
         {
             MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
@@ -512,18 +615,35 @@ namespace Multiplayer.Compat
             randomBuildingGraphicCompChangeGraphicMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "ChangeGraphic"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
-            MP.RegisterSyncMethod(type, "SwitchColor");
-
             // Preferably leave it at the end in case it fails - if it fails all the other stuff here will still get patched
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
                 transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
 
+            // Glowers
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+            MP.RegisterSyncMethod(type, "SwitchColor");
+            compGlowerExtendedGlowerField = AccessTools.FieldRefAccess<CompGlower>(type, "compGlower");
+            // Inner method of CompGlowerExtended
             type = AccessTools.Inner(type, "CompGlower_SetGlowColorInternal_Patch");
             PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(type, "Postfix"));
+
+            type = dummyGlowerType = AccessTools.TypeByName("VanillaFurnitureExpanded.DummyGlower");
+            dummyGlowerParentCompField = AccessTools.FieldRefAccess<ThingComp>(type, "parentComp");
+
+            // Syncing of wall-light type of glower doesn't work with MP, as what they do
+            // is spawning a dummy thing, attaching the glower to it, followed by despawning
+            // the dummy thing. If something is not spawned and doesn't have a holder MP won't
+            // be able to sync it properly due to it missing parent/map it's attached to,
+            // and will report it as inaccessible. This works as a workaround to all of this.
+            // 
+            // We normally sync CompGlower as ThingComp. If we add an explicit sync worker
+            // for it, then we'll (basically) replace the vanilla worker for it. It'll be
+            // used in situations where we're trying to sync CompGlower directly instead of ThingComp.
+            // Can't be synced with `isImplicit: true`, as it'll cause it to sync it with ThingComp
+            // sync worker first before syncing it using this specific sync worker.
+            MP.RegisterSyncWorker<CompGlower>(SyncCompGlower);
         }
 
         private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
@@ -594,6 +714,35 @@ namespace Multiplayer.Compat
             }
         }
 
+        private static void SyncCompGlower(SyncWorker sync, ref CompGlower glower)
+        {
+            if (sync.isWriting)
+            {
+                // Check if the glower's parent thing is of DummyGlower type
+                if (dummyGlowerType.IsInstanceOfType(glower.parent))
+                {
+                    sync.Write(true);
+                    // Sync the CompGlowerExtended
+                    sync.Write(dummyGlowerParentCompField(glower.parent));
+                }
+                else
+                {
+                    // Handle this as normal ThingComp, letting MP sync it
+                    sync.Write(false);
+                    sync.Write<ThingComp>(glower);
+                }
+            }
+            else
+            {
+                // Check if we're reading a normal glower or a glower
+                // with a VFE dummy parent and handle appropriately.
+                if (sync.Read<bool>())
+                    glower = compGlowerExtendedGlowerField(sync.Read<ThingComp>());
+                else
+                    glower = sync.Read<ThingComp>() as CompGlower;
+            }
+        }
+
         #endregion
 
         #region MVCF
@@ -603,11 +752,11 @@ namespace Multiplayer.Compat
         private static IEnumerable<string> mvcfEnabledFeaturesSet;
 
         // VerbManager
-        private static FastInvokeHandler mvcfPawnGetter;
-        private static AccessTools.FieldRef<object, IList> mvcfVerbsField;
+        private static FastInvokeHandler mvcfVerbManagerPawnGetter;
+        private static FastInvokeHandler mvcfVerbManagerTickMethod;
+        private static AccessTools.FieldRef<object, IList> mvcfVerbManagerVerbsField;
 
         // PawnVerbUtility
-        private static AccessTools.FieldRef<object, object> mvcfPawnVerbUtilityField;
         private delegate object GetManager(Pawn p, bool createIfMissing);
         private static GetManager mvcfPawnVerbUtilityGetManager;
 
@@ -620,8 +769,17 @@ namespace Multiplayer.Compat
         // VerbComp
         private static AccessTools.FieldRef<object, object> mvcfVerbCompParentField;
 
+        // WorldComponent_MVCF
+        private static AccessTools.FieldRef<WorldComponent> mvcfWorldCompInstanceField;
+        private static AccessTools.FieldRef<WorldComponent, IList> mvcfWorldCompTickManagersField;
+
+        // WeakReference<VerbManager>
+        private static FastInvokeHandler mvcfWeakReferenceTryGetVerbManagerMethod;
+
         private static void PatchMVCF()
         {
+            PatchingUtilities.SetupAsyncTime();
+
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.SpawnSetup)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(EverybodyGetsVerbManager)));
 
@@ -633,12 +791,15 @@ namespace Multiplayer.Compat
 
             type = AccessTools.TypeByName("MVCF.Utilities.PawnVerbUtility");
             mvcfPawnVerbUtilityGetManager = AccessTools.MethodDelegate<GetManager>(AccessTools.Method(type, "Manager"));
-            mvcfPawnVerbUtilityField = AccessTools.FieldRefAccess<object>(type, "managers");
 
             type = AccessTools.TypeByName("MVCF.VerbManager");
             MP.RegisterSyncWorker<object>(SyncVerbManager, type, isImplicit: true);
-            mvcfPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
-            mvcfVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
+            mvcfVerbManagerPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Pawn"));
+            mvcfVerbManagerTickMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "Tick"));
+            mvcfVerbManagerVerbsField = AccessTools.FieldRefAccess<IList>(type, "verbs");
+
+            type = typeof(System.WeakReference<>).MakeGenericType(type);
+            mvcfWeakReferenceTryGetVerbManagerMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "TryGetTarget"));
 
             type = AccessTools.TypeByName("MVCF.ManagedVerb");
             mvcfManagedVerbManagerGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Manager"));
@@ -669,6 +830,16 @@ namespace Multiplayer.Compat
 
             // Changes the verb, so when called before syncing (especially if the original method is canceled by another mod) - will cause issues.
             PatchingUtilities.PatchCancelInInterfaceSetResultToTrue("MVCF.PatchSets.PatchSet_MultiVerb:Prefix_OrderForceTarget");
+
+            // Verb ticking
+            type = AccessTools.TypeByName("MVCF.WorldComponent_MVCF");
+            mvcfWorldCompInstanceField = AccessTools.StaticFieldRefAccess<WorldComponent>(AccessTools.DeclaredField(type, "Instance"));
+            mvcfWorldCompTickManagersField = AccessTools.FieldRefAccess<IList>(type, "TickManagers");
+
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(WorldComponent.WorldComponentTick)),
+                transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(ReplaceTickWithConditionalTick)));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(MapComponentUtility), nameof(MapComponentUtility.MapComponentTick)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(TickVerbManagersForMap)));
         }
 
         // Initialize the VerbManager early, we expect it to exist on every player.
@@ -699,7 +870,7 @@ namespace Multiplayer.Compat
         {
             if (sync.isWriting)
                 // Sync the pawn that has the VerbManager
-                sync.Write((Pawn)mvcfPawnGetter(obj, Array.Empty<object>()));
+                sync.Write((Pawn)mvcfVerbManagerPawnGetter(obj, Array.Empty<object>()));
             else
             {
                 var pawn = sync.Read<Pawn>();
@@ -718,7 +889,7 @@ namespace Multiplayer.Compat
                 // Get the VerbManager from inside of the ManagedVerb itself
                 var verbManager = mvcfManagedVerbManagerGetter(obj);
                 // Find the ManagedVerb inside of list of all verbs
-                var managedVerbsList = mvcfVerbsField(verbManager);
+                var managedVerbsList = mvcfVerbManagerVerbsField(verbManager);
                 var index = managedVerbsList.IndexOf(obj);
 
                 // Sync the index of the verb as well as the manager (if it's valid)
@@ -738,7 +909,7 @@ namespace Multiplayer.Compat
                     SyncVerbManager(sync, ref verbManager);
 
                     // Find the ManagedVerb with specific index inside of list of all verbs
-                    var managedVerbsList = mvcfVerbsField(verbManager);
+                    var managedVerbsList = mvcfVerbManagerVerbsField(verbManager);
                     obj = managedVerbsList[index];
                 }
             }
@@ -768,12 +939,83 @@ namespace Multiplayer.Compat
             }
         }
 
+        private static void TickVerbManagersForMap(Map map)
+        {
+            // Map-specific ticking is only enabled in MP with async on.
+            if (!MP.IsInMultiplayer || !PatchingUtilities.IsAsyncTime)
+                return;
+
+            var managers = mvcfWorldCompTickManagersField(mvcfWorldCompInstanceField());
+            // Null or empty check
+            if (managers is not { Count: > 0 })
+                return;
+
+            // out parameter
+            var args = new object[1];
+            foreach (var weakRef in managers)
+            {
+                if ((bool)mvcfWeakReferenceTryGetVerbManagerMethod(weakRef, args))
+                {
+                    var manager = args[0];
+                    if (mvcfVerbManagerPawnGetter(manager) is Pawn pawn && pawn.MapHeld == map)
+                        mvcfVerbManagerTickMethod(manager);
+                }
+            }
+        }
+
+        private static void TickOnlyNonMapManagers(object manager)
+        {
+            // Normal ticking (tied to world). Only do if not in MP, async is off,
+            // the pawn is null (shouldn't happen?) or the pawn has no map.
+            if (!MP.IsInMultiplayer ||
+                !PatchingUtilities.IsAsyncTime ||
+                mvcfVerbManagerPawnGetter(manager) is not Pawn pawn ||
+                pawn.MapHeld == null)
+            {
+                mvcfVerbManagerTickMethod(manager);
+            }
+        }
+
+        private static IEnumerable<CodeInstruction> ReplaceTickWithConditionalTick(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            var target = AccessTools.DeclaredMethod("MVCF.VerbManager:Tick", Type.EmptyTypes);
+            var replacement = AccessTools.DeclaredMethod(typeof(VanillaExpandedFramework), nameof(TickOnlyNonMapManagers));
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                if (ci.Calls(target))
+                {
+                    ci.opcode = OpCodes.Call;
+                    ci.operand = replacement;
+
+                    replacedCount++;
+                }
+
+                yield return ci;
+            }
+
+            const int expected = 1;
+            if (replacedCount != expected)
+            {
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Patched incorrect number of VerbManager.Tick calls (patched {replacedCount}, expected {expected}) for method {name}");
+            }
+        }
+
         #endregion
 
         #region Pipe System
 
+        // Deconstruct
         private static Type deconstructPipeDesignatorType;
         private static AccessTools.FieldRef<Designator_Deconstruct, Def> deconstructPipeDesignatorNetDefField;
+        // Pipe net manager
+        private static Type pipeNetManagerType;
+        private static AccessTools.FieldRef<MapComponent, IList> pipeNetManagerPipeNetsListField;
+        // Pipe net
+        private static AccessTools.FieldRef<object, Map> pipeNetMapField;
+        private static AccessTools.FieldRef<object, Def> pipeNetDefField;
 
         private static void PatchPipeSystem()
         {
@@ -794,6 +1036,15 @@ namespace Multiplayer.Compat
             var type = deconstructPipeDesignatorType = AccessTools.TypeByName("PipeSystem.Designator_DeconstructPipe");
             deconstructPipeDesignatorNetDefField = AccessTools.FieldRefAccess<Def>(type, "pipeNetDef");
             MP.RegisterSyncWorker<Designator_Deconstruct>(SyncDeconstructPipeDesignator, type);
+
+            // Pipe net
+            type = pipeNetManagerType = AccessTools.TypeByName("PipeSystem.PipeNetManager");
+            pipeNetManagerPipeNetsListField = AccessTools.FieldRefAccess<IList>(type, "pipeNets");
+
+            type = AccessTools.TypeByName("PipeSystem.PipeNet");
+            pipeNetMapField = AccessTools.FieldRefAccess<Map>(type, "map");
+            pipeNetDefField = AccessTools.FieldRefAccess<Def>(type, "def");
+            MP.RegisterSyncWorker<object>(SyncPipeNet, type, true);
         }
 
         private static void SyncDeconstructPipeDesignator(SyncWorker sync, ref Designator_Deconstruct designator)
@@ -802,6 +1053,94 @@ namespace Multiplayer.Compat
                 sync.Write(deconstructPipeDesignatorNetDefField(designator));
             else
                 designator = (Designator_Deconstruct)Activator.CreateInstance(deconstructPipeDesignatorType, sync.Read<Def>());
+        }
+
+        private static void SyncPipeNet(SyncWorker sync, ref object pipeNet)
+        {
+            if (sync.isWriting)
+            {
+                // Sync null net as -1
+                if (pipeNet == null)
+                {
+                    sync.Write(-1);
+                    return;
+                }
+
+                // No map, can't get manager - log error and treat as null
+                var map = pipeNetMapField(pipeNet);
+                if (map == null)
+                {
+                    Log.Error($"Trying to sync a PipeNet with a null map. PipeNet={pipeNet}");
+                    sync.Write(-1);
+                    return;
+                }
+
+                // No manager for map, shouldn't happen - log error and treat as null
+                var manager = map.GetComponent(pipeNetManagerType);
+                if (manager == null)
+                {
+                    Log.Error($"Trying to sync a PipeNet with a map that doesn't have PipeNetManager. PipeNet={pipeNet}, Map={map}");
+                    sync.Write(-1);
+                    return;
+                }
+
+                var def = pipeNetDefField(pipeNet);
+                var list = pipeNetManagerPipeNetsListField(manager);
+                var index = -1;
+                var found = false;
+
+                foreach (var currentPipeNet in list)
+                {
+                    if (def == pipeNetDefField(currentPipeNet))
+                    {
+                        index++;
+                        if (pipeNet == currentPipeNet)
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!found)
+                {
+                    // We did not find the pipe net - log error and treat as null
+                    Log.Error($"Trying to sync a PipeNet, but it's not held by the manager. PipeNet={pipeNet}, map={map}, manager={manager}");
+                    sync.Write(-1);
+                }
+                else
+                {
+                    sync.Write(index);
+                    sync.Write(def);
+                    sync.Write(manager);
+                }
+            }
+            else
+            {
+                var index = sync.Read<int>();
+                // If negative - it's null
+                if (index < 0)
+                    return;
+
+                var def = sync.Read<Def>();
+                var manager = sync.Read<MapComponent>();
+                var list = pipeNetManagerPipeNetsListField(manager);
+                var currentIndex = 0;
+
+                foreach (var currentPipeNet in list)
+                {
+                    if (def == pipeNetDefField(currentPipeNet))
+                    {
+                        if (currentIndex == index)
+                        {
+                            pipeNet = currentPipeNet;
+                            break;
+                        }
+
+                        currentIndex++;
+                    }
+                }
+            }
         }
 
         #endregion
@@ -866,141 +1205,49 @@ namespace Multiplayer.Compat
         private static ConstructorInfo renameDoorTeleporterDialogConstructor;
         private static AccessTools.FieldRef<object, ThingWithComps> renameDoorTeleporterDialogThingField;
 
-        // DoorTeleporter.<>c__DisplayClass26_0
-        private static Type innerClassDoorTeleporterLocalsType;
-        private static AccessTools.FieldRef<object, ThingWithComps> innerClassDoorTeleporterThisField;
-        private static AccessTools.FieldRef<object, Pawn> innerClassDoorTeleporterPawnField;
-
-        // DoorTeleporter.<>c__DisplayClass26_1
-        private static AccessTools.FieldRef<object, object> innerClassDoorTeleporterLocalsField;
-        private static AccessTools.FieldRef<object, Thing> innerClassDoorTeleporterTargetField;
-
         private static void PatchDoorTeleporter()
         {
             var type = AccessTools.TypeByName("VFECore.DoorTeleporter");
             // Destroy
             MpCompat.RegisterLambdaMethod(type, "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
             // Teleport to x
-            MpCompat.RegisterLambdaDelegate(type, nameof(ThingWithComps.GetFloatMenuOptions), 0);
+            MpCompat.RegisterLambdaDelegate(type, nameof(ThingWithComps.GetFloatMenuOptions), 0)[0]
+                .TransformField("doorTeleporter", Serializer.New<Thing, int>(
+                    t => t.thingIDNumber,
+                    id =>
+                    {
+                        MP.TryGetThingById(id, out var thing);
+                        return thing;
+                    }),
+                    true);
 
             renameDoorTeleporterDialogType = AccessTools.TypeByName("VFECore.Dialog_RenameDoorTeleporter");
             renameDoorTeleporterDialogConstructor = AccessTools.DeclaredConstructor(renameDoorTeleporterDialogType, new[] { type });
             renameDoorTeleporterDialogThingField = AccessTools.FieldRefAccess<ThingWithComps>(renameDoorTeleporterDialogType, "DoorTeleporter");
 
             PatchingUtilities.PatchPushPopRand(renameDoorTeleporterDialogConstructor);
-            MP.RegisterSyncWorker<Dialog_Rename>(SyncDialogRenameDoorTeleporter, renameDoorTeleporterDialogType);
-            MP.RegisterSyncMethod(renameDoorTeleporterDialogType, nameof(Dialog_Rename.SetName))
-                // Since we sync the "SetName" method and nothing else, it'll leave the dialog open for
-                // players who didn't click the button to rename it - we need to manually close it.
-                .SetPostInvoke((dialog, _) =>
-                {
-                    if (dialog is Window w)
-                        Find.WindowStack.TryRemove(w);
-                });
-
-            var innerClassMethod = MpMethodUtil.GetLambda(type, nameof(ThingWithComps.GetFloatMenuOptions));
-
-            if (innerClassMethod == null)
-                Log.Error("Couldn't find inner class 1 for door teleporters, they won't work.");
-            else
-            {
-                var fields = AccessTools.GetDeclaredFields(innerClassMethod.DeclaringType);
-                if (fields.Count != 2)
-                    Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 1) - found: {fields.Count}, expected: 2.");
-
-                foreach (var field in fields)
-                {
-                    if (field.FieldType == type)
-                        innerClassDoorTeleporterTargetField = AccessTools.FieldRefAccess<object, Thing>(field);
-                    else
-                    {
-                        innerClassDoorTeleporterLocalsType = field.FieldType;
-                        innerClassDoorTeleporterLocalsField = AccessTools.FieldRefAccess<object, object>(field);
-                    }
-                }
-
-                if (innerClassDoorTeleporterLocalsType == null)
-                {
-                    Log.Error("Couldn't find inner class 0 for door teleporters, they won't work.");
-                }
-                else
-                {
-                    fields = AccessTools.GetDeclaredFields(innerClassDoorTeleporterLocalsType);
-                    if (fields.Count != 2)
-                        Log.Error($"Found incorrect amount of fields while trying to register door teleporters (inner class 0) - found: {fields.Count}, expected: 2.");
-
-                    foreach (var field in fields)
-                    {
-                        if (field.FieldType == type)
-                            innerClassDoorTeleporterThisField = AccessTools.FieldRefAccess<object, ThingWithComps>(field);
-                        else if (field.FieldType == typeof(Pawn))
-                            innerClassDoorTeleporterPawnField = AccessTools.FieldRefAccess<object, Pawn>(field);
-                    }
-
-                    EnsureThingsByIdDictionaryActive();
-                    MP.RegisterSyncWorker<object>(SyncInnerDoorTeleporterClass, innerClassMethod.DeclaringType, shouldConstruct: true);
-                    MP.RegisterSyncMethod(innerClassMethod);
-                }
-            }
-        }
-
-        private static void SyncDialogRenameDoorTeleporter(SyncWorker sync, ref Dialog_Rename dialog)
-        {
-            if (sync.isWriting)
-            {
-                sync.Write(renameDoorTeleporterDialogThingField(dialog));
-                sync.Write(dialog.curName);
-            }
-            else
-            {
-                var doorTeleporter = sync.Read<ThingWithComps>();
-                var name = sync.Read<string>();
-
-                // The dialog may be already open
-                dialog = Find.WindowStack.Windows.FirstOrDefault(x => x.GetType() == renameDoorTeleporterDialogType) as Dialog_Rename;
-                // If the dialog is not open, or the open dialog is for a different door - create a new dialog instead
-                if (dialog == null || renameDoorTeleporterDialogThingField(dialog) != doorTeleporter)
-                    dialog = (Dialog_Rename)renameDoorTeleporterDialogConstructor.Invoke(new object[] { doorTeleporter });
-
-                dialog.curName = name;
-            }
-        }
-
-        private static void SyncInnerDoorTeleporterClass(SyncWorker sync, ref object obj)
-        {
-            if (sync.isWriting)
-            {
-                var locals = innerClassDoorTeleporterLocalsField(obj);
-                var target = innerClassDoorTeleporterTargetField(obj);
-
-                // The target is on a different map, so we can't just sync it as MP does not allow it.
-                // We need to sync the ID number and manually get the target by ID instead.
-                sync.Write(target.thingIDNumber);
-                sync.Write(innerClassDoorTeleporterThisField(locals));
-                sync.Write(innerClassDoorTeleporterPawnField(locals));
-            }
-            else
-            {
-                // shouldConstruct: true, so obj is constructed
-                // but we need to construct the other object used for locals
-                var locals = Activator.CreateInstance(innerClassDoorTeleporterLocalsType);
-                innerClassDoorTeleporterLocalsField(obj) = locals;
-
-                // Get the target by ID.
-                innerClassDoorTeleporterTargetField(obj) = thingsById.GetValueSafe(sync.Read<int>());
-                innerClassDoorTeleporterThisField(locals) = sync.Read<ThingWithComps>();
-                innerClassDoorTeleporterPawnField(locals) = sync.Read<Pawn>();
-            }
         }
 
         #endregion
 
         #region Special Terrain
 
+        private static Type terrainCompType;
+        private static AccessTools.FieldRef<object, object> terrainCompParentField;
+        private static AccessTools.FieldRef<object, IntVec3> terrainInstancePositionField;
+
         private static void PatchSpecialTerrain()
         {
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.SpecialTerrainList:TerrainUpdate"),
-                prefix: new HarmonyMethod(typeof(BiomesCore), nameof(RemoveTerrainUpdateTimeBudget)));
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(RemoveTerrainUpdateTimeBudget)));
+
+            // Fix unsafe GetHashCode call
+            terrainCompType = AccessTools.TypeByName("VFECore.TerrainComp");
+            terrainCompParentField = AccessTools.FieldRefAccess<object>(terrainCompType, "parent");
+            terrainInstancePositionField = AccessTools.FieldRefAccess<IntVec3>("VFECore.TerrainInstance:positionInt");
+
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.ActiveTerrainUtility:HashCodeToMod"),
+                prefix: new HarmonyMethod(MpMethodUtil.MethodOf(SaferGetHashCode)));
         }
 
         private static void RemoveTerrainUpdateTimeBudget(ref long timeBudget)
@@ -1013,18 +1260,44 @@ namespace Multiplayer.Compat
             // base it around amount of terrain updates per tick, instead of basing it on actual time.
         }
 
+        private static void SaferGetHashCode(ref object obj)
+        {
+            if (!MP.IsInMultiplayer || obj is IntVec3)
+                return;
+            if (terrainCompType.IsInstanceOfType(obj))
+            {
+                // Use parent IntVec3 position, since it'll be safe to call GetHashCode on
+                obj = terrainInstancePositionField(terrainCompParentField(obj));
+                return;
+            }
+
+            Log.ErrorOnce($"Potentially unsupported type for HashCodeToMod call in Multiplayer, desyncs likely to happen. Object type: {obj.GetType()}", obj.GetHashCode());
+        }
+
         #endregion
 
         #region Patch Weather Overlay Effects
 
         private static Type weatherOverlayEffectsType;
         private static AccessTools.FieldRef<SkyOverlay, int> weatherOverlayEffectsNextDamageTickField;
+        private static AccessTools.FieldRef<SkyOverlay, Dictionary<Map, int>> weatherOverlayEffectsNextDamageTickForMapField;
 
         private static void PatchWeatherOverlayEffects()
         {
             // It'll likely have issues with async time, as there's only 1 timer for all maps.
             weatherOverlayEffectsType = AccessTools.TypeByName("VFECore.WeatherOverlay_Effects");
-            weatherOverlayEffectsNextDamageTickField = AccessTools.FieldRefAccess<int>(weatherOverlayEffectsType, "nextDamageTick");
+            var nextDamageTickField = AccessTools.DeclaredField(weatherOverlayEffectsType, "nextDamageTick");
+            var nextDamageTickForMapField = AccessTools.DeclaredField(weatherOverlayEffectsType, "nextDamageTickForMap");
+
+            if (nextDamageTickForMapField != null)
+                weatherOverlayEffectsNextDamageTickForMapField = AccessTools.FieldRefAccess<SkyOverlay, Dictionary<Map, int>>(nextDamageTickForMapField);
+            else if (nextDamageTickField != null)
+                weatherOverlayEffectsNextDamageTickField = AccessTools.FieldRefAccess<SkyOverlay, int>(nextDamageTickField);
+            else
+            {
+                Log.Error("VFECore.WeatherOverlay_Effects:nextDamageTick field, patch failed.");
+                return;
+            }
 
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(RefreshWeatherOverlayEffectCache)));
@@ -1043,7 +1316,12 @@ namespace Multiplayer.Compat
                 foreach (var overlay in def.Worker.overlays)
                 {
                     if (weatherOverlayEffectsType.IsInstanceOfType(overlay))
-                        weatherOverlayEffectsNextDamageTickField(overlay) = 0;
+                    {
+                        if (weatherOverlayEffectsNextDamageTickForMapField != null)
+                            weatherOverlayEffectsNextDamageTickForMapField(overlay).Clear();
+                        else
+                            weatherOverlayEffectsNextDamageTickField(overlay) = 0;
+                    }
                 }
             }
         }
@@ -1078,6 +1356,345 @@ namespace Multiplayer.Compat
             // Call MoodOffset to cause the method to add hediffs, etc.
             thought.MoodOffset();
             return true;
+        }
+
+        #endregion
+
+        #region Building stuff requiring non-construction skill
+
+        // DefModExtension
+        private static Type thingDefExtensionType;
+        private static AccessTools.FieldRef<DefModExtension, object> thingDefExtensionConstructionSkillRequirementField;
+        private static AccessTools.FieldRef<object, WorkTypeDef> constructionSkillRequirementWorkTypeField;
+        // Temp value
+        private static IConstructible lastThing;
+
+        private static void PatchWorkGiverDeliverResources()
+        {
+            MethodInfo rwMethod;
+            MethodInfo mpMethod;
+
+            try
+            {
+                const string rwMethodPath = "RimWorld.WorkGiver_ConstructDeliverResourcesToBlueprints:NoCostFrameMakeJobFor";
+                rwMethod = AccessTools.DeclaredMethod(rwMethodPath);
+                if (rwMethod == null)
+                    throw new MissingMethodException($"Could not access method: {rwMethodPath}");
+
+                const string mpMethodPath = "Multiplayer.Client.OnlyConstructorsPlaceNoCostFrames:IsConstruction";
+                mpMethod = AccessTools.DeclaredMethod(mpMethodPath);
+                if (mpMethod == null)
+                    throw new MissingMethodException($"Could not access method: {mpMethodPath}");
+
+                thingDefExtensionType = AccessTools.TypeByName("VFECore.ThingDefExtension");
+                thingDefExtensionConstructionSkillRequirementField= AccessTools.FieldRefAccess<object>(
+                    thingDefExtensionType, "constructionSkillRequirement");
+                constructionSkillRequirementWorkTypeField = AccessTools.FieldRefAccess<WorkTypeDef>(
+                    "VFECore.ConstructionSkillRequirement:workType");
+            }
+            catch (Exception)
+            {
+                // Cleanup stuff that won't be ever used if exception occurs before patching.
+                thingDefExtensionType = null;
+                thingDefExtensionConstructionSkillRequirementField = null;
+                constructionSkillRequirementWorkTypeField = null;
+
+                throw;
+            }
+
+            MpCompat.harmony.Patch(rwMethod, prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreNoCostFrameMakeJobFor)));
+            MpCompat.harmony.Patch(mpMethod, postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostIsConstruction)));
+        }
+
+        private static void PreNoCostFrameMakeJobFor(IConstructible c) => lastThing = c;
+
+        private static void PostIsConstruction(WorkGiver w, ref bool __result)
+        {
+            // If __result is true, the work type was construction, so MP allowed it.
+            if (__result || lastThing is not Thing thing || thing.def?.entityDefToBuild?.modExtensions == null)
+            {
+                lastThing = null;
+                return;
+            }
+
+            // Look for the VFE def mod extension
+            foreach (var extension in thing.def.entityDefToBuild.modExtensions)
+            {
+                if (extension != null && thingDefExtensionType.IsInstanceOfType(extension))
+                {
+                    // Get the construction skill requirement object
+                    var constructionRequirement = thingDefExtensionConstructionSkillRequirementField(extension);
+                    if (constructionRequirement == null)
+                        break;
+
+                    // Get the WorkTypeDef of the correct work requirement
+                    var constructionWorkType = constructionSkillRequirementWorkTypeField(constructionRequirement);
+                    // Set the result based on if the construction work type is the same as extension's work type.
+                    __result = w.def.workType == constructionWorkType;
+
+                    break;
+                }
+            }
+
+            lastThing = null;
+        }
+
+        #endregion
+
+        #region Caches
+
+        private static FastInvokeHandler[] cacheGetterList;
+
+        private static void PatchStaticCaches()
+        {
+            cacheGetterList = new[]
+                {
+                    // Currently the only cache in the mod.
+                    // They also technically access DictCache<Pawn, CachedPawnData> directly, but
+                    // PawnDataCache uses the same generics, and they end up sharing the dictionary.
+                    "VFECore.PawnDataCache",
+                }
+                .Select(AccessTools.TypeByName)
+                .Select(t => AccessTools.PropertyGetter(t, "Cache"))
+                .Select(m => MethodInvoker.GetHandler(m))
+                .ToArray();
+
+            var patch = AccessTools.DeclaredMethod("VFECore.Pawn_DrawTracker_Patch:Postfix");
+            MpCompat.harmony.Unpatch(AccessTools.DeclaredPropertyGetter(typeof(Pawn_DrawTracker), nameof(Pawn_DrawTracker.DrawPos)), patch);
+
+            // The recaching happens (by default) every 180 ticks or 2 seconds.
+            // Disable recaching caused by real time passing in MP.
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.CacheTimer:TimeOutSeconds"),
+                prefix: new HarmonyMethod(MpMethodUtil.MethodOf(NeverTimeoutDueToRealTime)));
+
+            // Clear the caches
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(ClearCache)));
+
+            // Prevent the timers from being reset in interface.
+            PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod("VFECore.CacheTimer:ResetTimers"));
+            // Prevent the cache from being regenerated in interface.
+            // List of all types implementing ICacheable to patch, currently only 1 type does it.
+            var typeNames = new[]
+            {
+                "VFECore.CachedPawnData",
+            };
+            foreach (var typeName in typeNames)
+            {
+                const string regenerateCacheMethodName = "RegenerateCache";
+                var type = AccessTools.TypeByName(typeName);
+                // Look for the method with no arguments in case there's an overload with different arguments.
+                var method = AccessTools.DeclaredMethod(type, regenerateCacheMethodName, []);
+
+                if (method == null)
+                    Log.Error($"Could not find {typeName}:{regenerateCacheMethodName}");
+                else if (method.ReturnType != typeof(bool))
+                    Log.Error($"{typeName}:{regenerateCacheMethodName} has a return type of {method.ReturnType}, we were expecting bool.");
+                else
+                    PatchingUtilities.PatchCancelInInterface(method);
+            }
+        }
+
+        private static void ClearCache()
+        {
+            foreach (var getter in cacheGetterList)
+                (getter(null) as IDictionary)?.Clear();
+        }
+
+        private static bool NeverTimeoutDueToRealTime(ref bool __result, ref int ___UpdateIntervalTicks, ref int ___UpdateIntervalSeconds)
+        {
+            // Result defaults to false, so if <= -1 just stop original from running
+            if (___UpdateIntervalSeconds <= -1)
+                return false;
+            // Let SP do its own thing
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            // As a backup, enable tick based recaching (if it isn't enabled already)
+            if (___UpdateIntervalTicks <= -1)
+            {
+                Log.WarningOnce("Real time recaching disabled in MP but tick based recaching is disabled. Enabling tick based recaching (and disabling further warnings).", 652857559);
+                ___UpdateIntervalTicks = ___UpdateIntervalSeconds * 90;
+            }
+
+            // Disable real time recaching
+            ___UpdateIntervalSeconds = -1;
+            return false;
+        }
+
+        #endregion
+
+        #region Graphic Customization Dialog
+
+        // Dialog_GraphicCustomization
+        private static Type graphicCustomizationDialogType;
+        internal static AccessTools.FieldRef<Window, ThingComp> graphicCustomizationCompField;
+        private static AccessTools.FieldRef<Window, ThingComp> graphicCustomizationGeneratedNamesCompField;
+        private static AccessTools.FieldRef<Window, Pawn> graphicCustomizationPawnField;
+        private static AccessTools.FieldRef<Window, IList> graphicCustomizationCurrentVariantsField;
+        private static AccessTools.FieldRef<Window, string> graphicCustomizationCurrentNameField;
+
+        // TextureVariant
+        private static SyncType variantsListType;
+        private static AccessTools.FieldRef<object, string> textureVariantTexNameField;
+        private static AccessTools.FieldRef<object, string> textureVariantTextureField;
+        private static AccessTools.FieldRef<object, string> textureVariantOutlineField;
+        private static AccessTools.FieldRef<object, object> textureVariantTextureVariantOverrideField;
+        private static AccessTools.FieldRef<object, float> textureVariantChanceOverrideField;
+
+        // TextureVariantOverride
+        private static SyncType textureVariantOverrideType;
+        private static AccessTools.FieldRef<object, float> textureVariantOverrideChanceField;
+        private static AccessTools.FieldRef<object, string> textureVariantOverrideGroupNameField;
+        private static AccessTools.FieldRef<object, string> textureVariantOverrideTexNameField;
+
+        private static void PatchGraphicCustomizationDialog()
+        {
+            var type = graphicCustomizationDialogType = AccessTools.TypeByName("GraphicCustomization.Dialog_GraphicCustomization");
+            graphicCustomizationCompField = AccessTools.FieldRefAccess<ThingComp>(type, "comp");
+            graphicCustomizationGeneratedNamesCompField = AccessTools.FieldRefAccess<ThingComp>(type, "compGeneratedName");
+            graphicCustomizationPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
+            graphicCustomizationCurrentVariantsField = AccessTools.FieldRefAccess<IList>(type, "currentVariants");
+            graphicCustomizationCurrentNameField = AccessTools.FieldRefAccess<string>(type, "currentName");
+            // Accept customization
+            var method = MpMethodUtil.GetLambda(type, nameof(Window.DoWindowContents), 0);
+            MP.RegisterSyncMethod(method);
+            MpCompat.RegisterLambdaMethod(type, nameof(Window.DoWindowContents), 0);
+            MP.RegisterSyncWorker<Window>(SyncGraphicCustomizationDialog, type, true);
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DrawConfirmButton"),
+                prefix: new HarmonyMethod(CloseGraphicCustomizationDialogOnAccept));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents)),
+                prefix: new HarmonyMethod(CloseGraphicCustomizationWhenNoLongerValid));
+
+            type = AccessTools.TypeByName("GraphicCustomization.TextureVariant");
+            variantsListType = typeof(List<>).MakeGenericType(type);
+            textureVariantTexNameField = AccessTools.FieldRefAccess<string>(type, "texName");
+            textureVariantTextureField = AccessTools.FieldRefAccess<string>(type, "texture");
+            textureVariantOutlineField = AccessTools.FieldRefAccess<string>(type, "outline");
+            textureVariantChanceOverrideField = AccessTools.FieldRefAccess<float>(type, "chanceOverride");
+            textureVariantTextureVariantOverrideField = AccessTools.FieldRefAccess<object>(type, "textureVariantOverride");
+            MP.RegisterSyncWorker<object>(SyncTextureVariant, type, shouldConstruct: true);
+
+            textureVariantOverrideType = type = AccessTools.TypeByName("GraphicCustomization.TextureVariantOverride");
+            textureVariantOverrideChanceField = AccessTools.FieldRefAccess<float>(type, "chance");
+            textureVariantOverrideGroupNameField = AccessTools.FieldRefAccess<string>(type, "groupName");
+            textureVariantOverrideTexNameField = AccessTools.FieldRefAccess<string>(type, "texName");
+            MP.RegisterSyncWorker<object>(SyncTextureVariantOverride, type, shouldConstruct: true);
+        }
+
+        private static void CloseGraphicCustomizationDialogOnAccept(Window __instance, ref Action action)
+        {
+            // The action is a synced method, and it handles closing the dialog. Since
+            // the method ends up being synced the closing does not happen. This will
+            // ensure that the dialog is closed when the accept button is pressed
+            // and the proper method will be synced as well.
+            var nonRefAction = action;
+            action = (() => __instance.Close()) + nonRefAction;
+        }
+
+        private static void CloseGraphicCustomizationWhenNoLongerValid(Window __instance, ThingComp ___comp, Pawn ___pawn)
+        {
+            // Since the dialog doesn't pause, ensure we close it if the comp's parent
+            // or the pawn ever get destroyed, despawned, or end up on different maps.
+            if (MP.IsInMultiplayer && !IsGraphicCustomizationDialogValid(___comp, ___pawn))
+                __instance.Close();
+        }
+
+        private static bool CancelGraphicCustomizationExecutionIfNoLongerValid(ThingComp ___comp, Pawn ___pawn)
+            => !MP.IsInMultiplayer || IsGraphicCustomizationDialogValid(___comp, ___pawn);
+
+        private static bool IsGraphicCustomizationDialogValid(ThingComp comp, Pawn pawn)
+            => comp.parent != null && pawn != null &&
+               comp.parent.Spawned && pawn.Spawned &&
+               !comp.parent.Destroyed && !pawn.Destroyed &&
+               !pawn.Dead && comp.parent.Map == pawn.Map;
+
+        private static void SyncGraphicCustomizationDialog(SyncWorker sync, ref Window dialog)
+        {
+            ThingComp comp = null;
+
+            if (sync.isWriting)
+            {
+                sync.Write(graphicCustomizationCompField(dialog));
+            }
+            else
+            {
+                // Skip constructor since it has a bunch of initialization we don't care about.
+                dialog = (Window)FormatterServices.GetUninitializedObject(graphicCustomizationDialogType);
+
+                comp = sync.Read<ThingComp>();
+                graphicCustomizationCompField(dialog) = comp;
+            }
+
+            SyncGraphicCustomizationDialog(sync, ref dialog, comp);
+        }
+
+        internal static void SyncGraphicCustomizationDialog(SyncWorker sync, ref Window dialog, ThingComp graphicCustomizationComp)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(graphicCustomizationPawnField(dialog));
+                sync.Write(graphicCustomizationCurrentVariantsField(dialog), variantsListType);
+                sync.Write(graphicCustomizationCurrentNameField(dialog));
+            }
+            else
+            {
+                graphicCustomizationGeneratedNamesCompField(dialog) = graphicCustomizationComp?.parent.GetComp<CompGeneratedNames>();
+                graphicCustomizationPawnField(dialog) = sync.Read<Pawn>();
+                graphicCustomizationCurrentVariantsField(dialog) = sync.Read<IList>(variantsListType);
+                graphicCustomizationCurrentNameField(dialog) = sync.Read<string>();
+            }
+        }
+
+        private static void SyncTextureVariant(SyncWorker sync, ref object variant)
+        {
+            if (sync.isWriting)
+            {
+                if (variant == null)
+                {
+                    sync.Write(false);
+                    return;
+                }
+
+                sync.Write(true);
+
+                sync.Write(textureVariantTexNameField(variant));
+                sync.Write(textureVariantTextureField(variant));
+                sync.Write(textureVariantOutlineField(variant));
+                sync.Write(textureVariantTextureVariantOverrideField(variant), textureVariantOverrideType);
+                sync.Write(textureVariantChanceOverrideField(variant));
+            }
+            else if (sync.Read<bool>())
+            {
+                textureVariantTexNameField(variant) = sync.Read<string>();
+                textureVariantTextureField(variant) = sync.Read<string>();
+                textureVariantOutlineField(variant) = sync.Read<string>();
+                textureVariantTextureVariantOverrideField(variant) = sync.Read<object>(textureVariantOverrideType);
+                textureVariantChanceOverrideField(variant) = sync.Read<float>();
+            }
+        }
+
+        private static void SyncTextureVariantOverride(SyncWorker sync, ref object variantOverride)
+        {
+            if (sync.isWriting)
+            {
+                if (variantOverride == null)
+                {
+                    sync.Write(false);
+                    return;
+                }
+
+                sync.Write(true);
+                sync.Write(textureVariantOverrideChanceField(variantOverride));
+                sync.Write(textureVariantOverrideGroupNameField(variantOverride));
+                sync.Write(textureVariantOverrideTexNameField(variantOverride));
+            }
+            else if (sync.Read<bool>())
+            {
+                textureVariantOverrideChanceField(variantOverride) = sync.Read<float>();
+                textureVariantOverrideGroupNameField(variantOverride) = sync.Read<string>();
+                textureVariantOverrideTexNameField(variantOverride) = sync.Read<string>();
+            }
         }
 
         #endregion

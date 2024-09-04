@@ -10,6 +10,6 @@ namespace Multiplayer.Compat
     class VanillaPlantsAutoPlowPatch
     {
         public VanillaPlantsAutoPlowPatch(ModContentPack mod)
-            => MP.RegisterSyncDelegate(AccessTools.TypeByName("VPEAutoPlow.Patch_Zone_Growing_GetGizmos"), "<>c__DisplayClass0_0", "<Add_AllowAutoPlow_Gizmo>b__1");
+            => MP.RegisterSyncDelegateLambda(AccessTools.TypeByName("VPEAutoPlow.Patch_Zone_Growing_GetGizmos"), "Add_AllowAutoPlow_Gizmo", 1);
     }
 }

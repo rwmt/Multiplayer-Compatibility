@@ -23,8 +23,11 @@ namespace Multiplayer.Compat
             {
                 var doTimeControlsHotkeys = AccessTools.DeclaredMethod("Multiplayer.Client.AsyncTime.TimeControlPatch:DoTimeControlsHotkeys");
                 if (doTimeControlsHotkeys != null)
+                {
+                    doTimeControlsHotkeysMethod = MethodInvoker.GetHandler(doTimeControlsHotkeys);
                     MpCompat.harmony.Patch(AccessTools.DeclaredMethod("PerformanceOptimizer.Optimization_DoPlaySettings_DoTimespeedControls:DoTimeControlsGUI"),
-                        prefix: new HarmonyMethod(doTimeControlsHotkeys));
+                        prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PreDoTimeControlsGUI)));
+                }
                 else Log.Error("Could not find TimeControlPatch:DoTimeControlsHotkeys, speed control hot keys won't work with disabled/hidden speed control UI.");
             }
 
@@ -35,9 +38,18 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(CancelIfAutosaving)));
                 refreshCache = MethodInvoker.GetHandler(resetDataMethod);
 
-                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("Multiplayer.Client.MultiplayerSession:SaveGameToFile_Overwrite"),
-                    prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PreSaveToFile)),
-                    postfix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PostSaveToFile)));
+                var method = AccessTools.DeclaredMethod("Multiplayer.Client.Autosaving:SaveGameToFile_Overwrite");
+                // Backwards compat
+                method ??= AccessTools.DeclaredMethod("Multiplayer.Client.MultiplayerSession:SaveGameToFile_Overwrite");
+                // Even more backwards compat
+                method ??= AccessTools.DeclaredMethod("Multiplayer.Client.MultiplayerSession:SaveGameToFile");
+                if (method != null)
+                {
+                    MpCompat.harmony.Patch(method,
+                        prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PreSaveToFile)),
+                        postfix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(PostSaveToFile)));
+                }
+                else Log.Error("Couldn't find MP SaveGameToFile method, PerformanceOptimizer will now likely cause desyncs because the patch failed.");
 
                 // Big shoutout to NotFood for pointing me to the correct method to clear the cache in.
                 // I spent hours trying to find a correct method where to clear the cache but failed.
@@ -171,7 +183,7 @@ namespace Multiplayer.Compat
                 return null;
 
             // If simulation, return normal cache
-            if (!PatchingUtilities.ShouldCancel)
+            if (!MP.InInterface)
                 return simulationCache;
 
             // If interface, try to return the cache from our dictionary
@@ -211,6 +223,21 @@ namespace Multiplayer.Compat
 
             // A lot of postfixes don't access the cache (they have the value out of cache passed as __state from prefix),
             // so don't really bother logging if we haven't patched anything (unless debugging).
+        }
+
+        #endregion
+
+        #region Time controls
+
+        private static FastInvokeHandler doTimeControlsHotkeysMethod;
+
+        private static bool PreDoTimeControlsGUI()
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            doTimeControlsHotkeysMethod(null);
+            return false;
         }
 
         #endregion

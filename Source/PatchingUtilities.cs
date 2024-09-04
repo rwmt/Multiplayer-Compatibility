@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
+using Multiplayer.API;
 using RimWorld;
 using Verse;
 
@@ -150,8 +152,8 @@ namespace Multiplayer.Compat
         #endregion
 
         #region System RNG transpiler
-        private static readonly ConstructorInfo SystemRandConstructor = typeof(System.Random).GetConstructor(Type.EmptyTypes);
-        private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(System.Random).GetConstructor(new[] { typeof(int) });
+        private static readonly ConstructorInfo SystemRandConstructor = typeof(Random).GetConstructor(Type.EmptyTypes);
+        private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(Random).GetConstructor(new[] { typeof(int) });
         private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Type.EmptyTypes);
         private static readonly ConstructorInfo RandRedirectorSeededConstructor = typeof(RandRedirector).GetConstructor(new[] { typeof(int) });
 
@@ -262,17 +264,6 @@ namespace Multiplayer.Compat
 
         #region Cancel in interface
 
-        /// <summary>
-        /// <para>Returns <see langword="true"/> during ticking and synced commands.</para>
-        /// <para>Should be used to prevent any gameplay-related changes from being executed from UI or other unsafe contexts.</para>
-        /// <para>Requires calling <see cref="InitCancelInInterface"/> or any <see cref="PatchCancelInInterface"/> method, otherwise it will always be <see langword="false"/>.</para>
-        /// </summary>
-        public static bool ShouldCancel => inInterfaceMethod();
-
-        private delegate bool InInterfaceDelegate();
-        private static InInterfaceDelegate inInterfaceMethod = () => false;
-        private static bool inInterfaceMethodInitialized = false;
-
         /// <summary>Patches the method to cancel the call if it ends up being called from the UI</summary>
         /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
         public static void PatchCancelInInterface(params string[] methodNames) => PatchCancelInInterface(methodNames as IEnumerable<string>);
@@ -298,7 +289,6 @@ namespace Multiplayer.Compat
         /// <param name="methods">Methods to patch</param>
         public static void PatchCancelInInterface(IEnumerable<MethodBase> methods)
         {
-            InitCancelInInterface();
             var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelInInterface));
             foreach (var method in methods)
                 PatchCancelInInterfaceInternal(method, patch);
@@ -329,7 +319,6 @@ namespace Multiplayer.Compat
         /// <param name="methods">Methods to patch</param>
         public static void PatchCancelInInterfaceSetResultToTrue(IEnumerable<MethodBase> methods)
         {
-            InitCancelInInterface();
             var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(CancelInInterfaceSetResultToTrue));
             foreach (var method in methods)
                 PatchCancelInInterfaceInternal(method, patch);
@@ -338,40 +327,11 @@ namespace Multiplayer.Compat
         private static void PatchCancelInInterfaceInternal(MethodBase method, HarmonyMethod patch) 
             => MpCompat.harmony.Patch(method, prefix: patch);
 
-        /// <summary>
-        /// <para>Gets access to Multiplayer.Client.Multiplayer:InInterface getter to check if execution should be cancelled.</para>
-        /// <para>Called automatically from any <see cref="PatchCancelInInterface"/> method.</para>
-        /// </summary>
-        public static void InitCancelInInterface()
-        {
-            if (inInterfaceMethodInitialized)
-                return;
-
-            // Stop repeated attempts to initialize when finished or failed
-            inInterfaceMethodInitialized = true;
-
-            var inInterface = AccessTools.PropertyGetter("Multiplayer.Client.Multiplayer:InInterface");
-            if (inInterface == null)
-            {
-                Log.Error("Failed getting InInterface getter, was its location changed in MP?");
-                return;
-            }
-
-            try
-            {
-                inInterfaceMethod = AccessTools.MethodDelegate<InInterfaceDelegate>(inInterface);
-            }
-            catch (Exception e)
-            {
-                Log.Error($"Failed setting up InInterface delegate with exception:\n{e}");
-            }
-        }
-
-        private static bool CancelInInterface() => !ShouldCancel;
+        private static bool CancelInInterface() => !MP.InInterface;
 
         private static bool CancelInInterfaceSetResultToTrue(ref bool __result)
         {
-            if (!ShouldCancel)
+            if (!MP.InInterface)
                 return true;
 
             __result = true;
@@ -409,7 +369,7 @@ namespace Multiplayer.Compat
             }
         }
 
-        public static void ReplaceCurrentMapUsage(string typeColonName)
+        public static void ReplaceCurrentMapUsage(string typeColonName, bool logIfNothingPatched = true, bool logIfMissingMethod = true)
         {
             if (typeColonName.NullOrEmpty())
             {
@@ -419,20 +379,32 @@ namespace Multiplayer.Compat
 
             var method = AccessTools.DeclaredMethod(typeColonName) ?? AccessTools.Method(typeColonName);
             if (method != null)
-                ReplaceCurrentMapUsage(method);
-            else
+                ReplaceCurrentMapUsage(method, logIfNothingPatched, logIfMissingMethod);
+            else if (logIfMissingMethod)
                 Log.Warning($"Trying to patch current map usage for null method ({typeColonName}). Was the method removed or renamed?");
         }
 
-        public static void ReplaceCurrentMapUsage(MethodBase method)
+        public static void ReplaceCurrentMapUsage(MethodBase method, bool logIfNothingPatched = true, bool logIfMissingMethod = true)
         {
             if (method != null)
-                MpCompat.harmony.Patch(method, transpiler: new HarmonyMethod(typeof(PatchingUtilities), nameof(ReplaceCurrentMapUsageTranspiler)));
-            else
+            {
+                var transpiler = new HarmonyMethod(logIfNothingPatched
+                    ? MpMethodUtil.MethodOf(ReplaceCurrentMapUsageTranspiler)
+                    : MpMethodUtil.MethodOf(ReplaceCurrentMapUsageNoLogTranspiler));
+
+                MpCompat.harmony.Patch(method, transpiler: transpiler);
+            }
+            else if (logIfMissingMethod)
                 Log.Warning("Trying to patch current map usage for null method. Was the method removed or renamed?");
         }
 
         private static IEnumerable<CodeInstruction> ReplaceCurrentMapUsageTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+            => ReplaceCurrentMapUsageTranspilerInternal(instr, baseMethod, true);
+
+        private static IEnumerable<CodeInstruction> ReplaceCurrentMapUsageNoLogTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+            => ReplaceCurrentMapUsageTranspilerInternal(instr, baseMethod, false);
+
+        private static IEnumerable<CodeInstruction> ReplaceCurrentMapUsageTranspilerInternal(IEnumerable<CodeInstruction> instr, MethodBase baseMethod, bool logNoCurrentMapPatches)
         {
             var helper = new CurrentMapPatchHelper(baseMethod);
 
@@ -449,9 +421,11 @@ namespace Multiplayer.Compat
 
             if (!helper.IsSupported)
                 Log.Warning($"Unsupported type, can't patch current map usage for {name}");
-            else if (!helper.IsPatched)
+            else if (logNoCurrentMapPatches && !helper.IsPatched)
                 Log.Warning($"Failed patching current map usage for {name}");
 #if DEBUG
+            else if (!helper.IsPatched)
+                Log.Warning($"Failed patching current map usage for {name}, but logging was disabled");
             else
                 Log.Warning($"Successfully patched the current map usage for {name}");
 #endif
@@ -731,6 +705,279 @@ namespace Multiplayer.Compat
                 if (tryGainMemoryHandlers[i](newThought))
                     return;
             }
+        }
+
+        #endregion
+
+        #region Async Time
+
+        private static bool isAsyncTimeSetup = false;
+        private static bool isAsyncTimeGameCompSuccessful = false;
+        private static bool isAsyncTimeMapCompSuccessful = false;
+        // Multiplayer
+        private static AccessTools.FieldRef<object> multiplayerGameField;
+        // MultiplayerGame
+        private static AccessTools.FieldRef<object, object> gameGameCompField;
+        // MultiplayerGameComp
+        private static AccessTools.FieldRef<object, bool> gameCompAsyncTimeField;
+        // Extensions
+        private static FastInvokeHandler getAsyncTimeCompForMapMethod;
+        // AsyncTimeComp
+        private static AccessTools.FieldRef<object, int> asyncTimeMapTicksField;
+        private static AccessTools.FieldRef<object, TimeSlower> asyncTimeSlowerField;
+        private static AccessTools.FieldRef<object, TimeSpeed> asyncTimeTimeSpeedIntField;
+
+        public static bool IsAsyncTime
+            => isAsyncTimeGameCompSuccessful &&
+               gameCompAsyncTimeField(gameGameCompField(multiplayerGameField()));
+
+        public static void SetupAsyncTime()
+        {
+            if (isAsyncTimeSetup)
+                return;
+            isAsyncTimeSetup = true;
+
+            try
+            {
+                // Multiplayer
+                multiplayerGameField = AccessTools.StaticFieldRefAccess<object>(
+                    AccessTools.DeclaredField("Multiplayer.Client.Multiplayer:game"));
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Encountered an exception while settings up core async time functionality:\n{e}");
+                // Nothing else will work here without this, just return early.
+                return;
+            }
+
+            try
+            {
+                // MultiplayerGame
+                gameGameCompField = AccessTools.FieldRefAccess<object>(
+                    "Multiplayer.Client.MultiplayerGame:gameComp");
+                // MultiplayerGameComp
+                gameCompAsyncTimeField = AccessTools.FieldRefAccess<bool>(
+                    "Multiplayer.Client.Comp.MultiplayerGameComp:asyncTime");
+
+                isAsyncTimeGameCompSuccessful = true;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Encountered an exception while settings up game async time:\n{e}");
+            }
+
+            try
+            {
+                getAsyncTimeCompForMapMethod = MethodInvoker.GetHandler(
+                    AccessTools.DeclaredMethod("Multiplayer.Client.Extensions:AsyncTime"));
+
+                var type = AccessTools.TypeByName("Multiplayer.Client.AsyncTimeComp");
+                asyncTimeMapTicksField = AccessTools.FieldRefAccess<int>(type, "mapTicks");
+                asyncTimeSlowerField = AccessTools.FieldRefAccess<TimeSlower>(type, "slower");
+                asyncTimeTimeSpeedIntField = AccessTools.FieldRefAccess<TimeSpeed>(type, "timeSpeedInt");
+
+                isAsyncTimeMapCompSuccessful = true;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Encountered an exception while settings up map async time:\n{e}");
+            }
+        }
+
+        // Taken from MP, GetAndSetFromMap was slightly modified.
+        // https://github.com/rwmt/Multiplayer/blob/master/Source/Client/AsyncTime/SetMapTime.cs#L166-L204
+        // We could access MP's struct and methods using reflection, but there were some issues
+        // in that approach - mainly performance wasn't perfect, as MethodInfo.Invoke call was required.
+        // Having an identical struct in MP Compat won't cause issues, as there's nothing to conflict with MP.
+        // On top of that - if the struct ever gets renamed or moved to a different namespace in MP, it won't
+        // affect MP Compat. However, in case there's any logic changes in MP - they won't be reflected here.
+        // Ideally, we'll make something like this in the MP API.
+        public struct TimeSnapshot
+        {
+            public int ticks;
+            public TimeSpeed speed;
+            public TimeSlower slower;
+
+            public void Set()
+            {
+                Find.TickManager.ticksGameInt = ticks;
+                Find.TickManager.slower = slower;
+                Find.TickManager.curTimeSpeed = speed;
+            }
+
+            public static TimeSnapshot Current()
+            {
+                return new TimeSnapshot
+                {
+                    ticks = Find.TickManager.ticksGameInt,
+                    speed = Find.TickManager.curTimeSpeed,
+                    slower = Find.TickManager.slower
+                };
+            }
+
+            public static TimeSnapshot? GetAndSetFromMap(Map map)
+            {
+                if (map == null) return null;
+                if (!isAsyncTimeMapCompSuccessful) return null;
+
+                var prev = Current();
+
+                var tickManager = Find.TickManager;
+                var mapComp = getAsyncTimeCompForMapMethod(null, map);
+
+                tickManager.ticksGameInt = asyncTimeMapTicksField(mapComp);
+                tickManager.slower = asyncTimeSlowerField(mapComp);
+                tickManager.CurTimeSpeed = asyncTimeTimeSpeedIntField(mapComp);
+
+                return prev;
+            }
+        }
+
+        #endregion
+
+        #region Timestamp Fixer
+
+        private static bool isTimestampFixerInitialized = false;
+        private static Type timestampFixerDelegateType;
+        private static Type timestampFixerListType;
+        private static AccessTools.FieldRef<IDictionary> timestampFieldsDictionaryField;
+
+        public static void RegisterTimestampFixer(Type type, MethodInfo timestampFixerMethod)
+        {
+            if (type == null || timestampFixerMethod == null)
+            {
+                Log.Error($"Trying to register timestamp fixer failed - value null. Type={type.ToStringSafe()}, Method={timestampFixerMethod.ToStringSafe()}");
+                return;
+            }
+
+            InitializeTimestampFixer();
+
+            // Initialize call will display proper errors if needed
+            if (timestampFixerDelegateType == null || timestampFixerListType == null || timestampFieldsDictionaryField == null)
+                return;
+
+            try
+            {
+                var dict = timestampFieldsDictionaryField();
+                IList list;
+                // If the dictionary already contains list of timestamp fixers for
+                // a given type, use that list and add another one to it.
+                if (dict.Contains(type))
+                    list = (IList)dict[type];
+                // If needed, create a new list of timestamp fixers for a given type.
+                else
+                    dict[type] = list = (IList)Activator.CreateInstance(timestampFixerListType);
+
+                // Create a FieldGetter<IExposable> delegate using the provided method
+                list.Add(Delegate.CreateDelegate(timestampFixerDelegateType, timestampFixerMethod));
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Trying to initialize timestamp fixer failed, exception caught:\n{e}");
+            }
+        }
+
+        public static void InitializeTimestampFixer()
+        {
+            if (isTimestampFixerInitialized)
+                return;
+            isTimestampFixerInitialized = true;
+
+            try
+            {
+                var type = AccessTools.TypeByName("Multiplayer.Client.Patches.TimestampFixer");
+                if (type == null)
+                {
+                    Log.Error("Trying to initialize timestamp fixer failed, could not find TimestampFixer type.");
+                    return;
+                }
+
+                // Get the type of the delegate. We need to specify `1 as it's a generic delegate.
+                var delType = AccessTools.Inner(type, "FieldGetter`1");
+                if (delType == null)
+                {
+                    Log.Error("Trying to initialize timestamp fixer failed, could not find FieldGetter inner type.");
+                    return;
+                }
+
+                timestampFieldsDictionaryField = AccessTools.StaticFieldRefAccess<IDictionary>(
+                    AccessTools.DeclaredField(type, "timestampFields"));
+                // The list only accepts FieldGetter<IExposable>
+                timestampFixerDelegateType = delType.MakeGenericType(typeof(IExposable));
+                timestampFixerListType = typeof(List<>).MakeGenericType(timestampFixerDelegateType);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Trying to initialize timestamp fixer failed, exception caught:\n{e}");
+
+                timestampFixerDelegateType = null;
+                timestampFixerListType = null;
+                timestampFieldsDictionaryField = null;
+            }
+        }
+
+        #endregion
+
+        #region Unsafe long event cancelling
+
+        public static bool AllowedToRunLongEvents { get; private set; } = true;
+        private static bool longEventMarkerPatchActive = false;
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(params string[] methodNames) => CancelCallIfLongEventsAreUnsafe(methodNames as IEnumerable<string>);
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methodNames">Names (type colon name) of the methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(IEnumerable<string> methodNames)
+            => CancelCallIfLongEventsAreUnsafe(methodNames
+                .Select(m =>
+                {
+                    var method = AccessTools.DeclaredMethod(m) ?? AccessTools.Method(m);
+                    if (method == null)
+                        Log.Error($"({nameof(PatchingUtilities)}) Could not find method {m}");
+                    return method;
+                })
+                .Where(m => m != null));
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(params MethodBase[] methods) => CancelCallIfLongEventsAreUnsafe(methods as IEnumerable<MethodBase>);
+
+        /// <summary>Patches the methods to cancel the call if it's unsafe to start long events</summary>
+        /// <param name="methods">Methods to patch</param>
+        public static void CancelCallIfLongEventsAreUnsafe(IEnumerable<MethodBase> methods)
+        {
+            PatchLongEventMarkers();
+
+            var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(StopSecondHostCall));
+            foreach (var method in methods)
+                MpCompat.harmony.Patch(method, prefix: patch);
+        }
+
+        public static void PatchLongEventMarkers()
+        {
+            if (longEventMarkerPatchActive)
+                return;
+
+            longEventMarkerPatchActive = true;
+
+            // Patch to MP to mark when to stop long events Perspective: Ores
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("Multiplayer.Client.SaveLoad:LoadInMainThread"),
+                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(SetDisallowedToRun)),
+                finalizer: new HarmonyMethod(typeof(PatchingUtilities), nameof(SetAllowedToRun)));
+        }
+
+        private static void SetDisallowedToRun() => AllowedToRunLongEvents = false;
+
+        private static void SetAllowedToRun() => AllowedToRunLongEvents = true;
+
+        private static bool StopSecondHostCall()
+        {
+            // Stop the host from running it for the second time. It messes stuff up due to the place it's called from.
+            // It can cause the host to start generating non-local IDs when they should generate local ones. This causes
+            // the host to assign higher IDs than all the connected clients.
+            return AllowedToRunLongEvents;
         }
 
         #endregion

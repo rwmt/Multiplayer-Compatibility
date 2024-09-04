@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if false
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -24,13 +25,14 @@ namespace Multiplayer.Compat
         // RitualData Write/Read Delegate
         private static FastInvokeHandler writeDelegateMethod;
         private static FastInvokeHandler readDelegateMethod;
+        private static FastInvokeHandler checkMethodAllowedMethod;
 
         // WritingSyncWorker:writer/ReadingSyncWorker:reader
         private static AccessTools.FieldRef<SyncWorker, object> syncWorkerWriterField;
         private static AccessTools.FieldRef<SyncWorker, object> syncWorkerReaderField;
 
         private static Tag currentTag = null;
-        private static List<ItemStateCopy> stateCopies = new List<ItemStateCopy>();
+        private static readonly List<ItemStateCopy> stateCopies = new();
 
         private static float nextCallAllowedTime = float.NegativeInfinity;
 
@@ -43,8 +45,21 @@ namespace Multiplayer.Compat
             LongEventHandler.ExecuteWhenFinished(LatePatch);
 
             // MP stuff
-            writeDelegateMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Multiplayer.Client.Persistent.RitualData:WriteDelegate"));
-            readDelegateMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Multiplayer.Client.Persistent.RitualData:ReadDelegate"));
+            writeDelegateMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Multiplayer.Client.DelegateSerialization:WriteDelegate"));
+            readDelegateMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Multiplayer.Client.DelegateSerialization:ReadDelegate"));
+            checkMethodAllowedMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod("Multiplayer.Client.DelegateSerialization:CheckMethodAllowed"));
+
+            var field = AccessTools.DeclaredField("Multiplayer.Client.DelegateSerialization:allowedDeclaringTypes");
+            var arr = (Type[])field.GetValue(null);
+            arr = arr.Concat(new[]
+            {
+                typeof(Dialog_TagEditor),
+                typeof(Dialog_LoadoutEditor),
+                typeof(LoadoutComponent),
+                typeof(Panel_BillConfig),
+                typeof(PawnColumnWorker_LoadoutState),
+            }).ToArray();
+            field.SetValue(null, arr);
 
             syncWorkerWriterField = AccessTools.FieldRefAccess<object>("Multiplayer.Client.WritingSyncWorker:writer");
             syncWorkerReaderField = AccessTools.FieldRefAccess<object>("Multiplayer.Client.ReadingSyncWorker:reader");
@@ -130,16 +145,13 @@ namespace Multiplayer.Compat
 
             // Loading saved tags into current game
             var method = MpMethodUtil.GetLambda(typeof(Panel_InterGameSettingsPanel), nameof(Panel_InterGameSettingsPanel.DrawLoadButton), MethodType.Normal, null, 1);
-            MP.RegisterSyncDelegate(typeof(Panel_InterGameSettingsPanel), method.DeclaringType.Name, method.Name, new[] { "tag", "<>4__this", });
+            MP.RegisterSyncDelegate(typeof(Panel_InterGameSettingsPanel), method.DeclaringType!.Name, method.Name, new[] { "tag", "<>4__this", });
             MP.RegisterSyncWorker<Panel_InterGameSettingsPanel>(SyncInterGameSettingsPanel);
             MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(PreLoadSavedTag)));
         }
 
         private static void LatePatch()
         {
-            // Method accesses the class containing textures, initializing them. Need to access on main thread.
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_TagSelector), nameof(Dialog_TagSelector.DrawTagList)),
-                transpiler: new HarmonyMethod(typeof(CompositableLoadouts), nameof(ReplaceTagSelectorCloseAndSelect)));
             // Same as above
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(Dialog_LoadoutEditor), nameof(Dialog_LoadoutEditor.DrawTags)),
                 prefix: new HarmonyMethod(typeof(CompositableLoadouts), nameof(PreLoadoutEditorDraggableTags)),
@@ -401,14 +413,6 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        private static void ReplacedCloseAndSelectMethod(Dialog_TagSelector instance, Tag tag)
-        {
-            if (MP.IsInMultiplayer)
-                SyncedCloseAndSelect(tag, instance.selectedTags, false, instance.onSelect);
-            else
-                instance.CloseAndSelect(tag);
-        }
-
         private static void SyncedCloseAndSelect(Tag tag, List<Tag> selectedTags, bool openTagEditorForSelf, Action<Tag> onSelect)
         {
             foreach (var t in selectedTags)
@@ -425,9 +429,10 @@ namespace Multiplayer.Compat
                 Find.WindowStack.Add(new Dialog_TagEditor(tag));
         }
 
-        private static IEnumerable<CodeInstruction> ReplaceTagSelectorButtons(IEnumerable<CodeInstruction> instr)
+        private static IEnumerable<CodeInstruction> ReplaceTagSelectorButtons(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
         {
-            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
+            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonText),
+                new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
             var replacementMethod = AccessTools.DeclaredMethod(typeof(CompositableLoadouts), nameof(ReplacedTagSelectorButton));
             var replacements = 0;
 
@@ -446,30 +451,10 @@ namespace Multiplayer.Compat
 
             const int expected = 3;
             if (replacements != expected)
-                Log.Warning($"Patching {nameof(Dialog_TagSelector)}.{nameof(Dialog_TagSelector.DrawCreateNewTag)} - patched {replacements} methods, expected: {expected}");
-        }
-
-        private static IEnumerable<CodeInstruction> ReplaceTagSelectorCloseAndSelect(IEnumerable<CodeInstruction> instr)
-        {
-            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonText),
-                new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
-            var replacementMethod = AccessTools.DeclaredMethod(typeof(CompositableLoadouts), nameof(ReplacedCloseAndSelectMethod));
-            var replacements = 0;
-
-            foreach (var ci in instr)
             {
-                if (ci.opcode == OpCodes.Call && ci.operand is MethodInfo method && method == targetMethod)
-                {
-                    ci.operand = replacementMethod;
-                    replacements++;
-                }
-
-                yield return ci;
+                var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+                Log.Warning($"Patching {name} - patched {replacements} methods, expected: {expected}");
             }
-
-            const int expected = 1;
-            if (replacements != expected)
-                Log.Warning($"Patching {nameof(Dialog_TagSelector)}.{nameof(Dialog_TagSelector.DrawCreateNewTag)} - patched {replacements} methods, expected: {expected}");
         }
 
         #endregion
@@ -695,7 +680,7 @@ namespace Multiplayer.Compat
                 action = (Action<Tag>)Delegate.CreateDelegate(
                     delegateType,
                     target,
-                    AccessTools.DeclaredMethod(type, methodName));
+                    (MethodInfo)checkMethodAllowedMethod(null, AccessTools.DeclaredMethod(type, methodName)));
             }
         }
 
@@ -847,3 +832,4 @@ namespace Multiplayer.Compat
         #endregion
     }
 }
+#endif

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using Multiplayer.API;
@@ -18,9 +17,6 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaFactionsExpanded.Core")]
     internal class VanillaExpandedFrameworkReferenced
     {
-        private static AccessTools.FieldRef<object, Outpost> outpostsInnerClassThisField;
-        private static AccessTools.FieldRef<object, Pawn> outpostsInnerClassPawnField;
-
         public VanillaExpandedFrameworkReferenced(ModContentPack mod)
         {
             // Outposts
@@ -29,10 +25,6 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(AccessTools.Method(typeof(Dialog_CreateCamp), nameof(Dialog_CreateCamp.DoOutpostDisplay)),
                     prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreDoOutpostDisplay)));
                 MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedCreateOutpost));
-
-                // Rename dialog
-                MP.RegisterSyncWorker<Dialog_RenameOutpost>(SyncRenameOutpostDialog, typeof(Dialog_RenameOutpost));
-                MP.RegisterSyncMethod(typeof(Dialog_RenameOutpost), nameof(Dialog_RenameOutpost.SetName));
 
                 // Take items dialog
                 MpCompat.harmony.Patch(AccessTools.Method(typeof(Dialog_TakeItems), nameof(Dialog_TakeItems.DoBottomButtons)),
@@ -47,57 +39,60 @@ namespace Multiplayer.Compat
                 // Generic outpost
                 // Stop packing (0), pack (1), pick colony to deliver to (8), and (dev) produce now (9), random pawn takes 10 damage (10), all pawns become hungry (11), pack instantly (12)
                 MpCompat.RegisterLambdaMethod(typeof(Outpost), nameof(Outpost.GetGizmos), 0, 1, 8, 9, 10, 11, 12).Reverse().Take(4).SetDebugOnly();
-                // Pick delivery method
+                // Pick delivery method (8)
                 MpCompat.RegisterLambdaDelegate(typeof(Outpost), nameof(Outpost.GetGizmos), 8);
-                // Remove pawn from outpost/create caravan (delegate, 4)
-                // We need a slight workaround, as the gizmo itself won't work - the pawn is inaccessible for syncing
+                // Remove pawn from outpost/create caravan (4), needs a slight workaround as pawn is inacessible
                 var innerMethod = MpMethodUtil.GetLambda(typeof(Outpost), nameof(Outpost.GetGizmos), lambdaOrdinal: 4);
-                if (innerMethod == null)
-                    Log.Error("Cannot find the inner class for Vanilla Expanded Framework - Outposts module. Removing pawns from outposts 1 at a time will desync.");
-                else
-                {
-                    var fields = AccessTools.GetDeclaredFields(innerMethod.DeclaringType);
-                    if (fields.Count < 2)
-                        Log.Error($"The inner class for Vanilla Expanded Framework - Outposts module had {fields.Count} fields, expected 2. There was most likely an update and this patch needs fixing. Removing pawns from outposts 1 at a time will desync.");
-                    else
-                    {
-                        if (fields.Count > 2)
-                            Log.Error($"The inner class for Vanilla Expanded Framework - Outposts module had {fields.Count} fields, expected 2. There was most likely an update and this patch needs fixing. Removing pawns from outposts 1 at a time could possibly desync.");
+                var outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(innerMethod.DeclaringType, "<>4__this");
+                MP.RegisterSyncDelegate(typeof(Outpost), innerMethod.DeclaringType!.Name, innerMethod.Name)
+                    .TransformField("p", Serializer.New(
+                        (p, instance, _) => (outpostsInnerClassThisField(instance), p.thingIDNumber),
+                        ((Outpost o, int pawnId) tuple) => tuple.o.AllPawns.FirstOrDefault(p => p.thingIDNumber == tuple.pawnId)));
 
-                        try
-                        {
-                            outpostsInnerClassThisField = AccessTools.FieldRefAccess<Outpost>(
-                                innerMethod.DeclaringType, 
-                                fields.FirstOrDefault(x => x.FieldType == typeof(Outpost))?.Name ?? "<>4__this");
-                            outpostsInnerClassPawnField = AccessTools.FieldRefAccess<Pawn>(
-                                innerMethod.DeclaringType, 
-                                fields.FirstOrDefault(x => x.FieldType == typeof(Pawn))?.Name ?? "p");
-                        }
-                        catch (Exception)
-                        {
-                            Log.Error("Couldn't setup sync using the inner class for Vanilla Expanded Framework - Outposts module. Removing pawns from outposts 1 at a time will desync.");
-                        }
-                    }
-                }
-                MpCompat.harmony.Patch(innerMethod, 
-                    prefix: new HarmonyMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(PreRemoveFromOutpost)));
-                MP.RegisterSyncMethod(typeof(VanillaExpandedFrameworkReferenced), nameof(SyncedRemoveFromOutpost));
                 MP.RegisterSyncWorker<ResultOption>(SyncResultOption);
                 // Add pawn to outpost
                 MpCompat.RegisterLambdaDelegate(typeof(Outpost), nameof(Outpost.GetCaravanGizmos), 2);
 
                 // Outpost with results you can choose from
                 MpCompat.RegisterLambdaDelegate("Outposts.Outpost_ChooseResult", "GetGizmos", 2);
-            }
-        }
 
-        private static void SyncRenameOutpostDialog(SyncWorker sync, ref Dialog_RenameOutpost dialog)
-        {
-            if (sync.isWriting) sync.Write(dialog.outpost as MapParent);
-            else
-            {
-                var outpost = sync.Read<MapParent>() as Outpost;
-                dialog = new Dialog_RenameOutpost(outpost);
+                // Outpost gear tab
+                MP.RegisterSyncWorker<WITab_Outpost_Gear>(SyncWITabOutpostGear);
+
+                // Equip item from outpost's WITab
+                // This method equips dragged item if it's apparel.
+                // If it's a weapon/equipment, it'll call TryEquipDraggedItem_Equipment (after a potential confirmation dialog).
+                var method = AccessTools.DeclaredMethod(typeof(WITab_Outpost_Gear), nameof(WITab_Outpost_Gear.TryEquipDraggedItem));
+                MP.RegisterSyncMethod(MpMethodUtil.MethodOf(SyncedTryEquipDraggedItem)).SetContext(SyncContext.WorldSelected);
+                // We need to clear the dragged item, as the synced method won't be able to.
+                MpCompat.harmony.Patch(method,
+                    prefix: new HarmonyMethod(MpMethodUtil.MethodOf(PreTryEquipDraggedItem)),
+                    finalizer: new HarmonyMethod(MpMethodUtil.MethodOf(ClearDraggedItem)));
+
+                // Equip weapon from outpost's WItab
+                method = AccessTools.DeclaredMethod(typeof(WITab_Outpost_Gear), nameof(WITab_Outpost_Gear.TryEquipDraggedItem_Equipment));
+                MP.RegisterSyncMethod(method).SetContext(SyncContext.WorldSelected)
+                    // Need to sync as ID, since the pawn will be inaccessible
+                    .TransformArgument(0, Serializer.New<Pawn, int>
+                    (
+                        p => p.thingIDNumber,
+                        id => ((Outpost)Find.WorldSelector.SingleSelectedObject).AllPawns.FirstOrDefault(p => p.thingIDNumber == id)
+                    ))
+                    // The thing will be inaccessible. We sync it as null and assign it in
+                    // SetupArgumentFromDraggedItem, as the Thing (before casting) is synced
+                    // in SyncWITabOutpostGear - basically don't sync same thing twice.
+                    .TransformArgument(1, Serializer.SimpleReader(() => (ThingWithComps)null));
+                // We need to set the second argument to draggedItem (after casting).
+                // We need to clear the dragged item, as the synced method won't be able to.
+                MpCompat.harmony.Patch(method,
+                    prefix: new HarmonyMethod(MpMethodUtil.MethodOf(SetupArgumentFromDraggedItem)),
+                    finalizer: new HarmonyMethod(MpMethodUtil.MethodOf(ClearDraggedItem)));
+
+                method = AccessTools.DeclaredMethod(typeof(WITab_Outpost_Gear), nameof(WITab_Outpost_Gear.MoveDraggedItemToInventory));
+                MP.RegisterSyncMethod(method).SetContext(SyncContext.WorldSelected);
+                // We need to clear the dragged item, as the synced method won't be able to.
+                MpCompat.harmony.Patch(method,
+                    finalizer: new HarmonyMethod(MpMethodUtil.MethodOf(ClearDraggedItem)));
             }
         }
 
@@ -118,30 +113,33 @@ namespace Multiplayer.Compat
         // (with the main difference being how we are handling the button)
         private static bool PreDoOutpostDisplay(ref Rect inRect, WorldObjectDef outpostDef, Dialog_CreateCamp __instance)
         {
-			var font = Text.Font;
-			var anchor = Text.Anchor;
-			Text.Font = GameFont.Tiny;
-			inRect.height = Text.CalcHeight(outpostDef.description, inRect.width - 90f) + 60f;
-			var outerRect = inRect.LeftPartPixels(50f);
-			var rect = inRect.RightPartPixels(inRect.width - 60f);
-			var expandingIconTexture = outpostDef.ExpandingIconTexture;
-			GUI.color = __instance.creator.Faction.Color;
-			Widgets.DrawTextureFitted(outerRect, expandingIconTexture, 1f, new Vector2(expandingIconTexture.width, expandingIconTexture.height), new Rect(0f, 0f, 1f, 1f));
-			GUI.color = Color.white;
-			Text.Font = GameFont.Medium;
-			Widgets.Label(rect.TopPartPixels(30f), outpostDef.label.CapitalizeFirst(outpostDef));
-			var rect2 = rect.BottomPartPixels(30f).LeftPartPixels(100f);
-			var rect3 = rect.BottomPartPixels(30f).RightPartPixels(rect.width - 120f);
-			Text.Font = GameFont.Tiny;
-			Widgets.Label(new Rect(rect.x, rect.y + 30f, rect.width, rect.height - 60f), outpostDef.description);
-			Text.Font = GameFont.Small;
-			Text.Anchor = TextAnchor.MiddleLeft;
-			Widgets.Label(rect3, __instance.validity[outpostDef].First);
-			Text.Font = font;
-			Text.Anchor = anchor;
+            if (!MP.IsInMultiplayer)
+                return true;
 
-			if (Widgets.ButtonText(rect2, "Outposts.Dialog.Create".Translate()))
-			{
+            var font = Text.Font;
+            var anchor = Text.Anchor;
+            Text.Font = GameFont.Tiny;
+            inRect.height = Text.CalcHeight(outpostDef.description, inRect.width - 90f) + 60f;
+            var outerRect = inRect.LeftPartPixels(50f);
+            var rect = inRect.RightPartPixels(inRect.width - 60f);
+            var expandingIconTexture = outpostDef.ExpandingIconTexture;
+            GUI.color = __instance.creator.Faction.Color;
+            Widgets.DrawTextureFitted(outerRect, expandingIconTexture, 1f, new Vector2(expandingIconTexture.width, expandingIconTexture.height), new Rect(0f, 0f, 1f, 1f));
+            GUI.color = Color.white;
+            Text.Font = GameFont.Medium;
+            Widgets.Label(rect.TopPartPixels(30f), outpostDef.label.CapitalizeFirst(outpostDef));
+            var rect2 = rect.BottomPartPixels(30f).LeftPartPixels(100f);
+            var rect3 = rect.BottomPartPixels(30f).RightPartPixels(rect.width - 120f);
+            Text.Font = GameFont.Tiny;
+            Widgets.Label(new Rect(rect.x, rect.y + 30f, rect.width, rect.height - 60f), outpostDef.description);
+            Text.Font = GameFont.Small;
+            Text.Anchor = TextAnchor.MiddleLeft;
+            Widgets.Label(rect3, __instance.validity[outpostDef].First);
+            Text.Font = font;
+            Text.Anchor = anchor;
+
+            if (Widgets.ButtonText(rect2, "Outposts.Dialog.Create".Translate()))
+            {
                 if (__instance.validity[outpostDef].First.NullOrEmpty())
                 {
                     // If the button was clicked and the outpost is valid, call the synced creation method
@@ -149,17 +147,18 @@ namespace Multiplayer.Compat
                     __instance.Close();
                     Find.WorldSelector.Deselect(__instance.creator);
                 }
-				else
+                else
                     Messages.Message(__instance.validity[outpostDef].First, MessageTypeDefOf.RejectInput, false);
             }
-			TooltipHandler.TipRegion(inRect, __instance.validity[outpostDef].Second);
+
+            TooltipHandler.TipRegion(inRect, __instance.validity[outpostDef].Second);
 
             return false;
         }
 
         private static void SyncedCreateOutpost(WorldObjectDef outpostDef, Caravan creator)
-		{
-			var outpost = (Outpost)WorldObjectMaker.MakeWorldObject(outpostDef);
+        {
+            var outpost = (Outpost)WorldObjectMaker.MakeWorldObject(outpostDef);
             outpost.Name = NameGenerator.GenerateName(creator.Faction.def.settlementNameMaker,
                 Find.WorldObjects.AllWorldObjects.OfType<Outpost>().Select(o => o.Name));
             outpost.Tile = creator.Tile;
@@ -170,14 +169,17 @@ namespace Multiplayer.Compat
 
             // Normally we would select the outpost here, but I'm not sure how
             // we could accomplish this ONLY for the player calling the method
-		}
+        }
 
         // Basically replace the original method with our own, that's basically the same
         // (with the main difference being how we are handling the button)
         private static bool PreTakeItemsDoBottomButtons(Rect rect, Dialog_TakeItems __instance)
         {
+            if (!MP.IsInMultiplayer)
+                return true;
+
             var rect2 = new Rect(rect.width - __instance.BottomButtonSize.x, rect.height - 40f, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y);
-            
+
             if (Widgets.ButtonText(rect2, "Outposts.Take".Translate()))
             {
                 var thingsToTransfer = __instance.transferables
@@ -233,8 +235,11 @@ namespace Multiplayer.Compat
         // (with the main difference being how we are handling the button)
         private static bool PreGiveItemsDoBottomButtons(Rect rect, Dialog_GiveItems __instance)
         {
+            if (!MP.IsInMultiplayer)
+                return true;
+
             var rect2 = new Rect(rect.width - __instance.BottomButtonSize.x, rect.height - 40f, __instance.BottomButtonSize.x, __instance.BottomButtonSize.y);
-            
+
             if (Widgets.ButtonText(rect2, "Outposts.Give".Translate()))
             {
                 var thingsToTransfer = __instance.transferables
@@ -286,38 +291,64 @@ namespace Multiplayer.Compat
             }
         }
 
-        private static bool PreRemoveFromOutpost(object __instance)
+        private static void SyncWITabOutpostGear(SyncWorker sync, ref WITab_Outpost_Gear tab)
         {
-            if (outpostsInnerClassThisField == null || outpostsInnerClassPawnField == null)
+            if (sync.isWriting)
             {
-                Log.Error("Removing pawns from outposts while setting it up failed - the game will now most likely desync!");
-                // It'll cause a desync because we let it run, but it'll at least
-                // let people playing use this feature and then resync.
-                // Shouldn't have too much of an impact.
-                return true;
+                // Will be inaccessible, need to sync using ID number
+                sync.Write(tab.draggedItem.thingIDNumber);
             }
-            
-            var outpost = outpostsInnerClassThisField(__instance);
-            var pawn = outpostsInnerClassPawnField(__instance);
+            else
+            {
+                var id = sync.Read<int>();
 
-            // The pawn is normally inaccessible while in outpost (can't sync them),
-            // so we use a workaround to get them
-            var index = outpost.occupants.IndexOf(pawn);
-            SyncedRemoveFromOutpost(outpost, index);
+                tab = new WITab_Outpost_Gear();
+                // This requires SyncContext.WorldSelected.
+                // We could have synced the selected outpost itself, as well,
+                // but the methods will SyncContext.WorldSelected, so there's no point.
+                tab.draggedItem = tab.SelOutpost.Things.FirstOrDefault(t => t.thingIDNumber == id);
+            }
+        }
 
+        // A call to TryEquipDraggedItem, but synced.
+        private static void SyncedTryEquipDraggedItem(WITab_Outpost_Gear tab, int pawnId)
+        {
+            var pawn = tab.SelOutpost.AllPawns.FirstOrDefault(p => p.thingIDNumber == pawnId);
+            if (pawn != null)
+                tab.TryEquipDraggedItem(pawn);
+        }
+
+        private static bool PreTryEquipDraggedItem(WITab_Outpost_Gear __instance, Pawn p)
+        {
+            // Let it run out of MP/if synced.
+            if (!MP.IsInMultiplayer || MP.IsExecutingSyncCommand)
+                return true;
+
+            // Let it run if not apparel (weapon/equipment), as it'll potentially create
+            // a confirmation dialog and call TryEquipDraggedItem_Equipment (which we sync).
+            if (p.apparel == null || __instance.draggedItem is not Apparel)
+                return true;
+
+            // Cancel and sync if it's apparel and the pawn has apparel tracker.
+            // The method itself is handling the equipping interaction, so we need
+            // to sync it instead.
+            SyncedTryEquipDraggedItem(__instance, p.thingIDNumber);
             return false;
         }
 
-        private static void SyncedRemoveFromOutpost(Outpost outpost, int pawnIndex)
+        private static bool SetupArgumentFromDraggedItem(ref ThingWithComps eq, Thing ___draggedItem)
         {
-            if (outpost.occupants.Count <= pawnIndex)
-            {
-                Log.Error($"Trying to remove a pawn with index {pawnIndex}, but there only {outpost.occupants.Count} pawns in the outpost {outpost.Name}!");
-                return;
-            }
+            if (!MP.IsInMultiplayer || !MP.IsExecutingSyncCommand)
+                return true;
 
-            var pawn = outpost.occupants[pawnIndex];
-            CaravanMaker.MakeCaravan(Gen.YieldSingle(outpost.RemovePawn(pawn)), pawn.Faction, outpost.Tile, true);
+            // If (for whatever reason) not ThingWithComps, cancel execution. Will likely cause issues otherwise.
+            if (___draggedItem is not ThingWithComps thing)
+                return false;
+
+            eq = thing;
+            return true;
         }
-	}
+
+        private static void ClearDraggedItem(ref Thing ___draggedItem) => ___draggedItem = null;
+    }
 }

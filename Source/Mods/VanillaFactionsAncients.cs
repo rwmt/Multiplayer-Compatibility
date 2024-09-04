@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -32,13 +31,21 @@ namespace Multiplayer.Compat
             // (Method inside of LatePatch)
             var type = AccessTools.TypeByName("VFEAncients.Operation");
             operationPodField = AccessTools.FieldRefAccess<ThingComp>(type, "Pod");
-            MP.RegisterSyncWorker<object>(SyncOperation, type, true);
+
+            // Dev add/remove power from pawn (edit mode)
+            type = AccessTools.TypeByName("VFEAncients.ITab_Pawn_Powers");
+            MP.RegisterSyncDelegateLambda(type, "DoEmptyRect", 2)
+                .SetContext(SyncContext.MapSelected).SetDebugOnly();
+            MP.RegisterSyncDelegateLambda(type, "DoPowerIcon", 0)
+                .SetContext(SyncContext.MapSelected).SetDebugOnly();
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
         }
 
         public static void LatePatch()
         {
+            MpCompatPatchLoader.LoadPatch<VanillaFactionsAncients>();
+
             // Ancient PD turret - toggle aiming at drop pods, enemies, explosive projectiles
             MpCompat.RegisterLambdaMethod("VFEAncients.Building_TurretPD", "GetGizmos", 1, 3, 5);
 
@@ -58,15 +65,12 @@ namespace Multiplayer.Compat
             var powerDefType = AccessTools.TypeByName("VFEAncients.PowerDef");
             var tupleType = typeof(Tuple<,>).MakeGenericType(powerDefType, powerDefType);
             onChosen = CompileCallOnChosen(powerDefType, tupleType);
-            MP.RegisterSyncMethod(typeof(VanillaFactionsAncients), nameof(SyncedChoosePower));
-            MP.RegisterSyncWorker<Window>(SyncDialogChoosePower, choosePowerDialogType);
             DialogUtilities.RegisterPauseLock(choosePowerDialogType);
-            MpCompat.harmony.Patch(AccessTools.Method(choosePowerDialogType, nameof(Window.DoWindowContents)),
-                transpiler: new HarmonyMethod(typeof(VanillaFactionsAncients), nameof(ReplaceButtons)));
         }
 
         #region SyncWorkers
 
+        [MpCompatSyncWorker("VFEAncients.Operation", isImplicit = true)]
         private static void SyncOperation(SyncWorker sync, ref object operation)
         {
             if (sync.isWriting)
@@ -85,10 +89,17 @@ namespace Multiplayer.Compat
             }
         }
 
+        [MpCompatSyncWorker("VFEAncients.Dialog_ChoosePowers")]
         private static void SyncDialogChoosePower(SyncWorker sync, ref Window window)
         {
             if (!sync.isWriting)
                 window = Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == choosePowerDialogType);
+        }
+
+        // Only needed in cases object needs to be created (shouldConstruct), but we don't care about any data inside of it
+        [MpCompatSyncWorker("VFEAncients.ITab_Pawn_Powers", shouldConstruct = true)]
+        private static void NoSync(SyncWorker sync, ref object obj)
+        {
         }
 
         #endregion
@@ -106,6 +117,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
+        [MpCompatSyncMethod]
         private static void SyncedChoosePower(Def power, Def weakness)
         {
             var dialog = Find.WindowStack.windows.FirstOrDefault(x => x.GetType() == choosePowerDialogType);
@@ -115,6 +127,7 @@ namespace Multiplayer.Compat
             dialog.Close();
         }
 
+        [MpCompatTranspiler("VFEAncients.Dialog_ChoosePowers", nameof(Window.DoWindowContents))]
         private static IEnumerable<CodeInstruction> ReplaceButtons(IEnumerable<CodeInstruction> instr)
         {
             var target = AccessTools.Method(typeof(Widgets), nameof(Widgets.ButtonText), new[] { typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?) });
@@ -135,7 +148,7 @@ namespace Multiplayer.Compat
 
                 yield return ci;
             }
-            
+
             if (!anythingPatched) Log.Warning("Failed to sync choose power for Vanilla Factions Ancients");
         }
 
