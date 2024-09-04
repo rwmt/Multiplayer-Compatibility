@@ -10,40 +10,77 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/jecrell/JecsTools"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=932008009"/>
     [MpCompatFor("jecrell.jecstools")]
+    [MpCompatFor("zal.jecslitels")]
+    [MpCompatFor("zal.jecsliterwom")]
     public class JecsTools
     {
         #region Main patch
 
+        private static bool patched = false;
+
         public JecsTools(ModContentPack mod)
         {
+            if (patched)
+                return;
+            patched = true;
+
+            const int totalPatchCount = 5;
+            var patchedElementsCount = 0;
+
             // AbilityUser
-            PatchAbilities();
+            if (PatchAbilities())
+                patchedElementsCount++;
 
             // CompActivatableEffect
             {
                 // Deactivate/Activate gizmo
-                MpCompat.RegisterLambdaMethod("CompActivatableEffect.CompActivatableEffect", "EquippedGizmos", 0, 1);
+                var type = AccessTools.TypeByName("CompActivatableEffect.CompActivatableEffect");
+                if (type != null)
+                {
+                    MpCompat.RegisterLambdaMethod(type, "EquippedGizmos", 0, 1);
+                    patchedElementsCount++;
+                }
             }
 
             // CompInstalledPart
             {
-                MpCompat.RegisterLambdaDelegate("CompInstalledPart.InstalledPartFloatMenuPatch", "GetFloatMenus", 3);
+                var type = AccessTools.TypeByName("CompInstalledPart.InstalledPartFloatMenuPatch");
+                if (type != null)
+                {
+                    MP.RegisterSyncMethodLambda(type, "GetFloatMenus", 3);
+                    patchedElementsCount++;
+                }
                 // Looking at the code, it seems there's no built-in way to uninstall those?
             }
 
             // CompSlotLoadable
             {
                 var type = AccessTools.TypeByName("CompSlotLoadable.CompSlotLoadable");
-                MP.RegisterSyncMethod(type, "TryCancel"); // Gizmo -> cancel
-                MP.RegisterSyncMethod(type, "TryGiveLoadSlotJob"); // Gizmo -> float menu -> load option
-                MP.RegisterSyncMethod(type, "TryEmptySlot"); // Gizmo -> float menu -> empty option
-                MpCompat.RegisterLambdaDelegate("CompSlotLoadable.SloatLoadbleFloatMenuPatch", "GetFloatMenus", 1);
+                if (type != null)
+                {
+                    MP.RegisterSyncMethod(type, "TryCancel"); // Gizmo -> cancel
+                    MP.RegisterSyncMethod(type, "TryGiveLoadSlotJob"); // Gizmo -> float menu -> load option
+                    MP.RegisterSyncMethod(type, "TryEmptySlot"); // Gizmo -> float menu -> empty option
+
+                    MpCompat.RegisterLambdaMethod("CompSlotLoadable.SloatLoadbleFloatMenuPatch", "GetFloatMenus", 1);
+
+                    patchedElementsCount++;
+                }
             }
 
             // CompToggleDef
             {
-                MP.RegisterSyncMethod(AccessTools.Method("CompToggleDef.ToggleDefCardUtility:SwapThing")).SetContext(SyncContext.MapSelected);
+                var type = AccessTools.TypeByName("CompToggleDef.ToggleDefCardUtility");
+                if (type != null)
+                {
+                    MP.RegisterSyncMethod(type, "SwapThing").SetContext(SyncContext.MapSelected);
+
+                    patchedElementsCount++;
+                }
             }
+
+            if (Prefs.DevMode)
+                Log.Message($"Patched {patchedElementsCount} out of {totalPatchCount} elements of JecsTools.");
         }
 
         #endregion
@@ -62,10 +99,13 @@ namespace Multiplayer.Compat
         // AbilityUserUtility
         private static FastInvokeHandler abilityUserUtilityGetCompsMethod;
 
-        private static void PatchAbilities()
+        private static bool PatchAbilities()
         {
             // PawnAbility
             var type = AccessTools.TypeByName("AbilityUser.PawnAbility");
+            if (type == null)
+                return false;
+
             pawnAbilityUserField = AccessTools.FieldRefAccess<ThingComp>(type, "abilityUser");
 
             MP.RegisterSyncMethod(type, "UseAbility").SetPostInvoke(StopTargeting);
@@ -79,6 +119,8 @@ namespace Multiplayer.Compat
 
             // AbilityUserUtility
             abilityUserUtilityGetCompsMethod = MethodInvoker.GetHandler(AccessTools.Method("AbilityUser.AbilityUserUtility:GetCompAbilityUsers"));
+
+            return true;
         }
 
         private static void StopTargeting(object instance, object[] args)
