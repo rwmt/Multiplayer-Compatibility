@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Threading;
 using AbilityUser;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using TorannMagic;
+using TorannMagic.Golems;
+using TorannMagic.TMDefs;
 using TorannMagic.Utils;
 using UnityEngine;
 using Verse;
@@ -27,6 +30,29 @@ public class ARimWorldOfMagic
     private static AccessTools.FieldRef<object, JobDriver_PortalDestination> portalDestinationInnerClassThisField;
     // Building_TMPortal.<>c__DisplayClass43_0
     private static AccessTools.FieldRef<object, Building_TMPortal> portalBuildingInnerClassThisField;
+
+    // TMPawnGolem
+    [MpCompatSyncField(typeof(TMPawnGolem), nameof(TMPawnGolem.showDormantPosition))]
+    protected static ISyncField compGolemShowDormantPosition;
+    // CompGolem sync fields
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.followsMaster))]
+    protected static ISyncField compGolemFollowsMaster;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.followsMasterDrafted))]
+    protected static ISyncField compGolemFollowsMasterDrafted;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.checkThreatPath))]
+    protected static ISyncField compGolemCheckThreatPath;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.remainDormantWhenUpgrading))]
+    protected static ISyncField compGolemRemainDormantWhenUpgrading;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.useAbilitiesWhenDormant))]
+    protected static ISyncField compGolemUseAbilitiesWhenDormant;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.threatRange), bufferChanges = true)]
+    protected static ISyncField compGolemThreatRange;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.minEnergyPctForAbilities), bufferChanges = true)]
+    protected static ISyncField compGolemMinEnergyPctForAbilities;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.energyPctShouldRest), bufferChanges = true)]
+    protected static ISyncField compGolemEnergyPctShouldRest;
+    [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.energyPctShouldAwaken), bufferChanges = true)]
+    protected static ISyncField compGolemEnergyPctShouldAwaken;
 
     #endregion
 
@@ -109,11 +135,27 @@ public class ARimWorldOfMagic
 
         #endregion
 
+        #region Golems
+
+        {
+            // Gizmos
+            MP.RegisterSyncMethod(typeof(Building_TMGolemBase), nameof(Building_TMGolemBase.InterfaceChangeTargetTemperature));
+            // Hold fire (1), force attack target (3), toggle glowing (4), reset temperature (8)
+            MpCompat.RegisterLambdaMethod(typeof(Building_TMGolemBase), nameof(Building_TMGolemBase.GetGizmos), 1, 3, 4, 8);
+            // Activate
+            MP.RegisterSyncDelegateLambda(typeof(Building_TMGolemBase), nameof(Building_TMGolemBase.GetGizmos), 0);
+            // Deactivate (0), set a rest position (1), draft (3), hold fire (4)
+            MpCompat.RegisterLambdaMethod(typeof(TMPawnGolem), nameof(TMPawnGolem.GetGizmos), 0, 1, 3, 4);
+
+            // Assign pawn as a golem's master
+            MP.RegisterSyncDelegateLambda(typeof(GolemUtility), nameof(GolemUtility.MasterButton), 1);
+        }
+
+        #endregion
+
         // TODO:
-        // Might/MagicCardUtility.DrawMight/MagicCard - a lot of attempts in the UI to add/remove specific abilities
-        // Golems
-        // TorannMagic.TM_Calc:GetSpriteArea - uses CurrentMap rather than the correct one
-        // Maybe TorannMagic.ModOptions.TM_DebugTools:SpawnSpirit
+        // Test Golems
+        // Fix Living Wall Multithreading
         // Check for more stuff
     }
 
@@ -231,9 +273,7 @@ public class ARimWorldOfMagic
             return;
         magicPower.interactionTick = Find.TickManager.TicksGame + 5;
 
-        var index = pawn.GetCompAbilityUserMagic().MagicData.AllMagicPowers.IndexOf(magicPower);
-        if (index >= 0)
-            SyncedSetMagicAutoCast(pawn, index, target);
+        SyncedSetMagicAutoCast(pawn, magicPower.abilityDef, target);
     }
 
     private static void SyncMightPowerAutoCast(MightPower mightPower, bool target, Pawn pawn)
@@ -250,36 +290,28 @@ public class ARimWorldOfMagic
             return;
         mightPower.interactionTick = Find.TickManager.TicksGame + 5;
 
-        var index = pawn.GetCompAbilityUserMight().MightData.AllMightPowers.IndexOf(mightPower);
-        if (index >= 0)
-            SyncedSetMightAutoCast(pawn, index, target);
+        SyncedSetMightAutoCast(pawn, mightPower.abilityDef, target);
     }
 
     [MpCompatSyncMethod(cancelIfAnyArgNull = true)]
-    private static void SyncedSetMagicAutoCast(Pawn pawn, int powerIndex, bool target)
+    private static void SyncedSetMagicAutoCast(Pawn pawn, AbilityUser.AbilityDef abilityDef, bool target)
     {
-        if (powerIndex < 0)
-            return;
-        var powers = pawn.GetCompAbilityUserMagic()?.MagicData?.AllMagicPowers;
-        if (powers == null || powers.Count <= powerIndex)
+        var power = pawn.GetCompAbilityUserMagic()?.MagicData?.AllMagicPowers?.Find(p => p.abilityDef == abilityDef);
+        if (power == null)
             return;
 
-        var power = powers[powerIndex];
         // Reset the interaction tick, otherwise the setter may not change the value as it was "interacted" with too recently
         power.interactionTick = 0;
         power.AutoCast = target;
     }
 
     [MpCompatSyncMethod(cancelIfAnyArgNull = true)]
-    private static void SyncedSetMightAutoCast(Pawn pawn, int powerIndex, bool target)
+    private static void SyncedSetMightAutoCast(Pawn pawn, AbilityUser.AbilityDef abilityDef, bool target)
     {
-        if (powerIndex < 0)
-            return;
-        var powers = pawn.GetCompAbilityUserMight()?.MightData?.AllMightPowers;
-        if (powers == null || powers.Count <= powerIndex)
+        var power = pawn.GetCompAbilityUserMight()?.MightData?.AllMightPowers?.Find(p => p.abilityDef == abilityDef);
+        if (power == null)
             return;
 
-        var power = powers[powerIndex];
         // Reset the interaction tick, otherwise the setter may not change the value as it was "interacted" with too recently
         power.interactionTick = 0;
         power.AutoCast = target;
@@ -971,7 +1003,7 @@ public class ARimWorldOfMagic
         ];
 
         // Replace the "TM_Learn" button to learn a power
-        var replacedLearnButton = ReplaceMethod(instr, baseMethod, targetTextButton, textButtonReplacement, ExtraInstructions, "TM_Learn", 1);
+        var replacedLearnButton = ReplaceMethod(instr, baseMethod, targetTextButton, textButtonReplacement, ExtraInstructions, "TM_Learn", 1, "TM_MCU_PointsToLearn");
         // Replace the image button to level-up a power
         return ReplaceMethod(replacedLearnButton, baseMethod, targetImageButton, imageButtonReplacement, ExtraInstructions, null, 1);
     }
@@ -980,42 +1012,261 @@ public class ARimWorldOfMagic
 
     #endregion
 
+    #region Sprite area fixes
+
+    // Two possible approaches here.
+    // First - replace call to TM_Calc.GetSpriteArea with our method with
+    // another argument, and insert self (or some other argument), and
+    // call it with the correct map ourselves.
+    // Second (done here) - replace the ldnull used for the map argument
+    // and insert the correct map (without replacing the method).
+
+    [MpCompatTranspiler(typeof(Verb_EarthSprites), nameof(Verb_EarthSprites.TryCastShot))]
+    private static IEnumerable<CodeInstruction> SpriteAreaInsertMapToVerbEarthSprites(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+    {
+        var casterPawnGetter = AccessTools.PropertyGetter(typeof(Verb_EarthSprites), nameof(Verb_EarthSprites.CasterPawn));
+        var mapGetter = AccessTools.PropertyGetter(typeof(Pawn), nameof(Pawn.Map));
+
+        IEnumerable<CodeInstruction> ExtraInstructions(CodeInstruction ci)
+        {
+            // Replace the null with "this.CasterPawn.Map".
+
+            // Replace the null with "this" (Verb_EarthSprites)
+            ci.opcode = OpCodes.Ldarg_0;
+            // insert "CasterPawn" getter
+            yield return new CodeInstruction(OpCodes.Callvirt, casterPawnGetter);
+            // insert "Map" getter
+            yield return new CodeInstruction(OpCodes.Callvirt, mapGetter);
+        }
+
+        return PatchSpriteAreaMethod(instr, ExtraInstructions, baseMethod, 2);
+    }
+
+    [MpCompatTranspiler(typeof(CompAbilityUserMagic), nameof(CompAbilityUserMagic.ResolveEarthSpriteAction))]
+    private static IEnumerable<CodeInstruction> SpriteAreaInsertMapToCompAbilityUserMagic(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+    {
+        var earthSpriteMapField = AccessTools.DeclaredField(typeof(CompAbilityUserMagic), nameof(CompAbilityUserMagic.earthSpriteMap));
+
+        IEnumerable<CodeInstruction> ExtraInstructions(CodeInstruction ci)
+        {
+            // Replace the null with "this.earthSpriteMap".
+            // The sprites have their map remembered, and
+            // it may be different from the pawn's map.
+            // This field is used for basically everything,
+            // besides getting the area for the sprites.
+
+            // Replace the null with "this" (CompAbilityUserMagic)
+            ci.opcode = OpCodes.Ldarg_0;
+            // Insert "earthSpriteMap" field
+            yield return new CodeInstruction(OpCodes.Ldfld, earthSpriteMapField);
+        }
+
+        return PatchSpriteAreaMethod(instr, ExtraInstructions, baseMethod, 4);
+    }
+
+    private static IEnumerable<CodeInstruction> PatchSpriteAreaMethod(IEnumerable<CodeInstruction> instr, Func<CodeInstruction, IEnumerable<CodeInstruction>> method, MethodBase baseMethod, int expectedPatches)
+    {
+        var target = MpMethodUtil.MethodOf(TM_Calc.GetSpriteArea);
+        var patchedCount = 0;
+        var instrArr = instr.ToArray();
+
+        for (var i = 0; i < instrArr.Length; i++)
+        {
+            var ci = instrArr[i];
+
+            yield return ci;
+
+            if (ci.opcode == OpCodes.Ldnull && i + 2 < instrArr.Length && instrArr[i + 2].Calls(target))
+            {
+                foreach (var newInstr in method(ci))
+                    yield return newInstr;
+
+                patchedCount++;
+            }
+        }
+
+        if (patchedCount != expectedPatches)
+        {
+            var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+            Log.Warning($"Patched incorrect number of TM_Calc.GetSpriteArea calls (patched {patchedCount}, expected {expectedPatches}) for method {name}");
+        }
+    }
+
+    #endregion
+
+    #region Golem ITab field watching
+
+    [MpCompatPrefix(typeof(ITab_GolemPawn), nameof(ITab_GolemPawn.FillTab))]
+    [MpCompatPrefix(typeof(ITab_GolemWorkstation), nameof(ITab_GolemWorkstation.FillTab))]
+    private static void PreITabGolemFillTab(out bool __state)
+    {
+        if (!MP.IsInMultiplayer)
+        {
+            Log.Error($"Not in MP, selected: {Find.Selector.SingleSelectedThing}");
+            __state = false;
+            return;
+        }
+
+        var selected = Find.Selector.SingleSelectedThing;
+        // ITab_GolemPawn uses TMPawnGolem, ITab_GolemWorkstation uses Building_TMGolemBase
+        var golem = selected as TMPawnGolem ?? (selected as Building_TMGolemBase)?.GolemPawn;
+        if (golem == null)
+        {
+            Log.Error($"Golem null, selected: {selected}");
+            __state = false;
+            return;
+        }
+
+        MP.WatchBegin();
+        __state = true;
+        Log.ErrorOnce($"Watching, selected golem: {golem}", golem.GetHashCode());
+
+        // TMPawnGolem
+        compGolemShowDormantPosition.Watch(golem);
+
+        // CompGolem
+        compGolemFollowsMaster.Watch(golem.Golem);
+        compGolemFollowsMasterDrafted.Watch(golem.Golem);
+        compGolemCheckThreatPath.Watch(golem.Golem);
+        compGolemRemainDormantWhenUpgrading.Watch(golem.Golem);
+        compGolemUseAbilitiesWhenDormant.Watch(golem.Golem);
+        compGolemThreatRange.Watch(golem.Golem);
+        compGolemMinEnergyPctForAbilities.Watch(golem.Golem);
+        compGolemEnergyPctShouldRest.Watch(golem.Golem);
+        compGolemEnergyPctShouldAwaken.Watch(golem.Golem);
+    }
+
+    [MpCompatFinalizer(typeof(ITab_GolemPawn), nameof(ITab_GolemPawn.FillTab))]
+    [MpCompatFinalizer(typeof(ITab_GolemWorkstation), nameof(ITab_GolemWorkstation.FillTab))]
+    private static void PostITabGolemFillTab(bool __state)
+    {
+        if (__state)
+            MP.WatchEnd();
+    }
+
+    #endregion
+
+    #region Golem abilities and work types changing
+
+    [MpCompatSyncMethod(cancelIfAnyArgNull = true)]
+    private static void SyncedApplyChangesToGolemAbilitiesAndWorkTypes(CompGolem cg, List<TM_GolemUpgrade> upgrades, List<TM_GolemDef.GolemWorkTypes> workTypes)
+        => new GolemAbilitiesWindow
+        {
+            cg = cg,
+            upgrades = upgrades,
+            workTypes = workTypes
+        }.Close();
+
+    [MpCompatPrefix(typeof(GolemAbilitiesWindow), nameof(GolemAbilitiesWindow.Close))]
+    private static bool PreCloseDialog(GolemAbilitiesWindow __instance, bool doCloseSound)
+    {
+        // If not in MP or not in interface (can't sync, would end up in endless loop)
+        if (!MP.IsInMultiplayer || !MP.InInterface)
+            return true;
+
+        // Sync the "Close" method.
+        SyncedApplyChangesToGolemAbilitiesAndWorkTypes(__instance.cg, __instance.upgrades, __instance.workTypes);
+
+        // Close the dialog manually, since we canceled the close method.
+        Find.WindowStack.TryRemove(__instance, doCloseSound);
+        // We cannot let the close method run, as it would change game state in interface.
+        return false;
+    }
+
+    #endregion
+
+    #region Golem renaming
+
+    // The golem renaming dialog sets CompGolem.GolemName and Pawn.Name at the same time.
+    // The issue happens due to Pawn.Name using CompGolem.GolemName, which isn't synced yet
+
+    [MpCompatSyncMethod(cancelIfAnyArgNull = true)]
+    private static void SyncedSetGolemName(CompGolem golem, string targetName)
+        => golem.PawnGolem.Name = golem.GolemName = NameTriple.FromString(targetName);
+
+    private static bool ReplacedApplyGolemNameButton(Rect rect, string label, bool drawBackground, bool doMouseoverSound, bool active, TextAnchor? overrideTextAnchor, GolemNameWindow window)
+    {
+        var result = Widgets.ButtonText(rect, label, drawBackground, doMouseoverSound, active, overrideTextAnchor);
+        if (!MP.IsInMultiplayer || !result)
+            return result;
+
+        SyncedSetGolemName(window.cg, window.golemName);
+        return false;
+    }
+
+    [MpCompatTranspiler(typeof(GolemNameWindow), nameof(GolemNameWindow.DoWindowContents))]
+    private static IEnumerable<CodeInstruction> ReplaceApplyGolemNameButtonTranspiler(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+    {
+        var target = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonText),
+            [typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?)]);
+        var replacement = MpMethodUtil.MethodOf(ReplacedApplyGolemNameButton);
+
+        IEnumerable<CodeInstruction> ExtraInstructions() =>
+        [
+            // Load in "this" (GolemNameWindow)
+            new CodeInstruction(OpCodes.Ldarg_0),
+        ];
+
+        // The "Apply" text isn't translated in the mod...
+        return ReplaceMethod(instr, baseMethod, target, replacement, ExtraInstructions, "Apply", 1);
+    }
+
+    #endregion
+
     #region Shared
 
-    private static IEnumerable<CodeInstruction> ReplaceMethod(IEnumerable<CodeInstruction> instr, MethodBase baseMethod, MethodInfo target, MethodInfo replacement, Func<IEnumerable<CodeInstruction>> extraInstructions, string buttonText, int expectedReplacements)
+    private static IEnumerable<CodeInstruction> ReplaceMethod(IEnumerable<CodeInstruction> instr, MethodBase baseMethod, MethodInfo target, MethodInfo replacement, Func<IEnumerable<CodeInstruction>> extraInstructions, string buttonText, int expectedReplacements, string excludedText = null)
     {
         // Check for text only if expected text isn't null
         var isCorrectText = buttonText == null;
+        var skipNextCall = false;
         var replacedCount = 0;
 
         foreach (var ci in instr)
         {
-            if (isCorrectText)
+            if (ci.opcode == OpCodes.Ldstr && ci.operand is string s)
+            {
+                // Excluded text (if not null) will cancel replacement of the next occurrence
+                // of the method. Used by `MagicCardUtility:CustomPowersHandler`, as the text
+                // `TM_Learn` appears twice there, but in a single case it's combined with
+                // `TM_MCU_PointsToLearn`, in which case we ignore the button (as the
+                // button does nothing in that particular case).
+                if (excludedText != null && s == excludedText)
+                    skipNextCall = true;
+                else if (s == buttonText)
+                    isCorrectText = true;
+            }
+            else if (isCorrectText)
             {
                 if (ci.Calls(target))
                 {
-                    if (extraInstructions != null)
+                    if (skipNextCall)
                     {
-                        foreach (var extraInstr in extraInstructions())
-                            yield return extraInstr;
+                        skipNextCall = false;
                     }
+                    else
+                    {
+                        if (extraInstructions != null)
+                        {
+                            foreach (var extraInstr in extraInstructions())
+                                yield return extraInstr;
+                        }
 
-                    // Replace method with our own
-                    ci.opcode = OpCodes.Call;
-                    ci.operand = replacement;
+                        // Replace method with our own
+                        ci.opcode = OpCodes.Call;
+                        ci.operand = replacement;
 
-                    replacedCount++;
-                    // Check for text only if expected text isn't null
-                    isCorrectText = buttonText == null;
+                        replacedCount++;
+                        // Check for text only if expected text isn't null
+                        isCorrectText = buttonText == null;
+                    }
                 }
             }
-            else if (ci.opcode == OpCodes.Ldstr && ci.operand is string s && s == buttonText)
-                isCorrectText = true;
 
             yield return ci;
         }
 
-        if (replacedCount != expectedReplacements)
+        if (replacedCount != expectedReplacements && expectedReplacements >= 0)
         {
             var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
             Log.Warning($"Patched incorrect number of {target.DeclaringType?.Name ?? "null"}.{target.Name} calls (patched {replacedCount}, expected {expectedReplacements}) for method {name}");
