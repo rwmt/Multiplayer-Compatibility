@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Threading;
 using AbilityUser;
 using HarmonyLib;
 using Multiplayer.API;
@@ -155,7 +154,6 @@ public class ARimWorldOfMagic
 
         // TODO:
         // Test Golems
-        // Fix Living Wall Multithreading
         // Check for more stuff
     }
 
@@ -249,11 +247,120 @@ public class ARimWorldOfMagic
 
     #endregion
 
-    #region Multithreading
+    #region Living Wall Multithreading
 
-    // It'll break the thingy from working properly, but for now let's keep it off to prevent desyncs
-    [MpCompatPrefix(typeof(FlyingObject_LivingWall), nameof(FlyingObject_LivingWall.DoThreadedActions))]
-    private static bool CancelCall() => !MP.IsInMultiplayer;
+    // Living wall works by targeting a wall that will become "alive",
+    // visible by an icon (projectile) on top of it. It'll move around
+    // the wall when there's enemies on the map, trying to approach them.
+    // It will attack adjacent enemies and repair parts of the wall it's in.
+    // 
+    // Living wall ticking uses MP unsafe multithreading, so we need to
+    // get rid of it and replace it with a safe alternative.
+    // 
+    // Another issue here is with multiple maps. The living wall has a static
+    // Pawn field for the target to attack, however it's assigned from one
+    // thread, accessed in another, and if there's living walls on multiple
+    // maps it may attempt to target the pawn from an inactive map. Sadly
+    // not something we can fix without making more major changes.
+
+    private static bool ReplacedDirectPathThread(bool threadLocked, FlyingObject_LivingWall instance)
+    {
+        // If not in MP, return the field that was accessed here.
+        // It'll use multithreading out of MP.
+        if (!MP.IsInMultiplayer)
+            return threadLocked;
+
+        // This thing does not care for the proper map of the
+        // threat. Ignore executing if not the same map. Also,
+        // this method will only be called if the closestThreat
+        // is not null, so no reason to check it for null here.
+        // Also, make sure to do the check when idleFor is 0,
+        // as otherwise it'll keep repeatedly performing this
+        // expensive operation on the first possible tick. This
+        // will ensure we only do it on the last possible tick.
+        if (instance.idleFor == 0 && instance.Map == FlyingObject_LivingWall.closestThreat.Map && instance.OccupiedWall != null)
+        {
+            // As opposed to the other thread, this one is a bit heavier.
+            // It will, attempt to find a new path towards the closest
+            // threat. It checks all the walls in the map for the closest
+            // one, and then tries to calculate path towards it.
+            // When this call ends it'll go idle for at least 5 or 60 ticks,
+            // depending on if there's a target path or not.
+            instance.DirectPath();
+        }
+
+        // If MP, return true (will be negated in the if statement) to prevent
+        // the method from starting a new thread.
+        return true;
+    }
+
+    private static bool ReplacedDoThreadedActionsThread(bool threadLocked, FlyingObject_LivingWall instance)
+    {
+        // If not in MP, return the field that was accessed here.
+        // It'll use multithreading out of MP.
+        if (!MP.IsInMultiplayer)
+            return threadLocked;
+
+        // Doesn't seem like there's much that would cause performance issues
+        // if on main thread. There's 3 checks that are done periodically
+        // based on current tick. There's also another check that's only
+        // done when there's a target position (different from current one)
+        // and there's no current path set.
+        var wallUpdate = instance.nextWallUpdate;
+        instance.DoThreadedActions();
+
+        // Connected wall update is a pretty expensive operation,
+        // make it less common. Normally happens once every 10-20
+        // ticks, change it to 60-120.
+        if (wallUpdate > instance.nextWallUpdate)
+            instance.nextWallUpdate *= 6;
+
+        // If MP, return true (will be negated in the if statement) to prevent
+        // the method from starting a new thread.
+        return true;
+    }
+
+    [MpCompatTranspiler(typeof(FlyingObject_LivingWall), nameof(FlyingObject_LivingWall.Tick))]
+    private static IEnumerable<CodeInstruction> ReplaceLivingWallMultithreading(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+    {
+        var targetField = AccessTools.DeclaredField(typeof(FlyingObject_LivingWall), nameof(FlyingObject_LivingWall.threadLocked));
+        var firstTarget = MpMethodUtil.MethodOf(ReplacedDirectPathThread);
+        var secondTarget = MpMethodUtil.MethodOf(ReplacedDoThreadedActionsThread);
+        var encounteredFields = 0;
+
+        foreach (var ci in instr)
+        {
+            yield return ci;
+
+            if (ci.opcode == OpCodes.Ldfld && ci.operand is FieldInfo field && field == targetField)
+            {
+                if (encounteredFields < 2)
+                {
+                    // Insert "this" argument
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+
+                    // Call our extra method
+                    yield return new CodeInstruction(OpCodes.Call,
+                        encounteredFields == 0
+                            ? firstTarget
+                            : secondTarget);
+                }
+
+                encounteredFields++;
+            }
+        }
+
+        const int expected = 2;
+        if (encounteredFields != expected)
+        {
+            var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+            Log.Warning($"Tried to replace incorrect number of calls to FlyingObject_LivingWall.threadLocked field (encountered {encounteredFields}, expected {expected}) for method {name}");
+        }
+    }
+
+    // Clear the active threat, as it's not synced when someone joins and will cause desync.
+    [MpCompatPostfix(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit))]
+    private static void ClearTargetAfterLoading() => FlyingObject_LivingWall.closestThreat = null;
 
     #endregion
 
@@ -1102,7 +1209,6 @@ public class ARimWorldOfMagic
     {
         if (!MP.IsInMultiplayer)
         {
-            Log.Error($"Not in MP, selected: {Find.Selector.SingleSelectedThing}");
             __state = false;
             return;
         }
@@ -1112,14 +1218,12 @@ public class ARimWorldOfMagic
         var golem = selected as TMPawnGolem ?? (selected as Building_TMGolemBase)?.GolemPawn;
         if (golem == null)
         {
-            Log.Error($"Golem null, selected: {selected}");
             __state = false;
             return;
         }
 
         MP.WatchBegin();
         __state = true;
-        Log.ErrorOnce($"Watching, selected golem: {golem}", golem.GetHashCode());
 
         // TMPawnGolem
         compGolemShowDormantPosition.Watch(golem);
@@ -1215,7 +1319,7 @@ public class ARimWorldOfMagic
 
     #region Shared
 
-    private static IEnumerable<CodeInstruction> ReplaceMethod(IEnumerable<CodeInstruction> instr, MethodBase baseMethod, MethodInfo target, MethodInfo replacement, Func<IEnumerable<CodeInstruction>> extraInstructions, string buttonText, int expectedReplacements, string excludedText = null)
+    private static IEnumerable<CodeInstruction> ReplaceMethod(IEnumerable<CodeInstruction> instr, MethodBase baseMethod, MethodInfo target, MethodInfo replacement, Func<IEnumerable<CodeInstruction>> extraInstructions = null, string buttonText = null, int expectedReplacements = -1, string excludedText = null)
     {
         // Check for text only if expected text isn't null
         var isCorrectText = buttonText == null;
@@ -1266,12 +1370,172 @@ public class ARimWorldOfMagic
             yield return ci;
         }
 
+        string MethodName() => (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
         if (replacedCount != expectedReplacements && expectedReplacements >= 0)
-        {
-            var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
-            Log.Warning($"Patched incorrect number of {target.DeclaringType?.Name ?? "null"}.{target.Name} calls (patched {replacedCount}, expected {expectedReplacements}) for method {name}");
-        }
+            Log.Warning($"Patched incorrect number of {target.DeclaringType?.Name ?? "null"}.{target.Name} calls (patched {replacedCount}, expected {expectedReplacements}) for method {MethodName()}");
+        // Special case (-2) - expected some patched methods, but amount unspecified
+        else if (replacedCount == 0 && expectedReplacements == -2)
+            Log.Warning($"No calls of {target.DeclaringType?.Name ?? "null"}.{target.Name} were patched for method {MethodName()}");
     }
+
+    #endregion
+
+    #region Optimizations
+
+    [MpCompatPrefix(typeof(TM_Calc), nameof(TM_Calc.FindConnectedWalls))]
+    private static bool FasterFindConnectedWalls(Building start, float maxAllowedDistance, float maxDistanceFromStart, ref List<Building> __result)
+    {
+        // Tested original and 2 optimized versions
+        // by running all of them 1000 times.
+        // Original:                74945.925 ms
+        // Optimized:               179.0462 ms
+        // Optimized with HashSets: 165.098 ms
+
+        var map = start.Map;
+        var connectedBuildings = new HashSet<Building> { start };
+        var newBuildings = new HashSet<Building> { start };
+        var addedBuilding = new HashSet<Building>();
+
+        // We avoid call to LengthHorizontal and instead use LengthHorizontalSquared.
+        // because of this we also need a squared value for maxDistanceFromStart and
+        // maxAllowedDistance. After all, multiplying (especially only once) is going
+        // to be faster than squaring a number (especially if done multiple times).
+        var maxDistanceSquared = maxDistanceFromStart * maxDistanceFromStart;
+        var maxAllowedDistanceSquared = maxAllowedDistance * maxAllowedDistance;
+
+        // Rather than using ListerThings to search for buildings, use ListerBuildings.
+        // Since there's no global "all buildings", concat the colonist and non-colonist
+        // buildings as that should cover everything. We also don't need to check if
+        // the current thing is a Building, since we only work on buildings. Likewise,
+        // we don't need to cast it all to Building at the end either. Finally, We call
+        // ToList at the end to avoid multiple enumerations on the list, which the mod does.
+        var allBuildings = map.listerBuildings.allBuildingsColonist.Concat(map.listerBuildings.allBuildingsNonColonist)
+            .Where(b => TM_Calc.IsWall(b) && (b.Position - start.Position).LengthHorizontalSquared <= maxDistanceSquared)
+            .ToList();
+
+        for (var i = 0; i < 200; i++)
+        {
+            addedBuilding.Clear();
+            foreach (var b in newBuildings)
+            {
+                foreach (var t in allBuildings)
+                {
+                    if ((t.Position - b.Position).LengthHorizontalSquared <= maxAllowedDistanceSquared && connectedBuildings.Add(t))
+                    {
+                        addedBuilding.Add(t);
+                    }
+                }
+            }
+
+            newBuildings.Clear();
+            newBuildings.AddRange(addedBuilding);
+            if(newBuildings.Count <= 0)
+                break;
+        }
+
+        // Needs to be ordered to be deterministic
+        __result = connectedBuildings.OrderBy(x => x.thingIDNumber).ToList();
+
+        return false;
+    }
+
+    [MpCompatPrefix(typeof(FlyingObject_LivingWall), nameof(FlyingObject_LivingWall.FindClosestWallFromTarget))]
+    private static bool FasterFindClosestWallFromTarget(FlyingObject_LivingWall __instance, ref Thing __result)
+    {
+        // Tested original and optimized by running both 1000 times:
+        // Original:  1099.7684 ms
+        // Optimized: 39.382 ms
+        
+        Thing tmp = null;
+        // The mod uses 999, but since we operate on squared
+        // values we need to square the 999 as well.
+        var closest = 998001f;
+    
+        // No need to call ToList, as it's iterated over only once.
+        var allThings = __instance.Map.listerBuildings.allBuildingsColonist.Concat(__instance.Map.listerBuildings.allBuildingsNonColonist)
+            .Where(TM_Calc.IsWall);
+    
+        foreach(var b in allThings)
+        {
+            var dist = (b.Position - FlyingObject_LivingWall.closestThreat.Position).LengthHorizontalSquared;
+            if (dist < closest)
+            {
+                closest = dist;
+                tmp = b;
+            }
+        }
+    
+        __result = tmp;
+    
+        return false;
+    }
+
+    [MpCompatPrefix(typeof(TM_Calc), nameof(TM_Calc.FindNearestWall))]
+    private static bool FasterFindNearestWall(Map map, IntVec3 center, Faction faction, ref Building __result)
+    {
+        // Tested original and optimized by running both 1000 times:
+        // Original:  395.6876 ms
+        // Optimized: 2.7747 ms
+
+        foreach(var b in map.listerBuildings.allBuildingsColonist.Concat(map.listerBuildings.allBuildingsNonColonist))
+        {
+            if(TM_Calc.IsWall(b) && (b.Position - center).LengthHorizontalSquared <= 1.9599999F)
+            {
+                if(faction != null)
+                {
+                    if (faction == b.Faction)
+                    {
+                        __result = b;
+                        return false;
+                    }
+                }
+                else
+                {
+                    __result = b;
+                    return false;
+                }
+            }
+        }
+    
+        __result = null;
+        return false;
+    }
+
+    /*
+    // Seems to have issues, would need to test more to see what's safe and what's not.
+    // Leaving as-is for now. Probably won't have enough impact on things anyway.
+
+    // [MpCompatPrefix(typeof(FlyingObject_LivingWall), nameof(FlyingObject_LivingWall.FindClosestWallToTarget))]
+    [MpCompatPrefix(typeof(FlyingObject_LivingWall), nameof(FlyingObject_LivingWall.DirectPath))]
+    // Ignore FlyingObject_LivingWall.FindClosestWallFromTarget, as we replace the method with a faster one.
+    // Ignore FlyingObject_LivingWall.FindClosestThreat, as the search range of 999 would not be squared.
+    [MpCompatPrefix(typeof(FlyingObject_PsiStorm), nameof(FlyingObject_PsiStorm.DrawBoltMeshes))]
+    [MpCompatPrefix(typeof(JobGiver_AIClean), nameof(JobGiver_AIClean.TryGiveJob))]
+    [MpCompatPrefix(typeof(TM_Calc), nameof(TM_Calc.FindClosestCellPlus1VisibleToTarget))]
+    [MpCompatPrefix(typeof(TM_Calc), nameof(TM_Calc.SnipPath))]
+    // Results for this one are ignored... Changing it won't have any effect whatsoever on gameplay.
+    [MpCompatPrefix(typeof(AoECombat), nameof(AoECombat.Evaluate))]
+    // We could patch more code, especially a lot of autocasting code, but that would require
+    // changing extra code. Too much work for too little gain. Patch for this is included specifically
+    // due to living wall having some performance issues already (if not multithreaded).
+    private static IEnumerable<CodeInstruction> ReplaceLengthHorizontalCalls(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+    {
+        // Whenever it won't affect the code, replace the usage of
+        // IntVec3's LengthHorizontal with LengthHorizontalSquared,
+        // as both call the same code but non-squared one calls
+        // GenMath.Sqrt (Math.Sqrt), which tends to be quite slow.
+        // Especially useful when trying to determine the closest
+        // target - it won't change which one is closest or not,
+        // only that the numbers we work on are bigger (weren't
+        // squared). Same applies when comparing which of the 2
+        // values is bigger, it will be the same both before and
+        // after squaring the numbers.
+        var target = AccessTools.DeclaredPropertyGetter(typeof(IntVec3), nameof(IntVec3.LengthHorizontal));
+        var replacement = AccessTools.DeclaredPropertyGetter(typeof(IntVec3), nameof(IntVec3.LengthHorizontalSquared));
+
+        return ReplaceMethod(instr, baseMethod, target, replacement, expectedReplacements: -2);
+    }
+    */
 
     #endregion
 }
