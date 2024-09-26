@@ -34,9 +34,11 @@ namespace Multiplayer.Compat
     public static class MpCompatPatchLoader
     {
         private static readonly MethodInfo RegisterSyncWorker;
+        private static readonly FastInvokeHandler RegisterSyncFieldWithInstancePath;
 
         static MpCompatPatchLoader()
         {
+            // Register sync worker method
             RegisterSyncWorker = 
                 typeof(MP)
                     .GetMethods(AccessTools.allDeclared)
@@ -58,7 +60,21 @@ namespace Multiplayer.Compat
                     });
 
             if (RegisterSyncWorker == null)
-                Log.Error($"Failed retrieving {nameof(MP.RegisterSyncWorker)}");
+                Log.Error($"Retrieved null method: {nameof(MP)}.{nameof(MP.RegisterSyncWorker)}");
+
+            // Register sync field with instance path method
+            var registerSyncFieldMethod = AccessTools.DeclaredMethod("Multiplayer.Client.Sync:Field",
+                [typeof(Type), typeof(string), typeof(string)]);
+
+            const string syncFieldMethodName = "Multiplayer.Client.Sync:Field(Type, string, string)";
+            if (registerSyncFieldMethod == null)
+                Log.Error($"Retrieved null method: {syncFieldMethodName}");
+            else if (!registerSyncFieldMethod.IsStatic)
+                Log.Error($"Retrieved non-static method: {syncFieldMethodName}");
+            else if (!typeof(ISyncField).IsAssignableFrom(registerSyncFieldMethod.ReturnType))
+                Log.Error($"Retrieved method has incorrect return argument (expected subtype of {nameof(ISyncField)}, received {registerSyncFieldMethod.ReturnType}): {syncFieldMethodName}");
+            else
+                RegisterSyncFieldWithInstancePath = MethodInvoker.GetHandler(registerSyncFieldMethod);
         }
 
         public static void LoadPatch(object instance) => LoadPatch(instance?.GetType());
@@ -154,7 +170,14 @@ namespace Multiplayer.Compat
                         if (!typeof(ISyncField).IsAssignableFrom(field.FieldType))
                             throw new Exception($"{syncFieldExceptionText} cannot assign object of type {nameof(ISyncField)} to the field (field type: {field.FieldType})");
 
-                        var sync = MP.RegisterSyncField(attribute.Field);
+                        ISyncField sync;
+                        if (string.IsNullOrWhiteSpace(attribute.instancePath))
+                            sync = MP.RegisterSyncField(attribute.Field);
+                        else if (RegisterSyncFieldWithInstancePath == null)
+                            continue;
+                        else
+                            sync = (ISyncField)RegisterSyncFieldWithInstancePath(null,
+                                attribute.Type, attribute.instancePath, attribute.fieldName);
 
                         // It seems Context is unused in MP
                         if (attribute.cancelIfValueNull)
@@ -400,7 +423,6 @@ namespace Multiplayer.Compat
     [MeansImplicitUse(ImplicitUseKindFlags.Assign)]
     public class MpCompatSyncFieldAttribute : Attribute
     {
-        public SyncContext context;
         public bool cancelIfValueNull;
         public bool inGameLoop;
         public bool bufferChanges = true;
@@ -410,7 +432,8 @@ namespace Multiplayer.Compat
 
         private Type type;
         private string typeName;
-        private string fieldName;
+        public string fieldName;
+        public string instancePath;
 
         private FieldInfo field;
 
@@ -420,6 +443,9 @@ namespace Multiplayer.Compat
             {
                 if (type != null)
                     return type;
+                // Null type is supported with instance paths
+                if (!string.IsNullOrWhiteSpace(instancePath) && string.IsNullOrWhiteSpace(typeName))
+                    return null;
 
                 type = AccessTools.TypeByName(typeName);
                 if (type == null)
@@ -444,19 +470,23 @@ namespace Multiplayer.Compat
             }
         }
 
-        protected MpCompatSyncFieldAttribute(SyncContext context = SyncContext.None) => this.context = context;
-
-        public MpCompatSyncFieldAttribute(string typeName, string fieldName, SyncContext context = SyncContext.None) : this(context)
+        public MpCompatSyncFieldAttribute(string typeName, string fieldName)
         {
             this.typeName = typeName;
             this.fieldName = fieldName;
         }
 
-        public MpCompatSyncFieldAttribute(Type type, string fieldName, SyncContext context = SyncContext.None) : this(context)
+        public MpCompatSyncFieldAttribute(Type type, string fieldName)
         {
             this.type = type;
             this.fieldName = fieldName;
         }
+
+        public MpCompatSyncFieldAttribute(string typeName, string instancePath, string fieldName) : this(typeName, fieldName)
+            => this.instancePath = instancePath;
+
+        public MpCompatSyncFieldAttribute(Type type, string instancePath, string fieldName) : this(type, fieldName)
+            => this.instancePath = instancePath;
     }
 
     [AttributeUsage(AttributeTargets.Method)]
