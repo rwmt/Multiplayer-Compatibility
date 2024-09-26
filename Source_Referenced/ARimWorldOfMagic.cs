@@ -9,6 +9,7 @@ using Multiplayer.API;
 using RimWorld;
 using TorannMagic;
 using TorannMagic.Golems;
+using TorannMagic.ModOptions;
 using TorannMagic.TMDefs;
 using TorannMagic.Utils;
 using UnityEngine;
@@ -25,12 +26,15 @@ public class ARimWorldOfMagic
 {
     #region Fields
 
+    // MP Compat fields
+    private static bool isAutoSaving = false;
+
     // JobDriver_PortalDestination.<>c__DisplayClass7_0
     private static AccessTools.FieldRef<object, JobDriver_PortalDestination> portalDestinationInnerClassThisField;
     // Building_TMPortal.<>c__DisplayClass43_0
     private static AccessTools.FieldRef<object, Building_TMPortal> portalBuildingInnerClassThisField;
 
-    // TMPawnGolem
+    // TMPawnGolem sync field
     [MpCompatSyncField(typeof(TMPawnGolem), nameof(TMPawnGolem.showDormantPosition))]
     protected static ISyncField compGolemShowDormantPosition;
     // CompGolem sync fields
@@ -52,6 +56,12 @@ public class ARimWorldOfMagic
     protected static ISyncField compGolemEnergyPctShouldRest;
     [MpCompatSyncField(typeof(CompGolem), nameof(CompGolem.energyPctShouldAwaken), bufferChanges = true)]
     protected static ISyncField compGolemEnergyPctShouldAwaken;
+    // TM_GolemUpgrade sync field
+    [MpCompatSyncField(typeof(CompGolem), $"{nameof(CompGolem.Upgrades)}/[]", nameof(TM_GolemUpgrade.enabled))]
+    protected static ISyncField golemUpgradeEnabled;
+    // TM_GolemDef.GolemWorkTypes sync field
+    [MpCompatSyncField(typeof(CompGolem), $"{nameof(CompGolem.Golem)}/{nameof(TM_Golem.golemDef)}/{nameof(TM_GolemDef.golemWorkTypes)}/[]", nameof(TM_GolemDef.GolemWorkTypes.enabled))]
+    protected static ISyncField golemWorkTypeEnabled;
 
     #endregion
 
@@ -148,13 +158,20 @@ public class ARimWorldOfMagic
 
             // Assign pawn as a golem's master
             MP.RegisterSyncDelegateLambda(typeof(GolemUtility), nameof(GolemUtility.MasterButton), 1);
+
+            // Golem Pawn table
+            MP.RegisterSyncMethod(typeof(PawnColumnWorker_GolemActive), nameof(PawnColumnWorker_GolemActive.SetValue))
+                .CancelIfAnyArgNull()
+                // Argument is unused. Syncing fails since the main tab is not
+                // a subtype of MainTabWindow_PawnTable, just MainTabWindow,
+                // so just use a simple reader to create a dummy table. Can't
+                // use "null" due to "CancelIfAnyArgNull", as it would be
+                // cancelled otherwise. Need to include a PawnTableDef to
+                // prevent an error, as the table uses def's minWidth field.
+                .TransformArgument(2, Serializer.SimpleReader(() => new PawnTable(PawnTableDefOf.Work, null, 0, 0)));
         }
 
         #endregion
-
-        // TODO:
-        // Test Golems
-        // Check for more stuff
     }
 
     private static void LatePatch()
@@ -357,10 +374,6 @@ public class ARimWorldOfMagic
             Log.Warning($"Tried to replace incorrect number of calls to FlyingObject_LivingWall.threadLocked field (encountered {encounteredFields}, expected {expected}) for method {name}");
         }
     }
-
-    // Clear the active threat, as it's not synced when someone joins and will cause desync.
-    [MpCompatPostfix(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit))]
-    private static void ClearTargetAfterLoading() => FlyingObject_LivingWall.closestThreat = null;
 
     #endregion
 
@@ -1205,22 +1218,16 @@ public class ARimWorldOfMagic
 
     [MpCompatPrefix(typeof(ITab_GolemPawn), nameof(ITab_GolemPawn.FillTab))]
     [MpCompatPrefix(typeof(ITab_GolemWorkstation), nameof(ITab_GolemWorkstation.FillTab))]
-    private static void PreITabGolemFillTab(out bool __state)
+    private static void PreITabGolemFillTab(ref bool __state)
     {
         if (!MP.IsInMultiplayer)
-        {
-            __state = false;
             return;
-        }
 
         var selected = Find.Selector.SingleSelectedThing;
         // ITab_GolemPawn uses TMPawnGolem, ITab_GolemWorkstation uses Building_TMGolemBase
         var golem = selected as TMPawnGolem ?? (selected as Building_TMGolemBase)?.GolemPawn;
         if (golem == null)
-        {
-            __state = false;
             return;
-        }
 
         MP.WatchBegin();
         __state = true;
@@ -1252,14 +1259,26 @@ public class ARimWorldOfMagic
 
     #region Golem abilities and work types changing
 
-    [MpCompatSyncMethod(cancelIfAnyArgNull = true)]
-    private static void SyncedApplyChangesToGolemAbilitiesAndWorkTypes(CompGolem cg, List<TM_GolemUpgrade> upgrades, List<TM_GolemDef.GolemWorkTypes> workTypes)
-        => new GolemAbilitiesWindow
+    [MpCompatSyncMethod]
+    private static void SyncedApplyChangesToGolemAbilitiesAndWorkTypes(CompGolem cg, HashSet<TM_GolemUpgradeDef> upgradeDefs)
+    {
+        if (cg == null)
+            return;
+
+        // Create a dummy window, setup the comp and the
+        // list of upgrades that were active when synced,
+        // and the call "Close" to trigger the code we
+        // want to sync.
+        new GolemAbilitiesWindow
         {
             cg = cg,
-            upgrades = upgrades,
-            workTypes = workTypes
+            upgrades = upgradeDefs == null
+                // If upgradeDefs is null, use an empty list
+                ? []
+                // If upgradeDefs isn't null, find all the upgrades from the list
+                : cg.Upgrades.Where(u => upgradeDefs.Contains(u.golemUpgradeDef)).ToList(),
         }.Close();
+    }
 
     [MpCompatPrefix(typeof(GolemAbilitiesWindow), nameof(GolemAbilitiesWindow.Close))]
     private static bool PreCloseDialog(GolemAbilitiesWindow __instance, bool doCloseSound)
@@ -1268,13 +1287,52 @@ public class ARimWorldOfMagic
         if (!MP.IsInMultiplayer || !MP.InInterface)
             return true;
 
-        // Sync the "Close" method.
-        SyncedApplyChangesToGolemAbilitiesAndWorkTypes(__instance.cg, __instance.upgrades, __instance.workTypes);
-
         // Close the dialog manually, since we canceled the close method.
         Find.WindowStack.TryRemove(__instance, doCloseSound);
+
+        if (__instance.upgrades != null)
+        {
+            // A slight precaution against null values.
+            // Should not happen, but let's take this safe.
+            __instance.upgrades.RemoveAll(x => x == null);
+            // Sync the "Close" method.
+            SyncedApplyChangesToGolemAbilitiesAndWorkTypes(__instance.cg,
+                __instance.upgrades.Select(u => u.golemUpgradeDef).ToHashSet());
+        }
+
         // We cannot let the close method run, as it would change game state in interface.
         return false;
+    }
+
+    [MpCompatPrefix(typeof(GolemAbilitiesWindow), nameof(GolemAbilitiesWindow.DoWindowContents))]
+    private static void PreGolemAbilitiesWindow(GolemAbilitiesWindow __instance)
+    {
+        if (!MP.IsInMultiplayer)
+            return;
+
+        MP.WatchBegin();
+
+        var upgrades = __instance.cg.Upgrades;
+        if (upgrades != null)
+        {
+            for (var i = 0; i < upgrades.Count; i++)
+                golemUpgradeEnabled.Watch(__instance.cg, i);
+        }
+
+        // Def shouldn't be null, but let's be safe
+        var workTypes = __instance.cg.Golem.golemDef?.golemWorkTypes;
+        if (workTypes != null)
+        {
+            for (var i = 0; i < workTypes.Count; i++)
+                golemWorkTypeEnabled.Watch(__instance.cg, i);
+        }
+    }
+
+    [MpCompatFinalizer(typeof(GolemAbilitiesWindow), nameof(GolemAbilitiesWindow.DoWindowContents))]
+    private static void PostGolemAbilitiesWindow()
+    {
+        if (MP.IsInMultiplayer)
+            MP.WatchEnd();
     }
 
     #endregion
@@ -1313,6 +1371,200 @@ public class ARimWorldOfMagic
 
         // The "Apply" text isn't translated in the mod...
         return ReplaceMethod(instr, baseMethod, target, replacement, ExtraInstructions, "Apply", 1);
+    }
+
+    #endregion
+
+    #region Golem main tab window
+
+    [MpCompatPrefix(typeof(PawnColumnWorker_GolemAwakenPercent), nameof(PawnColumnWorker_GolemAwakenPercent.DoCell))]
+    private static void PreGolemPawnColumnWorkerAwakenPercentDoCell(Pawn pawn, ref bool __state)
+        => PreGolemPawnColumnWorkerDoCell(pawn, compGolemEnergyPctShouldRest, ref __state);
+
+    [MpCompatPrefix(typeof(PawnColumnWorker_GolemRestPercent), nameof(PawnColumnWorker_GolemRestPercent.DoCell))]
+    private static void PreGolemPawnColumnWorkerRestPercentDoCell(Pawn pawn, ref bool __state)
+        => PreGolemPawnColumnWorkerDoCell(pawn, compGolemEnergyPctShouldAwaken, ref __state);
+
+    [MpCompatPrefix(typeof(PawnColumnWorker_GolemThreatRange), nameof(PawnColumnWorker_GolemThreatRange.DoCell))]
+    private static void PreGolemPawnColumnWorkerThreatRangeDoCell(Pawn pawn, ref bool __state)
+        => PreGolemPawnColumnWorkerDoCell(pawn, compGolemThreatRange, ref __state);
+
+    private static void PreGolemPawnColumnWorkerDoCell(Pawn pawn, ISyncField syncField, ref bool state)
+    {
+        if (!MP.IsInMultiplayer || pawn.Faction != Faction.OfPlayer)
+            return;
+
+        var golemComp = pawn.GetComp<CompGolem>();
+        if (golemComp == null)
+            return;
+
+        state = true;
+        MP.WatchBegin();
+        syncField.Watch(golemComp);
+    }
+
+    [MpCompatFinalizer(typeof(PawnColumnWorker_GolemAwakenPercent), nameof(PawnColumnWorker_GolemAwakenPercent.DoCell))]
+    [MpCompatFinalizer(typeof(PawnColumnWorker_GolemRestPercent), nameof(PawnColumnWorker_GolemRestPercent.DoCell))]
+    [MpCompatFinalizer(typeof(PawnColumnWorker_GolemThreatRange), nameof(PawnColumnWorker_GolemThreatRange.DoCell))]
+    private static void PostGolemPawnColumnWorkerDoCell(bool __state)
+    {
+        if (__state)
+            MP.WatchEnd();
+    }
+
+    [MpCompatPrefix(typeof(PawnColumnWorker_GolemActive), nameof(PawnColumnWorker_GolemActive.SetValue))]
+    private static bool CancelGolemActivationToggleIfStateAlreadyMatches(Pawn pawn, bool value)
+    {
+        if (!MP.IsInMultiplayer)
+            return true;
+
+        var golemComp = pawn.GetComp<CompGolem>();
+        // The method would not do anything anyway, just cancel the call
+        if (golemComp == null)
+            return false;
+
+        // If executing sync command, make sure we aren't changing the state to the wrong one.
+        // If the pawn is spawned the value should be false to deactivate it,
+        // and when it's despawned it should be true to activate it.
+        if (MP.IsExecutingSyncCommand)
+            return pawn.Spawned != value;
+
+        // I guess since we're already patching this method, we may as well
+        // stop it from syncing the call if that would be entirely pointless
+        // (trying to (de)activate golem while it's already doing that).
+        if (pawn.Spawned)
+            return !golemComp.shouldDespawn;
+
+        if (golemComp.parent.ParentHolder is Building_TMGolemBase building)
+            return !building.activating;
+
+        return true;
+    }
+
+    [MpCompatTranspiler(typeof(PawnColumnWorker_GolemActive), nameof(PawnColumnWorker_GolemActive.DoCell))]
+    private static IEnumerable<CodeInstruction> InsertCurrentStateToGolemActivation(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+    {
+        var target = AccessTools.DeclaredMethod(typeof(PawnColumnWorker_Checkbox), nameof(PawnColumnWorker_Checkbox.SetValue));
+        CodeInstruction lastLdc_I4_1 = null;
+        var replacedCount = 0;
+
+        foreach (var ci in instr)
+        {
+            yield return ci;
+
+            if (ci.opcode == OpCodes.Ldc_I4_1)
+                lastLdc_I4_1 = ci;
+
+            // Insert the new current state in place of a constant "true".
+            // We could also technically call insert loc 7 or call
+            // GetValue(Pawn), but we'd need to invert those in our prefix.
+            // We could also replace the whole method as well if we wanted
+            // to, but that's not really necessary.
+            if (lastLdc_I4_1 != null && ci.Calls(target))
+            {
+                lastLdc_I4_1.opcode = OpCodes.Ldloc_S;
+                lastLdc_I4_1.operand = 8;
+
+                replacedCount++;
+            }
+        }
+
+        const int expected = 1;
+        if (replacedCount != expected)
+        {
+            var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+            Log.Warning($"Patched incorrect number of PawnColumnWorker_GolemActive.SetValue calls (patched {replacedCount}, expected {expected}) for method {name}");
+        }
+    }
+
+    #endregion
+
+    #region Sync static fields on join
+
+    [MpCompatPrefix("Multiplayer.Client.Autosaving", "SaveGameToFile_Overwrite")]
+    private static void PreStartHosting() => isAutoSaving = true;
+    
+    [MpCompatFinalizer("Multiplayer.Client.Autosaving", "SaveGameToFile_Overwrite")]
+    private static void PostStartHosting() => isAutoSaving = false;
+
+    [MpCompatPostfix("Multiplayer.Client.Comp.MultiplayerGameComp", "ExposeData")]
+    private static void PostMpCompExposeData()
+    {
+        // Do not save the data to the actual save file,
+        // as the mod does not save this data itself.
+        // Just return when autosaving the game. We could
+        // attempt to make something more complex, like
+        // not exposing data when loading the game. This
+        // would be more complex due to 
+        if (isAutoSaving)
+            return;
+
+        // The mod has a lot of static fields that aren't cleared on save/load,
+        // nor are they saved at any point. Resetting some of them would be an
+        // option, but in many cases it would cause issues, like resetting
+        // pawnInFlight could cause some maps to be removed due to no active
+        // pawns (while something is flying at the moment). We sync the static
+        // fields by exposing data in MultiplayerGameComp using a postfix to
+        // not affect the SP (since this type won't exist in SP).
+
+        // Living wall's current target
+        Scribe_References.Look(ref FlyingObject_LivingWall.closestThreat, "RoMClosestThreat");
+
+        // A bunch of static fields used by the mod in random places.
+        Scribe_Values.Look(ref Constants.pawnInFlight, "RoMPawnInFlight");
+        Scribe_Values.Look(ref Constants.lastGrowthMoteTick, "RoMLastGrowthMoteTick");
+        Scribe_Values.Look(ref Constants.technoWeaponCount, "RoMTechnoWeaponCount");
+        Scribe_Values.Look(ref Constants.bypassPrediction, "RoMBypassPrediction");
+        Scribe_Deep.Look(ref Constants.undeadApparelPolicy, "RoMUndeadApparelPolicy");
+        Scribe_Collections.Look(ref Constants.overdrivePawns, "RoMOverdrivePawns", LookMode.Reference);
+        Constants.overdrivePawns ??= [];
+        Scribe_Values.Look(ref Constants.pistolSpecCount, "RoMPistolSpecCount");
+        Scribe_Values.Look(ref Constants.rifleSpecCount, "RoMRifleSpecCount");
+        Scribe_Values.Look(ref Constants.shotgunSpecCount, "RoMShotgunSpecCount");
+
+        if (Scribe.mode == LoadSaveMode.PostLoadInit)
+        {
+            // The mod attempts to clear growth cells and then re-add
+            // them again, but it doesn't do it too well. Just clear
+            // it safely in here and let it re-add all the cells.
+            Constants.growthCells.Clear();
+
+            // The mod has some dynamic data in the defs that determine
+            // stuff like when to next apply a workstation effects. We
+            // need to reset them to default to prevent any issues.
+            // Also, this will cause issues when you have multiple
+            // golems of the same type on your map, as they'll be
+            // attempting to use and modify the same data. This
+            // basically means that only 1 golem at a time will
+            // be able to use some of those upgrades. This also means
+            // that if you save your very late game and load a much
+            // earlier game (or start a new game) the golems won't
+            // be able to use those upgrades until they match up in
+            // time, unless you quit the game first. This specific
+            // issue in the mod will also mean that with Async time,
+            // only the person who's the most ahead in time will be
+            // able to use those specific golem upgrades, as the other
+            // players won't be able to activate them since the next
+            // allowed tick is too far ahead into the future. Also,
+            // GolemWorkstationEffect happens to be exposable, but is
+            // never exposed (and it would cause issues if it was).
+            foreach (var def in DefDatabase<TM_GolemUpgradeDef>.AllDefs)
+            {
+                if (def.workstationEffects != null)
+                {
+                    foreach (var effect in def.workstationEffects)
+                    {
+                        // Clear the data to fix the join desyncs.
+                        effect.target = default;
+                        effect.parent = default;
+                        effect.parentUpgrade = default;
+                        effect.currentLevel = default;
+                        effect.nextEffectTick = default;
+                        effect.startTick = default;
+                    }
+                }
+            }
+        }
     }
 
     #endregion
