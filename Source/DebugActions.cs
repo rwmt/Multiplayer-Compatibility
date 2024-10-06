@@ -46,7 +46,7 @@ namespace Multiplayer.Compat
             private bool doVanilla = false;
 
             public override bool IsDebug => true;
-            public override Vector2 InitialSize => new(525f, 615f);
+            public override Vector2 InitialSize => new(525f, 640f);
             public override float Margin => 32f;
 
             public DesyncSourceSearchWindow()
@@ -163,6 +163,7 @@ namespace Multiplayer.Compat
             [NonBasic] GetHashCode,
             [NonBasic] PatchedSyncMethods,
             [NonBasic] LongEvents,
+            MoteSaturation,
         }
 
         private static readonly MethodInfo FindCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Find), nameof(Find.CurrentMap));
@@ -196,6 +197,16 @@ namespace Multiplayer.Compat
                 [typeof(IEnumerable), typeof(string), typeof(Action<Exception>), typeof(bool)]),
             AccessTools.DeclaredMethod(typeof(LongEventHandler), nameof(LongEventHandler.QueueLongEvent),
                 [typeof(Action), typeof(string), typeof(string), typeof(bool), typeof(Action<Exception>), typeof(bool)]),
+        }.Where(x => x != null).ToHashSet();
+
+        // We could also add check for MoteCounter.moteCount field, but it's
+        // private, so it should be very unlikely that anyone is using it.
+        private static readonly HashSet<MethodInfo> MoteSaturationMethods = new[]
+        {
+            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.MoteCount)),
+            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.Saturation)),
+            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.Saturated)),
+            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.SaturatedLowPriority)),
         }.Where(x => x != null).ToHashSet();
 
         [DebugAction(CategoryName, "Unsafe stuff logger", allowedGameStates = AllowedGameStates.Entry)]
@@ -391,6 +402,13 @@ namespace Multiplayer.Compat
                     Log.Warning("== In majority of cases, long events are completely safe. However, there are 2 potential situations that can cause issues with them. The first is asynchronous long events, and the second is long events queued during game startup. ==");
                     Log.Message(found.Append("\n").Join(delimiter: "\n"));
                 }
+
+                if (log.TryGetValue(StuffToSearch.MoteSaturation, out found) && found.Any())
+                {
+                    Log.Warning("== Mote saturation checks found: ==");
+                    Log.Warning("== Code that runs based on how saturated the motes are may cause desyncs as mote saturation may differ between players. ==");
+                    Log.Message(found.Append("\n").Join(delimiter: "\n"));
+                }
             }
             else Log.Warning("== No unpatched RNG or potentially unsafe methods found ==");
 
@@ -517,6 +535,9 @@ namespace Multiplayer.Compat
                         break;
                     case MethodInfo method when LongEventMethods.Contains(method):
                         foundStuff.Add(StuffToSearch.LongEvents);
+                        break;
+                    case MethodInfo method when MoteSaturationMethods.Contains(method):
+                        foundStuff.Add(StuffToSearch.MoteSaturation);
                         break;
                 }
             }
