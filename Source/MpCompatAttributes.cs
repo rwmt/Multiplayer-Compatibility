@@ -116,6 +116,10 @@ namespace Multiplayer.Compat
                                     sync.CancelIfNoSelectedWorldObjects();
                                 if (syncMethod.debugOnly)
                                     sync.SetDebugOnly();
+                                if (syncMethod.hostOnly)
+                                    sync.SetHostOnly();
+                                if (syncMethod.version > 0)
+                                    sync.SetVersion(syncMethod.version);
                                 if (syncMethod.exposeParameters != null)
                                 {
                                     foreach (var index in syncMethod.exposeParameters)
@@ -414,6 +418,8 @@ namespace Multiplayer.Compat
         public bool cancelIfNoSelectedMapObjects;
         public bool cancelIfNoSelectedWorldObjects;
         public bool debugOnly;
+        public bool hostOnly;
+        public int version;
         public int[] exposeParameters;
 
         public MpCompatSyncMethodAttribute(SyncContext context = SyncContext.None) => this.context = context;
