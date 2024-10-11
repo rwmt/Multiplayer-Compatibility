@@ -50,6 +50,7 @@ namespace Multiplayer.Compat
                 (PatchExpandableProjectile, "Expandable projectile", false),
                 (PatchStaticCaches, "Static caches", false),
                 (PatchGraphicCustomizationDialog, "Graphic Customization Dialog", true),
+                (PatchDraftedAi, "Drafted AI", true),
             ];
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -1694,6 +1695,49 @@ namespace Multiplayer.Compat
                 textureVariantOverrideChanceField(variantOverride) = sync.Read<float>();
                 textureVariantOverrideGroupNameField(variantOverride) = sync.Read<string>();
                 textureVariantOverrideTexNameField(variantOverride) = sync.Read<string>();
+            }
+        }
+
+        #endregion
+
+        #region Drafted AI
+
+        private static FastInvokeHandler getDraftedActionDataMethod;
+        private static FastInvokeHandler draftedActionDataGetPawnMethod;
+
+        private static void PatchDraftedAi()
+        {
+            // Drafted AI is used by player controlled insectoids,
+            // and allows the player to toggle hunt mode (search
+            // and destroy) as well as toggling specific/all
+            // abilities to be autocasted.
+
+            getDraftedActionDataMethod = MethodInvoker.GetHandler(
+                AccessTools.DeclaredMethod("VFECore.AI.DraftedActionHolder:GetData"));
+            draftedActionDataGetPawnMethod = MethodInvoker.GetHandler(
+                AccessTools.DeclaredPropertyGetter("VFECore.AI.DraftedActionData:Pawn"));
+
+            var type = AccessTools.TypeByName("VFECore.AI.DraftedActionData");
+            MP.RegisterSyncMethod(type, "ToggleHuntMode");
+            MP.RegisterSyncMethod(type, "ToggleAutoForAll");
+            MP.RegisterSyncMethod(type, "ToggleAutoCastFor");
+            MP.RegisterSyncWorker<object>(SyncDraftedActionData, type);
+        }
+
+        private static void SyncDraftedActionData(SyncWorker sync, ref object draftedActionData)
+        {
+            if (sync.isWriting)
+            {
+                if (draftedActionData == null)
+                    sync.Write((Pawn)null);
+                else
+                    sync.Write((Pawn)draftedActionDataGetPawnMethod(draftedActionData));
+            }
+            else
+            {
+                var pawn = sync.Read<Pawn>();
+                if (pawn != null)
+                    getDraftedActionDataMethod(null, pawn);
             }
         }
 
