@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using System.Collections.Generic;
+using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using Verse;
@@ -11,29 +12,44 @@ namespace Multiplayer.Compat
     [MpCompatFor("sarg.alphagenes")]
     internal class AlphaGenes
     {
+        private static AccessTools.FieldRef<HashSet<Pawn>> pawnsToRiseField;
+
         public AlphaGenes(ModContentPack mod)
         {
-            // RNG
-            {
-                PatchingUtilities.PatchSystemRandCtor("AlphaGenes.CompAbilityOcularConversion", false);
-                PatchingUtilities.PatchSystemRand("AlphaGenes.CompInsanityBlast:Apply", false);
-                PatchingUtilities.PatchSystemRand("AlphaGenes.HediffComp_Parasites:Hatch", false);
-                // The following method is seeded, so it should be fine
-                // If not, then patching it as well should fix it
-                //"AlphaGenes.GameComponent_RandomMood:GameComponentTick",
-            }
+            LongEventHandler.ExecuteWhenFinished(LatePatch);
 
             // Abilities
             {
+                // Toggle off (0) or on (1)
                 MpCompat.RegisterLambdaMethod("AlphaGenes.Ability_MineralOverdrive", "GetGizmos", 0, 2);
+                // Toggle off (0) or on (1)
                 MpCompat.RegisterLambdaMethod("AlphaGenes.Ability_ReactiveArmour", "GetGizmos", 0, 2);
+                // Dev: reset scorpion counter to 0 (if it bugs out)
                 MpCompat.RegisterLambdaDelegate("AlphaGenes.CompScorpionCounter", "CompGetGizmosExtra", 0).SetDebugOnly();
+                // Dev: force mutation
+                MpCompat.RegisterLambdaMethod("AlphaGenes.HediffComp_RandomMutation", "CompGetGizmos", 0).SetDebugOnly();
             }
 
             // Randomizer gene
             {
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AlphaGenes.Gene_Randomizer:PostAdd"),
                     prefix: new HarmonyMethod(typeof(AlphaGenes), nameof(PrePostAddRandomizerGene)));
+            }
+        }
+
+        private static void LatePatch()
+        {
+            // Clear cache
+            {
+                // List of pawns to rise as shamblers.
+                // The collection, if not cleared, will
+                // cause bugs in the game. Remove if
+                // fixed in the mod itself (and make
+                // sure it's safe to remove as well).
+                var field = AccessTools.DeclaredField("AlphaGenes.StaticCollectionsClass:pawnsToRise");
+                pawnsToRiseField = AccessTools.StaticFieldRefAccess<HashSet<Pawn>>(field);
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
+                    postfix: new HarmonyMethod(ClearCache));
             }
         }
 
@@ -53,5 +69,7 @@ namespace Multiplayer.Compat
 
             return false;
         }
+
+        private static void ClearCache() => pawnsToRiseField().Clear();
     }
 }
