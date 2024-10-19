@@ -322,7 +322,37 @@ namespace Multiplayer.Compat
             abilityPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
             abilityCooldownField = AccessTools.FieldRefAccess<int>(type, "cooldown");
             // There's another method taking LocalTargetInfo. Harmony grabs the one we need, but just in case specify the types to avoid ambiguity.
-            MP.RegisterSyncMethod(type, "StartAbilityJob", [typeof(GlobalTargetInfo[])]);
+            MP.RegisterSyncMethod(type, "StartAbilityJob", [typeof(GlobalTargetInfo[])])
+                // Need to transform arguments to properly handle multiple maps
+                .TransformArgument(0, Serializer.New(
+                    (GlobalTargetInfo[] targets)
+                        => targets.Select(x => (
+                            thingId: x.thingInt?.thingIDNumber ?? -1,
+                            tileId: x.tileInt,
+                            worldObjectId: x.worldObjectInt?.ID ?? -1,
+                            cell: x.cellInt,
+                            mapId: x.mapInt?.uniqueID ?? -1)).ToList(),
+                    result => result.Select(x =>
+                    {
+                        var (thingId, tileId, worldObjectId, cell, mapId) = x;
+                        if (thingId != -1)
+                        {
+                            if (MP.TryGetThingById(thingId, out var thing))
+                                return new GlobalTargetInfo(thing);
+                        }
+                        else if (tileId != -1)
+                            return new GlobalTargetInfo(tileId);
+                        else if (worldObjectId != -1)
+                        {
+                            var worldObject = Find.World.worldObjects.AllWorldObjects.Find(w => w.ID == worldObjectId) ??
+                                      Find.World.pocketMaps.Find(p => p.ID == worldObjectId);
+                            if (worldObject != null)
+                                return new GlobalTargetInfo(worldObject);
+                        }
+                        else if (cell.IsValid)
+                            return new GlobalTargetInfo(cell, Find.Maps.FirstOrDefault(x => x.uniqueID == mapId), true);
+                        return GlobalTargetInfo.Invalid;
+                    }).ToArray()));
             MP.RegisterSyncWorker<ITargetingSource>(SyncVEFAbility, type, true);
             abilityAutoCastField = MP.RegisterSyncField(type, "autoCast");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
@@ -1444,83 +1474,12 @@ namespace Multiplayer.Compat
 
         #region Caches
 
-        private static FastInvokeHandler[] cacheGetterList;
-
         private static void PatchStaticCaches()
         {
-            cacheGetterList = new[]
-                {
-                    // Currently the only cache in the mod.
-                    // They also technically access DictCache<Pawn, CachedPawnData> directly, but
-                    // PawnDataCache uses the same generics, and they end up sharing the dictionary.
-                    "VFECore.PawnDataCache",
-                }
-                .Select(AccessTools.TypeByName)
-                .Select(t => AccessTools.PropertyGetter(t, "Cache"))
-                .Select(m => MethodInvoker.GetHandler(m))
-                .ToArray();
-
-            var patch = AccessTools.DeclaredMethod("VFECore.Pawn_DrawTracker_Patch:Postfix");
-            MpCompat.harmony.Unpatch(AccessTools.DeclaredPropertyGetter(typeof(Pawn_DrawTracker), nameof(Pawn_DrawTracker.DrawPos)), patch);
-
-            // The recaching happens (by default) every 180 ticks or 2 seconds.
-            // Disable recaching caused by real time passing in MP.
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.CacheTimer:TimeOutSeconds"),
-                prefix: new HarmonyMethod(MpMethodUtil.MethodOf(NeverTimeoutDueToRealTime)));
-
-            // Clear the caches
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
-                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(ClearCache)));
-
-            // Prevent the timers from being reset in interface.
-            PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod("VFECore.CacheTimer:ResetTimers"));
-            // Prevent the cache from being regenerated in interface.
-            // List of all types implementing ICacheable to patch, currently only 1 type does it.
-            var typeNames = new[]
-            {
-                "VFECore.CachedPawnData",
-            };
-            foreach (var typeName in typeNames)
-            {
-                const string regenerateCacheMethodName = "RegenerateCache";
-                var type = AccessTools.TypeByName(typeName);
-                // Look for the method with no arguments in case there's an overload with different arguments.
-                var method = AccessTools.DeclaredMethod(type, regenerateCacheMethodName, []);
-
-                if (method == null)
-                    Log.Error($"Could not find {typeName}:{regenerateCacheMethodName}");
-                else if (method.ReturnType != typeof(bool))
-                    Log.Error($"{typeName}:{regenerateCacheMethodName} has a return type of {method.ReturnType}, we were expecting bool.");
-                else
-                    PatchingUtilities.PatchCancelInInterface(method);
-            }
-        }
-
-        private static void ClearCache()
-        {
-            foreach (var getter in cacheGetterList)
-                (getter(null) as IDictionary)?.Clear();
-        }
-
-        private static bool NeverTimeoutDueToRealTime(ref bool __result, ref int ___UpdateIntervalTicks, ref int ___UpdateIntervalSeconds)
-        {
-            // Result defaults to false, so if <= -1 just stop original from running
-            if (___UpdateIntervalSeconds <= -1)
-                return false;
-            // Let SP do its own thing
-            if (!MP.IsInMultiplayer)
-                return true;
-
-            // As a backup, enable tick based recaching (if it isn't enabled already)
-            if (___UpdateIntervalTicks <= -1)
-            {
-                Log.WarningOnce("Real time recaching disabled in MP but tick based recaching is disabled. Enabling tick based recaching (and disabling further warnings).", 652857559);
-                ___UpdateIntervalTicks = ___UpdateIntervalSeconds * 90;
-            }
-
-            // Disable real time recaching
-            ___UpdateIntervalSeconds = -1;
-            return false;
+            // TODO: Go through Vanilla Expanded Framework's VanillaGenesExpanded.StaticCollectionsClass and clean some of those on join.
+            // While not critical for fixing MP desyncs, it should help with RAM usage as many of those have data unique to a specific
+            // game, and leaving it will just leave garbage data. In the context of MP it could be especially useful in case of
+            // frequent (unrelated) desyncs, as the players joining in would gain more and more garbage data each time they join.
         }
 
         #endregion
