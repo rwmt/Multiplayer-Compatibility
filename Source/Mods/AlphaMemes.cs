@@ -37,21 +37,6 @@ namespace Multiplayer.Compat
             LongEventHandler.ExecuteWhenFinished(LatePatch);
             MpCompatPatchLoader.LoadPatch(this);
 
-            #region RNG
-
-            {
-                PatchingUtilities.PatchSystemRand("AlphaMemes.AlphaMemes_DamageWorker_AddInjury_Apply_Patch:SendHistoryIfMelee", false);
-                PatchingUtilities.PatchPushPopRand("AlphaMemes.RitualBehaviorWorker_FuneralFramework:TryExecuteOn");
-                PatchingUtilities.PatchSystemRandCtor("AlphaMemes.CompAbilityOcularConversion");
-                // The following method is seeded, so it should be fine
-                // If not, then patching it as well should fix it
-                //"AlphaMemes.GameComponent_RandomMood:GameComponentTick",
-
-                // Need to push/pop for RNG used in interface.
-            }
-
-            #endregion
-
             #region Gizmos
 
             {
@@ -86,16 +71,6 @@ namespace Multiplayer.Compat
                     PatchingUtilities.PatchTryGainMemory(TryGainThoughtCatharsis);
                 else
                     Log.Error("Trying to patch `AlphaMemes.Thought_Catharsis`, but the type is null. Did it get moved, renamed, or removed?");
-            }
-
-            #endregion
-
-            #region Current map
-
-            {
-                // Current map usage
-                var type = AccessTools.TypeByName("AlphaMemes.AlphaMemesIdeo_Notify_Patches");
-                PatchingUtilities.ReplaceCurrentMapUsage(AccessTools.Inner(type, "FuneralFramework_Ideo_MemberCorpseDestroyed"), "Prefix");
             }
 
             #endregion

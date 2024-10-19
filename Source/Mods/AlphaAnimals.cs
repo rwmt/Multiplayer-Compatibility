@@ -24,31 +24,6 @@ namespace Multiplayer.Compat
         {
             LongEventHandler.ExecuteWhenFinished(LatePatch);
 
-            #region RNG
-
-            {
-                var rngFixConstructors = new[]
-                {
-                    "AlphaBehavioursAndEvents.DeathActionWorker_ExplodeAndSpawnEggs",
-                    "AlphaBehavioursAndEvents.Hediff_Crushing",
-
-                    // Ocular plant conversion
-                    "AlphaBehavioursAndEvents.Gas_Ocular",
-                };
-
-                PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
-
-                var fixSystemRngMethods = new[]
-                {
-                    "AlphaBehavioursAndEvents.Ability_SpawnOnRadius:Cast",
-                    "AlphaBehavioursAndEvents.CompCreateOcularPlants:CompTick",
-                    "AlphaBehavioursAndEvents.CompCreateOcularPlants:ConvertRandomPlantInRadius",
-                };
-                PatchingUtilities.PatchSystemRand(fixSystemRngMethods, false);
-            }
-
-            #endregion
-
             #region MP unsafe method patching
 
             // Only apply if VFE-I2 is inactive.
