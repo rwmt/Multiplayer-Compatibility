@@ -981,5 +981,90 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+        #region Method replacer
+
+        /// <summary>
+        /// A more specialized alternative to <see cref="Transpilers.MethodReplacer"/>.
+        /// It will replace all occurrences of a given method, but only if the specified text was encountered (unless another disallowed text was encountered).
+        /// It may come especially handy for replacing text buttons with a specific text.
+        /// </summary>
+        /// <param name="instr">The enumeration of <see cref="T:HarmonyLib.CodeInstruction"/> to act on.</param>
+        /// <param name="from">Method or constructor to search for.</param>
+        /// <param name="to">Method or constructor to replace with.</param>
+        /// <param name="baseMethod">Method or constructor that is being patched, used for logging to provide information on which patched method had issues.</param>
+        /// <param name="extraInstructions">Extra instructions to insert before the method or constructor is called.</param>
+        /// <param name="expectedReplacements">The expected number of times the method should be replaced. Use -1 to to disable, or use -2 to expect unspecified amount (but more than 1 replacement).</param>
+        /// <param name="targetText">The text that should appear before replacing a method. A first occurence of the method after this text will be replaced.</param>
+        /// <param name="excludedText">The text that excludes the next method from being patched. Will prevent skip patching the next time the method was going to be patched.</param>
+        /// <returns>Modified enumeration of <see cref="T:HarmonyLib.CodeInstruction"/></returns>
+        public static IEnumerable<CodeInstruction> ReplaceMethod(this IEnumerable<CodeInstruction> instr, MethodBase from, MethodBase to, MethodBase baseMethod = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructions = null, int expectedReplacements = -1, string targetText = null, string excludedText = null)
+        {
+            // Check for text only if expected text isn't null
+            var isCorrectText = targetText == null;
+            var skipNextCall = false;
+            var replacedCount = 0;
+
+            foreach (var ci in instr)
+            {
+                if (ci.opcode == OpCodes.Ldstr && ci.operand is string s)
+                {
+                    // Excluded text (if not null) will cancel replacement of the next occurrence
+                    // of the method. Used by `MagicCardUtility:CustomPowersHandler`, as the text
+                    // `TM_Learn` appears twice there, but in a single case it's combined with
+                    // `TM_MCU_PointsToLearn`, in which case we ignore the button (as the
+                    // button does nothing in that particular case).
+                    if (excludedText != null && s == excludedText)
+                        skipNextCall = true;
+                    else if (s == targetText)
+                        isCorrectText = true;
+                }
+                else if (isCorrectText)
+                {
+                    if (ci.operand is MethodBase method && method == from)
+                    {
+                        if (skipNextCall)
+                        {
+                            skipNextCall = false;
+                        }
+                        else
+                        {
+                            // Replace method with our own
+                            ci.opcode = from.IsConstructor ? OpCodes.Newobj : OpCodes.Call;
+                            ci.operand = to;
+
+                            if (extraInstructions != null)
+                            {
+                                foreach (var extraInstr in extraInstructions(ci))
+                                    yield return extraInstr;
+                            }
+
+                            replacedCount++;
+                            // Check for text only if expected text isn't null
+                            isCorrectText = targetText == null;
+                        }
+                    }
+                }
+
+                yield return ci;
+            }
+
+            string MethodName()
+            {
+                if (baseMethod == null)
+                    return "(unknown)";
+                if ((baseMethod.DeclaringType?.Namespace).NullOrEmpty())
+                    return baseMethod.Name;
+                return $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
+            }
+
+            if (replacedCount != expectedReplacements && expectedReplacements >= 0)
+                Log.Warning($"Patched incorrect number of {from.DeclaringType?.Name ?? "null"}.{from.Name} calls (patched {replacedCount}, expected {expectedReplacements}) for method {MethodName()}");
+            // Special case (-2) - expected some patched methods, but amount unspecified
+            else if (replacedCount == 0 && expectedReplacements == -2)
+                Log.Warning($"No calls of {from.DeclaringType?.Name ?? "null"}.{from.Name} were patched for method {MethodName()}");
+        }
+
+        #endregion
     }
 }
