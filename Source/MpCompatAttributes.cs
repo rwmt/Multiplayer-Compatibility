@@ -468,9 +468,9 @@ namespace Multiplayer.Compat
                 if (field != null)
                     return field;
 
-                field = AccessTools.DeclaredField(Type, fieldName);
+                field = AccessTools.Field(Type, fieldName);
                 if (field == null)
-                    throw new MissingMethodException($"Couldn't find field {field} in type {Type}");
+                    throw new MissingFieldException($"Couldn't find field {fieldName} in type {Type}");
 
                 return field;
             }
