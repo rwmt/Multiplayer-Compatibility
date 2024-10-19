@@ -803,7 +803,7 @@ public class ARimWorldOfMagic
         // Shouldn't happen
         else throw new Exception($"Trying to apply transpiler ({nameof(UniversalReplaceLevelUpPlusButton)}) for an unsupported type ({baseMethod.DeclaringType.FullDescription()}).");
 
-        IEnumerable<CodeInstruction> ExtraInstructions() =>
+        IEnumerable<CodeInstruction> ExtraInstructions(CodeInstruction _) =>
         [
             // Load the magic/might comp parameter
             new CodeInstruction(OpCodes.Ldarg_1),
@@ -814,7 +814,7 @@ public class ARimWorldOfMagic
             new CodeInstruction(OpCodes.Ldloc_0),
         ];
 
-        return ReplaceMethod(instr, baseMethod, target, replacement, ExtraInstructions, "+", 1);
+        return instr.ReplaceMethod(target, replacement, baseMethod, ExtraInstructions, 1, "+");
     }
 
     [MpCompatTranspiler(typeof(MagicCardUtility), nameof(MagicCardUtility.DrawLevelBar))]
@@ -825,13 +825,13 @@ public class ARimWorldOfMagic
             [typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?)]);
         MethodInfo replacement;
         int expected;
-        Func<IEnumerable<CodeInstruction>> extraInstructions;
+        Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructions;
 
         if (baseMethod.DeclaringType == typeof(MagicCardUtility))
         {
             replacement = MpMethodUtil.MethodOf(ReplacedGlobalLevelUpMagicButton);
             expected = 3;
-            extraInstructions = () =>
+            extraInstructions = _ =>
             [
                 // Load the pawn argument
                 new CodeInstruction(OpCodes.Ldarg_1),
@@ -845,7 +845,7 @@ public class ARimWorldOfMagic
         {
             replacement = MpMethodUtil.MethodOf(ReplacedGlobalLevelUpMightButton);
             expected = 4;
-            extraInstructions = () =>
+            extraInstructions = _ =>
             [
                 // Load the pawn argument
                 new CodeInstruction(OpCodes.Ldarg_1),
@@ -859,7 +859,7 @@ public class ARimWorldOfMagic
         // Shouldn't happen
         else throw new Exception($"Trying to apply transpiler ({nameof(UniversalReplaceLevelUpPlusButton)}) for an unsupported type ({baseMethod.DeclaringType.FullDescription()}).");
         
-        return ReplaceMethod(instr, baseMethod, target, replacement, extraInstructions, "+", expected);
+        return instr.ReplaceMethod(target, replacement, baseMethod, extraInstructions, expected, "+");
     }
 
     #endregion
@@ -1113,7 +1113,7 @@ public class ARimWorldOfMagic
         // Shouldn't happen
         else throw new Exception($"Trying to apply transpiler ({nameof(ReplaceLearnSkillButton)}) for an unsupported type ({baseMethod.DeclaringType.FullDescription()}).");
 
-        IEnumerable<CodeInstruction> ExtraInstructions() =>
+        IEnumerable<CodeInstruction> ExtraInstructions(CodeInstruction _) =>
         [
             // Load the magic/might comp parameter
             new CodeInstruction(OpCodes.Ldarg_1),
@@ -1123,9 +1123,9 @@ public class ARimWorldOfMagic
         ];
 
         // Replace the "TM_Learn" button to learn a power
-        var replacedLearnButton = ReplaceMethod(instr, baseMethod, targetTextButton, textButtonReplacement, ExtraInstructions, "TM_Learn", 1, "TM_MCU_PointsToLearn");
+        var replacedLearnButton = instr.ReplaceMethod(targetTextButton, textButtonReplacement, baseMethod, ExtraInstructions, 1, "TM_Learn", "TM_MCU_PointsToLearn");
         // Replace the image button to level-up a power
-        return ReplaceMethod(replacedLearnButton, baseMethod, targetImageButton, imageButtonReplacement, ExtraInstructions, null, 1);
+        return replacedLearnButton.ReplaceMethod(targetImageButton, imageButtonReplacement, baseMethod, ExtraInstructions, 1);
     }
 
     #endregion
@@ -1363,14 +1363,14 @@ public class ARimWorldOfMagic
             [typeof(Rect), typeof(string), typeof(bool), typeof(bool), typeof(bool), typeof(TextAnchor?)]);
         var replacement = MpMethodUtil.MethodOf(ReplacedApplyGolemNameButton);
 
-        IEnumerable<CodeInstruction> ExtraInstructions() =>
+        IEnumerable<CodeInstruction> ExtraInstructions(CodeInstruction _) =>
         [
             // Load in "this" (GolemNameWindow)
             new CodeInstruction(OpCodes.Ldarg_0),
         ];
 
         // The "Apply" text isn't translated in the mod...
-        return ReplaceMethod(instr, baseMethod, target, replacement, ExtraInstructions, "Apply", 1);
+        return instr.ReplaceMethod(target, replacement, baseMethod, ExtraInstructions, 1, "Apply");
     }
 
     #endregion
@@ -1565,69 +1565,6 @@ public class ARimWorldOfMagic
                 }
             }
         }
-    }
-
-    #endregion
-
-    #region Shared
-
-    private static IEnumerable<CodeInstruction> ReplaceMethod(IEnumerable<CodeInstruction> instr, MethodBase baseMethod, MethodInfo target, MethodInfo replacement, Func<IEnumerable<CodeInstruction>> extraInstructions = null, string buttonText = null, int expectedReplacements = -1, string excludedText = null)
-    {
-        // Check for text only if expected text isn't null
-        var isCorrectText = buttonText == null;
-        var skipNextCall = false;
-        var replacedCount = 0;
-
-        foreach (var ci in instr)
-        {
-            if (ci.opcode == OpCodes.Ldstr && ci.operand is string s)
-            {
-                // Excluded text (if not null) will cancel replacement of the next occurrence
-                // of the method. Used by `MagicCardUtility:CustomPowersHandler`, as the text
-                // `TM_Learn` appears twice there, but in a single case it's combined with
-                // `TM_MCU_PointsToLearn`, in which case we ignore the button (as the
-                // button does nothing in that particular case).
-                if (excludedText != null && s == excludedText)
-                    skipNextCall = true;
-                else if (s == buttonText)
-                    isCorrectText = true;
-            }
-            else if (isCorrectText)
-            {
-                if (ci.Calls(target))
-                {
-                    if (skipNextCall)
-                    {
-                        skipNextCall = false;
-                    }
-                    else
-                    {
-                        if (extraInstructions != null)
-                        {
-                            foreach (var extraInstr in extraInstructions())
-                                yield return extraInstr;
-                        }
-
-                        // Replace method with our own
-                        ci.opcode = OpCodes.Call;
-                        ci.operand = replacement;
-
-                        replacedCount++;
-                        // Check for text only if expected text isn't null
-                        isCorrectText = buttonText == null;
-                    }
-                }
-            }
-
-            yield return ci;
-        }
-
-        string MethodName() => (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
-        if (replacedCount != expectedReplacements && expectedReplacements >= 0)
-            Log.Warning($"Patched incorrect number of {target.DeclaringType?.Name ?? "null"}.{target.Name} calls (patched {replacedCount}, expected {expectedReplacements}) for method {MethodName()}");
-        // Special case (-2) - expected some patched methods, but amount unspecified
-        else if (replacedCount == 0 && expectedReplacements == -2)
-            Log.Warning($"No calls of {target.DeclaringType?.Name ?? "null"}.{target.Name} were patched for method {MethodName()}");
     }
 
     #endregion
