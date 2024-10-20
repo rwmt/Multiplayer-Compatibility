@@ -30,13 +30,6 @@ namespace Multiplayer.Compat
                 "AlphaBiomes.GameCondition_AcidRain:DoCellSteadyEffects",
             };
 
-            var systemRngFixConstructor = new[]
-            {
-                "AlphaBiomes.CompGasProducer",
-                "AlphaBiomes.HediffComp_GangreneWounds",
-            }.Select(x => AccessTools.DeclaredConstructor(AccessTools.TypeByName(x)));
-
-            PatchingUtilities.PatchSystemRand(systemRngFixConstructor, false);
             PatchingUtilities.PatchPushPopRand(rngFixMethods);
         }
 
