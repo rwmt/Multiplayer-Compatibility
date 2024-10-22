@@ -495,7 +495,7 @@ namespace Multiplayer.Compat
             => this.instancePath = instancePath;
     }
 
-    [AttributeUsage(AttributeTargets.Method)]
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     [MeansImplicitUse(ImplicitUseTargetFlags.WithMembers)]
     public class MpCompatSyncWorkerAttribute : Attribute
     {
