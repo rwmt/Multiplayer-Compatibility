@@ -5,36 +5,46 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Search and Destroy by Roolo</summary>
-    /// <see href="https://github.com/rheirman/SearchAndDestroy"/>
-    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1467764609"/>
-    [MpCompatFor("roolo.SearchAndDestroy")]
+    /// <summary>Search and Destroy updated mod by MemeGoddess</summary>
+    /// <see href="https://github.com/MemeGoddess/SearchAndDestroy"/>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=3232242247"/>
+    [MpCompatFor("MemeGoddess.SearchAndDestroy")]
     public class SearchAndDestroy
     {
-        // Base class
+        // Fields for accessing private data structures
         private static FastInvokeHandler searchAndDestroyInstance;
         private static AccessTools.FieldRef<object, object> extendedDataStorageField;
-
-        // ExtendedDataStorage class
         private static AccessTools.FieldRef<object, IDictionary> storeField;
 
         public SearchAndDestroy(ModContentPack mod)
         {
-            var type = AccessTools.TypeByName("SearchAndDestroy.Harmony.Pawn_DraftController_GetGizmos");
+            // Register the gizmo creation methods to synchronize their actions across clients
+            MpCompat.RegisterLambdaDelegate(
+                "SearchAndDestroy.Harmony.Pawn_DraftController_GetGizmos",
+                "CreateGizmo_SearchAndDestroy_Melee",
+                1
+            );
+            MpCompat.RegisterLambdaDelegate(
+                "SearchAndDestroy.Harmony.Pawn_DraftController_GetGizmos",
+                "CreateGizmo_SearchAndDestroy_Ranged",
+                1
+            );
 
-            MpCompat.RegisterLambdaDelegate(type, "CreateGizmo_SearchAndDestroy_Melee", 1);
-            MpCompat.RegisterLambdaDelegate(type, "CreateGizmo_SearchAndDestroy_Ranged", 1);
+            // Register a SyncWorker for ExtendedPawnData to synchronize custom data
+            var extendedPawnDataType = AccessTools.TypeByName("SearchAndDestroy.Storage.ExtendedPawnData");
+            MP.RegisterSyncWorker<object>(SyncExtendedPawnData, extendedPawnDataType);
 
-            type = AccessTools.TypeByName("SearchAndDestroy.Base");
-            searchAndDestroyInstance = MethodInvoker.GetHandler(AccessTools.PropertyGetter(type, "Instance"));
-            extendedDataStorageField = AccessTools.FieldRefAccess<object>(type, "_extendedDataStorage");
+            // Initialize reflection accessors for private fields and properties
+            var baseType = AccessTools.TypeByName("SearchAndDestroy.Base");
+            searchAndDestroyInstance = MethodInvoker.GetHandler(AccessTools.PropertyGetter(baseType, "Instance"));
+            extendedDataStorageField = AccessTools.FieldRefAccess<object>(baseType, "_extendedDataStorage");
 
-            type = AccessTools.TypeByName("SearchAndDestroy.Storage.ExtendedPawnData");
-            MP.RegisterSyncWorker<object>(SyncExtendedPawnData, type);
-
-            storeField = AccessTools.FieldRefAccess<IDictionary>("SearchAndDestroy.Storage.ExtendedDataStorage:_store");
+            storeField = AccessTools.FieldRefAccess<IDictionary>(
+                "SearchAndDestroy.Storage.ExtendedDataStorage:_store"
+            );
         }
 
+        // SyncWorker method to synchronize ExtendedPawnData across clients
         public static void SyncExtendedPawnData(SyncWorker sync, ref object pawnData)
         {
             var instance = searchAndDestroyInstance(null);
