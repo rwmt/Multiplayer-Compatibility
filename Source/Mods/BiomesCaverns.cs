@@ -12,12 +12,13 @@ namespace Multiplayer.Compat
         {
             // Gizmos
             {
+                // Create drill pod blueprint
+                MpCompat.RegisterLambdaDelegate("BiomesCaverns.Patches.Building_PodLauncher_GetGizmos_Patch", "DrillPodGizmo", 0);
+                // (Dev) set progress to 100%
                 MpCompat.RegisterLambdaMethod("Building_MushroomFermentingBarrel", nameof(Building.GetGizmos), 0).SetDebugOnly();
-                // Unused/commented out
-                MpCompat.RegisterLambdaMethod("BMT.CompThingDefReplacer", nameof(ThingComp.CompGetGizmosExtra), 0).SetDebugOnly();
             }
 
-            // RNG + GenView.ShouldSpawnMotesAt
+            // RNG + GenView.ShouldSpawnMotesAt/mote saturation check
             {
                 PatchingUtilities.PatchPushPopRand("Caveworld_Flora_Unleashed.FruitingBody_Gleamcap:ThrowPoisonSmoke");
             }
