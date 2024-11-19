@@ -1,4 +1,6 @@
-﻿using Verse;
+using Verse;
+using Multiplayer.API;
+using HarmonyLib;
 
 namespace Multiplayer.Compat
 {
@@ -18,6 +20,10 @@ namespace Multiplayer.Compat
             // RNG
             // Could be fixed by clearing the cache on join, but it affects a small graphical thing (motes). Not really worth bothering with.
             PatchingUtilities.PatchPushPopRand("ReGrowthCore.WeatherOverlay_FogMotes:TickOverlay");
+
+            // Register the MakeCamp method to be synchronized
+            var type = AccessTools.TypeByName("ReGrowthCore.Caravan_GetGizmos_Patch");
+            MP.RegisterSyncMethod(type, "MakeCamp");
         }
 
         private static void LatePatch() => PatchingUtilities.PatchPushPopRand("ReGrowthCore.DevilDust_Tornado:ThrowDevilDustPuff");
