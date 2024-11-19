@@ -24,8 +24,6 @@ namespace Multiplayer.Compat
             // Register the MakeCamp method to be synchronized
             var type = AccessTools.TypeByName("ReGrowthCore.Caravan_GetGizmos_Patch");
             MP.RegisterSyncMethod(type, "MakeCamp");
-
-            MpCompat.RegisterLambdaDelegate(type, "Postfix", 0);
         }
 
         private static void LatePatch() => PatchingUtilities.PatchPushPopRand("ReGrowthCore.DevilDust_Tornado:ThrowDevilDustPuff");
