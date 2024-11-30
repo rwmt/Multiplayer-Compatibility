@@ -8,7 +8,9 @@ namespace Multiplayer.Compat
     /// <summary>Medical Tab by Fluffy</summary>
     /// <see href="https://github.com/fluffy-mods/MedicalTab"/>
     /// <see href="https://steamcommunity.com/workshop/filedetails/?id=715565817"/>
+    /// <see href="https://steamcommunity.com/workshop/filedetails/?id=3228889251"/>
     [MpCompatFor("Fluffy.MedicalTab")]
+    [MpCompatFor("tofudriver.MedicalTabForked")]
     internal class MedicalTab
     {
         private static ISyncField syncMedCare;
