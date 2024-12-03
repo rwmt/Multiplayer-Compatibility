@@ -814,7 +814,7 @@ public class ARimWorldOfMagic
             new CodeInstruction(OpCodes.Ldloc_0),
         ];
 
-        return instr.ReplaceMethod(target, replacement, baseMethod, ExtraInstructions, 1, "+");
+        return instr.ReplaceMethod(target, replacement, baseMethod, ExtraInstructions, null, 1, "+");
     }
 
     [MpCompatTranspiler(typeof(MagicCardUtility), nameof(MagicCardUtility.DrawLevelBar))]
@@ -859,7 +859,7 @@ public class ARimWorldOfMagic
         // Shouldn't happen
         else throw new Exception($"Trying to apply transpiler ({nameof(UniversalReplaceLevelUpPlusButton)}) for an unsupported type ({baseMethod.DeclaringType.FullDescription()}).");
         
-        return instr.ReplaceMethod(target, replacement, baseMethod, extraInstructions, expected, "+");
+        return instr.ReplaceMethod(target, replacement, baseMethod, extraInstructions, null, expected, "+");
     }
 
     #endregion
@@ -1123,9 +1123,9 @@ public class ARimWorldOfMagic
         ];
 
         // Replace the "TM_Learn" button to learn a power
-        var replacedLearnButton = instr.ReplaceMethod(targetTextButton, textButtonReplacement, baseMethod, ExtraInstructions, 1, "TM_Learn", "TM_MCU_PointsToLearn");
+        var replacedLearnButton = instr.ReplaceMethod(targetTextButton, textButtonReplacement, baseMethod, ExtraInstructions, null, 1, "TM_Learn", "TM_MCU_PointsToLearn");
         // Replace the image button to level-up a power
-        return replacedLearnButton.ReplaceMethod(targetImageButton, imageButtonReplacement, baseMethod, ExtraInstructions, 1);
+        return replacedLearnButton.ReplaceMethod(targetImageButton, imageButtonReplacement, baseMethod, ExtraInstructions, null, 1);
     }
 
     #endregion
@@ -1370,7 +1370,7 @@ public class ARimWorldOfMagic
         ];
 
         // The "Apply" text isn't translated in the mod...
-        return instr.ReplaceMethod(target, replacement, baseMethod, ExtraInstructions, 1, "Apply");
+        return instr.ReplaceMethod(target, replacement, baseMethod, ExtraInstructions, null, 1, "Apply");
     }
 
     #endregion

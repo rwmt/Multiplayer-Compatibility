@@ -993,17 +993,27 @@ namespace Multiplayer.Compat
         /// <param name="from">Method or constructor to search for.</param>
         /// <param name="to">Method or constructor to replace with.</param>
         /// <param name="baseMethod">Method or constructor that is being patched, used for logging to provide information on which patched method had issues.</param>
-        /// <param name="extraInstructions">Extra instructions to insert before the method or constructor is called.</param>
+        /// <param name="extraInstructionsBefore">Extra instructions to insert before the method or constructor is called.</param>
+        /// <param name="extraInstructionsAfter">Extra instructions to insert after the method or constructor is called.</param>
         /// <param name="expectedReplacements">The expected number of times the method should be replaced. Use -1 to to disable, or use -2 to expect unspecified amount (but more than 1 replacement).</param>
         /// <param name="targetText">The text that should appear before replacing a method. A first occurence of the method after this text will be replaced.</param>
         /// <param name="excludedText">The text that excludes the next method from being patched. Will prevent skip patching the next time the method was going to be patched.</param>
         /// <returns>Modified enumeration of <see cref="T:HarmonyLib.CodeInstruction"/></returns>
-        public static IEnumerable<CodeInstruction> ReplaceMethod(this IEnumerable<CodeInstruction> instr, MethodBase from, MethodBase to, MethodBase baseMethod = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructions = null, int expectedReplacements = -1, string targetText = null, string excludedText = null)
+        public static IEnumerable<CodeInstruction> ReplaceMethod(this IEnumerable<CodeInstruction> instr, MethodBase from, MethodBase to = null, MethodBase baseMethod = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructionsBefore = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructionsAfter = null, int expectedReplacements = -1, string targetText = null, string excludedText = null)
         {
+            if (instr == null)
+                throw new ArgumentNullException(nameof(instr));
+            if (from == null)
+                Log.Error($"Call to {nameof(ReplaceMethod)} is meaningless as the target method is null for method {MethodName()}");
+            // Check if all meaningful arguments are null and provide a proper warning if they are.
+            if (to == null && extraInstructionsBefore == null && extraInstructionsAfter == null)
+                Log.Error($"Call to {nameof(ReplaceMethod)} is meaningless as no useful arguments were provided for method {MethodName()}");
+
             // Check for text only if expected text isn't null
             var isCorrectText = targetText == null;
             var skipNextCall = false;
             var replacedCount = 0;
+            var insertInstructionsAfter = false;
 
             foreach (var ci in instr)
             {
@@ -1029,24 +1039,40 @@ namespace Multiplayer.Compat
                         }
                         else
                         {
-                            // Replace method with our own
-                            ci.opcode = from.IsConstructor ? OpCodes.Newobj : OpCodes.Call;
-                            ci.operand = to;
-
-                            if (extraInstructions != null)
+                            if (to != null)
                             {
-                                foreach (var extraInstr in extraInstructions(ci))
+                                // Replace method with our own
+                                ci.opcode = to.IsConstructor ? OpCodes.Newobj : OpCodes.Call;
+                                ci.operand = to;
+                            }
+
+                            if (extraInstructionsBefore != null)
+                            {
+                                foreach (var extraInstr in extraInstructionsBefore(ci))
                                     yield return extraInstr;
                             }
 
                             replacedCount++;
                             // Check for text only if expected text isn't null
                             isCorrectText = targetText == null;
+                            // If extraInstructionsAfter isn't null,
+                            // make sure they are actually inserted.
+                            insertInstructionsAfter = true;
                         }
                     }
                 }
 
                 yield return ci;
+
+                if (insertInstructionsAfter && extraInstructionsAfter != null)
+                {
+                    insertInstructionsAfter = false;
+
+                    foreach (var extraInstr in extraInstructionsAfter(ci))
+                    {
+                        yield return extraInstr;
+                    }
+                }
             }
 
             string MethodName()
