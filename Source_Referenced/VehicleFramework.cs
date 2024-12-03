@@ -74,6 +74,9 @@ namespace Multiplayer.Compat
             // so this exists here as an extra safety in case those ever get removed later on.
             MpCompatPatchLoader.LoadPatch<VehicleFramework>();
 
+            // Needed for overlay fix.
+            PatchingUtilities.PatchLongEventMarkers();
+
             #endregion
 
             #region VehicleFramework
@@ -2599,6 +2602,45 @@ namespace Multiplayer.Compat
             // It may become overwritten by a different value when syncing.
             if (MP.IsInMultiplayer && !MP.IsExecutingSyncCommand)
                 Designator_AreaRoad.roadType = localRoadType;
+        }
+
+        #endregion
+
+        #region Upgrade Fixes
+
+        private static bool ShouldExecuteWhenFinished()
+        {
+            // If not on main thread we always need to
+            // execute when finished, both in MP and in SP.
+            if (!UnityData.IsInMainThread)
+                return false;
+            // If main thread and not in MP, leave current behavior.
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            // If in MP and on main thread, ensure that we call it in
+            // ExecuteWhenFinished during game loading as it's
+            // unsafe there and will cause errors for the host.
+            // AllowedToRunLongEvents is false only for host during
+            // loading
+            return PatchingUtilities.AllowedToRunLongEvents;
+        }
+
+        [MpCompatTranspiler(typeof(UpgradeNode), nameof(UpgradeNode.AddOverlays))]
+        private static IEnumerable<CodeInstruction> FixHostOverlayInit(IEnumerable<CodeInstruction> instr, MethodBase baseMethod)
+        {
+            // The mod fails to initialize the overlays for the host when (re)loading the game.
+            // It fails to initialize the second time as the initialization method is not called
+            // inside "LongEventHandler.ExecuteWhenFinished" call (this only happens when not on
+            // the main thread, the code checks UnityData.IsInMainThread). The issue is that likely
+            // due to the way MP handles loading some of the data required for overlay initialization
+            // is not yet initialized. We need to ensure that the execution is delayed until it's
+            // safe to initialize them.
+
+            var target = AccessTools.DeclaredPropertyGetter(typeof(UnityData), nameof(UnityData.IsInMainThread));
+            var replacement = MpMethodUtil.MethodOf(ShouldExecuteWhenFinished);
+
+            return instr.ReplaceMethod(target, replacement, baseMethod, expectedReplacements: 1);
         }
 
         #endregion
