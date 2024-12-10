@@ -51,6 +51,7 @@ namespace Multiplayer.Compat
                 (PatchStaticCaches, "Static caches", false),
                 (PatchGraphicCustomizationDialog, "Graphic Customization Dialog", true),
                 (PatchDraftedAi, "Drafted AI", true),
+                (PatchMapObjectGeneration, "Thing spawning on map generation (ObjectSpawnsDef)", false),
             ];
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -1698,6 +1699,32 @@ namespace Multiplayer.Compat
                 if (pawn != null)
                     getDraftedActionDataMethod(null, pawn);
             }
+        }
+
+        #endregion
+
+        #region Thing spawning on map generation (ObjectSpawnsDef)
+
+        private static void PatchMapObjectGeneration()
+        {
+            // When calling "LongEventHandler.ExecuteWhenFinished" inside a
+            // "MapGenerator:GenerateMap" call the seed will differ between
+            // players. Is this something we should look into in MP itself?
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.MapGenerator_GenerateMap_Patch:DoMapSpawns"),
+                prefix: new HarmonyMethod(PreDoSpawns),
+                finalizer: new HarmonyMethod(PostDoSpawns));
+        }
+
+        private static void PreDoSpawns(Map map)
+        {
+            if (MP.IsInMultiplayer)
+                Rand.PushState(Gen.HashCombineInt(Gen.HashCombineInt(map.uniqueID, map.Tile), Find.TickManager.TicksGame));
+        }
+
+        private static void PostDoSpawns()
+        {
+            if (MP.IsInMultiplayer)
+                Rand.PopState();
         }
 
         #endregion
