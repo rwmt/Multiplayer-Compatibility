@@ -19,6 +19,8 @@ public class VanillaChristmasExpanded
 
         // Change graphic
         MpCompat.RegisterLambdaMethod("VanillaChristmasExpanded.GrandFestiveTree", nameof(Building.GetGizmos), 0);
+        // Deactivate (0)/activate (1) the snow spewer.
+        MpCompat.RegisterLambdaMethod("VanillaChristmasExpanded.CompSnowSpewer", nameof(Building.GetGizmos), 0, 1);
     }
 
     private static void LatePatch()
