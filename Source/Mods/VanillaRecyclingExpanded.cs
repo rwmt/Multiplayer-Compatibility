@@ -14,7 +14,7 @@ public class VanillaRecyclingExpanded
         MpCompatPatchLoader.LoadPatch(this);
 
         var type = AccessTools.TypeByName("VanillaRecyclingExpanded.CompBiopackDissolution");
-        // Dev: Single dissolution event (0), dissolution events until destroyed (1), +25% dissolution progress
+        // Dev: Single dissolution event (0), dissolution events until destroyed (1), +25% dissolution progress (2)
         MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetGizmosExtra), 0, 1, 2).SetDebugOnly();
         // Dev: Set next dissolve time
         MP.RegisterSyncDelegateLambda(type, nameof(ThingComp.CompGetGizmosExtra), 4).SetDebugOnly();
@@ -30,6 +30,6 @@ public class VanillaRecyclingExpanded
     }
 
     // Stop methods from running (most likely after syncing) when it would cause errors or other issues.
-    [MpCompatPrefix("VanillaRecyclingExpanded.CompBiopackDissolution", "TriggerDissolutionEvent")]
+    [MpCompatPrefix("VanillaRecyclingExpanded.CompSuperSimpleProcessor", "DoAtomize")]
     private static bool PreDoAtomize(CompThingContainer __instance) => __instance.ContainedThing is { stackCount: > 0 };
 }
