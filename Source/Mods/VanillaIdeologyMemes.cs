@@ -26,7 +26,6 @@ namespace Multiplayer.Compat
                     //"VanillaMemesExpanded.VanillaMemesExpanded_GameConditionManager_RegisterCondition_Patch:SendRandomMood",
                     //"VanillaMemesExpanded.VanillaMemesExpanded_GameCondition_Aurora_Init_Patch:SendRandomMood",
                     //"VanillaMemesExpanded.RitualOutcomeEffectWorker_DivineStars:Apply",
-                    "VanillaMemesExpanded.RitualOutcomeEffectWorker_SlaveEmancipation:Apply",
                     "VanillaMemesExpanded.RitualOutcomeEffectWorker_ViolentConversion:Apply",
                 };
 
