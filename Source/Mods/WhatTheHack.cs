@@ -1,6 +1,5 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -13,6 +12,7 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/rheirman/WhatTheHack/"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1505914869"/>
     [MpCompatFor("roolo.whatthehack")]
+    [MpCompatFor("zal.whatthehack")]
     class WhatTheHack
     {
         private static Dictionary<int, Thing> thingsById;
@@ -47,14 +47,16 @@ namespace Multiplayer.Compat
             {
                 var methods = new[]
                 {
-                    AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Harmony.IncidentWorker_Raid_TryExecuteWorker"), "SpawnHackedMechanoids"),
-                    AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Harmony.Pawn_JobTracker_DetermineNextJob"), "HackedPoorlyEvent"),
-                    AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Harmony.Thing_ButcherProducts+<GenerateExtraButcherProducts>d__1"), "MoveNext"),
-                    AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Needs.Need_Maintenance"), "MaybeUnhackMechanoid"),
-                    AccessTools.Method(AccessTools.TypeByName("WhatTheHack.Recipes.Recipe_Hacking"), "CheckHackingFail"),
+                    "WhatTheHack.Harmony.IncidentWorker_Raid_TryExecuteWorker:Prefix",
+                    "WhatTheHack.Harmony.Pawn_JobTracker_DetermineNextJob:HackedPoorlyEvent",
+                    "WhatTheHack.Needs.Need_Maintenance:MaybeUnhackMechanoid",
+                    "WhatTheHack.Recipes.Recipe_Hacking:CheckHackingFail",
                 };
 
                 PatchingUtilities.PatchSystemRand(methods, false);
+
+                var type = AccessTools.TypeByName("WhatTheHack.Harmony.Thing_ButcherProducts");
+                PatchingUtilities.PatchSystemRand(MpMethodUtil.GetMethod(type, "GenerateExtraButcherProducts", MethodType.Enumerator, [typeof(IEnumerable<Thing>), typeof(Pawn), typeof(float)]));
             }
 
             // Gizmos

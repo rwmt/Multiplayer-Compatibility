@@ -12,6 +12,7 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/Gargamiel/PokeWorld"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2652029657"/>
     [MpCompatFor("Gargamiel.PokeWorld")]
+    [MpCompatFor("eth0net.PokeWorld")]
     internal class PokeWorld
     {
         // CompPokemon
@@ -26,7 +27,7 @@ namespace Multiplayer.Compat
         // CompProperties_Pokemon
         private static AccessTools.FieldRef<object, IList> propsFormsListField;
 
-        // Inner class inside of FormTracker
+        // Inner class inside FormTracker
         private static AccessTools.FieldRef<object, object> innerClassFormField;
         private static AccessTools.FieldRef<object, object> innerClassParentField;
 
@@ -37,7 +38,7 @@ namespace Multiplayer.Compat
         private static Type storageSystemType;
 
         // I was allowed to use PokéWorld as class name.
-        // However, it caused issues with auto completion.
+        // However, it caused issues with auto-completion.
         public PokeWorld(ModContentPack mod)
         {
             var type = AccessTools.TypeByName("PokeWorld.CompPokemon");
@@ -59,14 +60,15 @@ namespace Multiplayer.Compat
                 type = AccessTools.TypeByName("PokeWorld.FormTracker");
                 formTrackerCompField = AccessTools.FieldRefAccess<ThingComp>(type, "comp");
 
-                type = AccessTools.Inner(type, "<>c__DisplayClass17_0");
-                innerClassFormField = AccessTools.FieldRefAccess<object>(type, "form");
-                innerClassParentField = AccessTools.FieldRefAccess<object>(type, "<>4__this");
-                MP.RegisterSyncMethod(type, "<ProcessInput>b__0");
-                MP.RegisterSyncWorker<object>(SyncFormTrackerInnerClass, type, shouldConstruct: true);
+                var method = MpMethodUtil.GetLambda(type, "ProcessInput", lambdaOrdinal: 0);
+                innerClassFormField = AccessTools.FieldRefAccess<object>(method.DeclaringType, "form");
+                innerClassParentField = AccessTools.FieldRefAccess<object>(method.DeclaringType, "<>4__this");
+                MP.RegisterSyncMethod(method);
+                MP.RegisterSyncWorker<object>(SyncFormTrackerInnerClass, method.DeclaringType, shouldConstruct: true);
 
                 type = AccessTools.TypeByName("PokeWorld.LevelTracker");
-                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 1, 2);
+                // Cancel evolution (0), give everstone (1)
+                MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 1);
                 levelTrackerCompField = AccessTools.FieldRefAccess<ThingComp>(type, "comp");
                 MP.RegisterSyncWorker<object>(SyncLevelTracker, type);
 
@@ -81,7 +83,6 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<object>(NoSync, type, shouldConstruct: true);
 
                 type = AccessTools.TypeByName("PokeWorld.ITab_ContentsStorageSystem");
-                MP.RegisterSyncMethod(type, "InterfaceDrop").SetContext(SyncContext.MapSelected);
                 var method = AccessTools.Method(type, "InterfaceDrop");
                 storageTabConstructor = AccessTools.DeclaredConstructor(type);
                 interfaceDropMethod = MethodInvoker.GetHandler(method);
@@ -121,7 +122,7 @@ namespace Multiplayer.Compat
             if (MP.IsInMultiplayer)
             {
                 var comp = shinyTrackerCompField(__instance);
-                Rand.PushState(comp.parent.GetHashCode() ^ Find.TickManager.TicksGame);
+                Rand.PushState(Gen.HashCombineInt(comp.parent.GetHashCode(), Find.TickManager.TicksGame));
             }
         }
 
@@ -135,7 +136,7 @@ namespace Multiplayer.Compat
         {
             var comp = (IThingHolder)Find.World.GetComponent(storageSystemType);
             var thing = comp.GetDirectlyHeldThings().FirstOrDefault(x => x.thingIDNumber == id);
-            interfaceDropMethod(storageTabConstructor.Invoke(Array.Empty<object>()), thing);
+            interfaceDropMethod(storageTabConstructor.Invoke([]), thing);
         }
 
         // Only needed in cases object needs to be created (shouldConstruct), but we don't care about any data inside of it

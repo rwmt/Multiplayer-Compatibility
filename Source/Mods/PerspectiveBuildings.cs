@@ -8,6 +8,7 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/Owlchemist/perspective-buildings"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2594383552"/>
     [MpCompatFor("Owlchemist.PerspectiveBuildings")]
+    [MpCompatFor("Mlie.PerspectiveBuildings")]
     internal class PerspectiveBuildings
     {
         public PerspectiveBuildings(ModContentPack mod)
