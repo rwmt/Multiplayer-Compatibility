@@ -9,6 +9,7 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/SomewhereOutInSpace/Rimworld-Spaceports"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2663999215"/>
     [MpCompatFor("SomewhereOutInSpace.Spaceports")]
+    [MpCompatFor("zal.spaceports")]
     internal class RimsentialSpaceports
     {
         public RimsentialSpaceports(ModContentPack mod)
