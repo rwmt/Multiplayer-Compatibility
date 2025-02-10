@@ -19,7 +19,7 @@
       <Private>false</Private>
     </ProjectReference>
     <PackageReference Include="Lib.Harmony">
-      <Version>2.3.*</Version>
+      <Version>2.3.3</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="RimWorld.MultiplayerAPI">
