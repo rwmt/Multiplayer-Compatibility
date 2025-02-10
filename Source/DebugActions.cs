@@ -630,5 +630,90 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+        #region UseThisInstead outdated compats search
+
+        [DebugAction(CategoryName, "Search outdated mods", allowedGameStates = AllowedGameStates.Entry)]
+        private static void SearchOutdatedMods()
+        {
+            var useThisInsteadType = AccessTools.TypeByName("UseThisInstead.UseThisInstead");
+            if (useThisInsteadType == null)
+            {
+                Log.Error("Use This Instead mod is required to perform this action. It's either not present or not recognized due to an update.");
+                return;
+            }
+
+            if ((bool)AccessTools.DeclaredField(useThisInsteadType, "Scanning").GetValue(null))
+            {
+                Log.Error("Use This Instead mod is currently scanning files, please try again later.");
+                return;
+            }
+
+            var modReplacementsDictionary = (IDictionary)AccessTools.DeclaredField(useThisInsteadType, "ModReplacements").GetValue(null);
+            if (modReplacementsDictionary is not { Count: > 0 })
+            {
+                AccessTools.DeclaredMethod(useThisInsteadType, "CheckForReplacements").Invoke(null, [true]);
+                modReplacementsDictionary = (IDictionary)AccessTools.DeclaredField(useThisInsteadType, "ModReplacements").GetValue(null);
+
+                if (modReplacementsDictionary is not { Count: > 0 })
+                {
+                    Log.Error("Use This Instead either failed to initialize or has no replacements listed.");
+                    return;
+                }
+            }
+
+            var modReplacementType = AccessTools.TypeByName("UseThisInstead.ModReplacement");
+            // For the sake of speed on hundreds of objects, use FastInvokeHandler rather than raw reflection.
+            var modIdField = AccessTools.DeclaredPropertyGetter(modReplacementType, "ModId");
+            var replacementModId = AccessTools.DeclaredPropertyGetter(modReplacementType, "ReplacementModId");
+            var replacementSteamId = AccessTools.DeclaredPropertyGetter(modReplacementType, "ReplacementSteamId");
+            var replacementVersions = AccessTools.DeclaredPropertyGetter(modReplacementType, "ReplacementVersions");
+
+            var modReplacementValues = modReplacementsDictionary.Values
+                .Cast<object>()
+                .Where(x => (replacementVersions.Invoke(x, []) as string ?? string.Empty).Split(',').Contains(VersionControl.CurrentVersionStringWithoutBuild))
+                // Dictionary doesn't work, as it seems the same mod may have multiple possible replacements
+                .Select(x =>
+                    (id: ((string)modIdField.Invoke(x, [])).ToLower().NoModIdSuffix(),
+                    replacement: ((string)replacementModId.Invoke(x, [])).ToLower().NoModIdSuffix(),
+                    workshopId: (ulong)replacementSteamId.Invoke(x, []))
+                )
+                .ToList();
+
+            if (modReplacementsDictionary.Count <= 0)
+            {
+                Log.Error($"No replacement entries for {VersionControl.CurrentVersionStringWithoutBuild} found.");
+                return;
+            }
+
+            var foundAnyReplacement = false;
+
+            foreach (var assembly in LoadedModManager.GetMod<MpCompat>().Content.assemblies.loadedAssemblies)
+            {
+                var queue = assembly.GetTypes()
+                    .Where(t => t.HasAttribute<MpCompatForAttribute>())
+                    .Select(t => ((MpCompatForAttribute[])t.GetCustomAttributes(typeof(MpCompatForAttribute), false))
+                        .Select(a => a.PackageId.ToLower()).ToList()
+                    );
+
+                foreach (var ids in queue)
+                {
+                    foreach (var id in ids)
+                    {
+                        var replacement = modReplacementValues.FirstOrDefault(x => x.id == id);
+                        if (replacement != default && !ids.Contains(replacement.replacement))
+                        {
+                            Log.Error($"Found a mod replacement for mod {id} - {replacement.replacement} - https://steamcommunity.com/sharedfiles/filedetails/?id={replacement.workshopId}");
+                            foundAnyReplacement = true;
+                        }
+                    }
+                }
+            }
+
+            if (!foundAnyReplacement)
+                Log.Error("No mod replacements found.");
+        }
+
+        #endregion
     }
 }
