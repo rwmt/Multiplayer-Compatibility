@@ -99,34 +99,9 @@ public class VanillaQuestsTheGenerator
             MpCompat.RegisterLambdaMethod("VanillaQuestsExpandedTheGenerator.Building_GenetronWithSteamBoost",
                 nameof(Building.GetGizmos), 0, 1, 2).Skip(1).SetDebugOnly();
 
-            // They all have a gizmo to upgrade to next one (0) and another that opens a downgrade dialog (1)
-            var singleGizmoUpgradableBuildingTypes = new[]
-            {
-                "Building_Genetron_Basic",
-                "Building_Genetron_ChemfuelBoosted",
-                "Building_Genetron_ChemfuelCharged",
-                "Building_Genetron_ChemfuelPowered",
-                "Building_Genetron_Geothermal",
-                "Building_Genetron_Isotopic",
-                "Building_Genetron_Nuclear",
-                "Building_Genetron_SteamPowered",
-                "Building_Genetron_ThermalVent",
-                "Building_Genetron_UraniumPowered",
-                "Building_Genetron_WoodBlasting",
-                "Building_Genetron_WoodFired",
-                "Building_Genetron_WoodFueled",
-                "Building_Genetron_WoodPowered",
-            };
-
-            // Building_Genetron_Atomic, Building_Genetron_HeatPowered - only gizmo opens a downgrade dialog
-
-            foreach (var typeName in singleGizmoUpgradableBuildingTypes)
-                MpCompat.RegisterLambdaMethod($"VanillaQuestsExpandedTheGenerator.{typeName}", nameof(Building.GetGizmos), 0);
-
-            // Place geothermal/uranium upgrade blueprint (0/1), as opposed to others it has 2 upgrade paths.
-            // Other gizmo (2) opens a downgrade dialog.
-            MpCompat.RegisterLambdaMethod("VanillaQuestsExpandedTheGenerator.Building_Genetron_ChemfuelFortified",
-                nameof(Building.GetGizmos), 0, 1);
+            // Upgrade generator gizmo, used by every upgradeable building class
+            MP.RegisterSyncMethod(AccessTools.DeclaredMethod("VanillaQuestsExpandedTheGenerator.Utils:PlaceDistinctBlueprint"))
+                .CancelIfAnyArgNull();
 
             // Study genetron (0)
             MpCompat.RegisterLambdaMethod("VanillaQuestsExpandedTheGenerator.Building_Genetron_Studiable",
