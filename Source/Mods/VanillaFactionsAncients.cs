@@ -24,9 +24,6 @@ namespace Multiplayer.Compat
 
         public VanillaFactionsAncients(ModContentPack mod)
         {
-            // Supply slingshot launch gizmo (after 2 possible confirmation)
-            MP.RegisterSyncMethod(AccessTools.TypeByName("VFEAncients.CompSupplySlingshot"), "TryLaunch");
-
             // VFEAncients.CompGeneTailoringPod:StartOperation requires SyncWorker for Operation
             // (Method inside of LatePatch)
             var type = AccessTools.TypeByName("VFEAncients.Operation");
@@ -45,6 +42,9 @@ namespace Multiplayer.Compat
         public static void LatePatch()
         {
             MpCompatPatchLoader.LoadPatch<VanillaFactionsAncients>();
+
+            // Supply slingshot launch gizmo (after 2 possible confirmation)
+            MP.RegisterSyncMethod(AccessTools.TypeByName("VFEAncients.CompSupplySlingshot"), "TryLaunch");
 
             // Ancient PD turret - toggle aiming at drop pods, enemies, explosive projectiles
             MpCompat.RegisterLambdaMethod("VFEAncients.Building_TurretPD", "GetGizmos", 1, 3, 5);
