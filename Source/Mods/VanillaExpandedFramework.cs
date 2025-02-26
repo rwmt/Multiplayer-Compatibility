@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.Serialization;
@@ -92,6 +93,16 @@ namespace Multiplayer.Compat
                 sync.Write(building.GetValue() as Thing);
             else
                 building.SetValue(sync.Read<Thing>());
+        }
+        private static void SyncCommandWithCompBuilding(SyncWorker sync, ref Command command)
+        {
+            var traverse = Traverse.Create(command);
+            var building = traverse.Field("building");
+
+            if (sync.isWriting)
+                sync.Write(building.GetValue() as ThingComp);
+            else
+                building.SetValue(sync.Read<ThingComp>());
         }
 
         #endregion
@@ -634,7 +645,7 @@ namespace Multiplayer.Compat
 
             var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
             MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+            MP.RegisterSyncWorker<Command>(SyncCommandWithCompBuilding, type, shouldConstruct: true);
 
             MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
 
