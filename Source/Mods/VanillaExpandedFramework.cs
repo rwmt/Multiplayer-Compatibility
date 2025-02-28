@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.Serialization;
@@ -630,7 +629,6 @@ namespace Multiplayer.Compat
         #region Vanilla Furniture Expanded
 
         // Vanilla Furniture Expanded
-        private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
         private static Type randomBuildingGraphicCompType;
         private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
 
@@ -650,9 +648,7 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
 
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
-            setStoneBuildingField = AccessTools.FieldRefAccess<ThingComp>(type, "building");
-            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
-            MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
+            MP.RegisterSyncWorker<Command>(SyncCommandWithCompBuilding, type, shouldConstruct: true);
             MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
 
             type = randomBuildingGraphicCompType = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
@@ -688,14 +684,6 @@ namespace Multiplayer.Compat
             // Can't be synced with `isImplicit: true`, as it'll cause it to sync it with ThingComp
             // sync worker first before syncing it using this specific sync worker.
             MP.RegisterSyncWorker<CompGlower>(SyncCompGlower);
-        }
-
-        private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
-        {
-            if (sync.isWriting)
-                sync.Write(setStoneBuildingField(obj));
-            else
-                setStoneBuildingField(obj) = sync.Read<ThingComp>();
         }
 
         private static bool Dialog_ChooseGraphic_ReplacementButton(Rect butRect, bool doMouseoverSound, Thing thingToChange, int index, Window window)
