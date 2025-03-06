@@ -4,7 +4,6 @@ using RimWorld;
 using Verse;
 using EccentricDefenseGrid;
 using System.Linq;
-using System;
 
 namespace Multiplayer.Compat
 {
@@ -20,6 +19,15 @@ namespace Multiplayer.Compat
         {
             // RNG
             {
+                // patch this or every effect 
+                // Seems all effcts go through this class and many of them contains rand
+                var type = AccessTools.TypeByName("EccentricProjectiles.EffectMapComponent");
+                var methods = new[]
+                {
+                    AccessTools.Method(type, "MapComponentTick"),
+                    AccessTools.Method(type,"CreateEffect")
+                };
+                PatchingUtilities.PatchPushPopRand(methods);
             }
 
             // Gizmos
@@ -104,7 +112,6 @@ namespace Multiplayer.Compat
             parentCompArtilleryMissileLauncher = building.GetComp<CompArtilleryMissileLauncher>();
 
             MP.WatchBegin();
-            //slots.Watch(parentCompArtilleryMissileLauncher);
             parentCompArtilleryMissileLauncher.slots.ForEach((slot) => autoReload.Watch(slot));
         }
         private static void PostFillTab()
