@@ -4,7 +4,6 @@ using RimWorld;
 using Verse;
 using EccentricDefenseGrid;
 using System.Linq;
-using Steamworks;
 using System;
 
 namespace Multiplayer.Compat
@@ -16,9 +15,6 @@ namespace Multiplayer.Compat
     // 
     {
         private static ISyncField autoReload;
-        private static ISyncField slots;
-        //private static SyncType ordnanceSlot;
-        private static Type compArtilleryMissileLauncherType;
         private static CompArtilleryMissileLauncher parentCompArtilleryMissileLauncher;
         public EccentricTechDefenseGrid(ModContentPack mod)
         {
@@ -51,7 +47,7 @@ namespace Multiplayer.Compat
 
                 MP.RegisterSyncMethod(type, "RecountOrdnance");
 
-                type = compArtilleryMissileLauncherType = AccessTools.TypeByName("EccentricDefenseGrid.CompArtilleryMissileLauncher");
+                type = AccessTools.TypeByName("EccentricDefenseGrid.CompArtilleryMissileLauncher");
                 MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0, 1);
 
 
@@ -71,7 +67,6 @@ namespace Multiplayer.Compat
             }
             {
                 var type = AccessTools.TypeByName("EccentricDefenseGrid.OrdnanceSlot");
-                //ordnanceSlot.expose = true;
 
                 MP.RegisterSyncWorker<OrdnanceSlot>(SyncOrdnanceSlot, type);
             }
@@ -93,7 +88,6 @@ namespace Multiplayer.Compat
                 type = AccessTools.TypeByName("EccentricDefenseGrid.OrdnanceSlot");
                 autoReload = MP.RegisterSyncField(type, "autoReload");
                 type = AccessTools.TypeByName("EccentricDefenseGrid.CompArtilleryMissileLauncher");
-                slots = MP.RegisterSyncField(type, "slots");
 
                 MP.RegisterSyncWorker<CompArtilleryMissileLauncher>(SyncCompArtilleryMissileLauncher, type);
             }
