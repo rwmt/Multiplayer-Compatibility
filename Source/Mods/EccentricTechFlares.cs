@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using HarmonyLib;
+﻿using HarmonyLib;
 using Multiplayer.API;
 using Verse;
 using System.Reflection;
@@ -28,7 +27,6 @@ namespace Multiplayer.Compat
                 commandThrowIlluminatorConstructor = AccessTools.DeclaredConstructor(commandThrowIlluminatorType, [compIlluminatorPackType]);
 
                 MP.RegisterSyncWorker<object>(SyncCommandThrowIlluminator, commandThrowIlluminatorType);
-                //MP.RegisterSyncWorker<ThingComp>(SyncCompIlluminatorPack, compIlluminatorPackType);
                 MP.RegisterSyncMethod(commandThrowIlluminatorType, "SelectOption");
 
 
@@ -57,16 +55,6 @@ namespace Multiplayer.Compat
             else
             {
                 command = commandThrowIlluminatorConstructor.Invoke([sync.Read<ThingComp>()]);
-            }
-        }
-        private static void SyncCompIlluminatorPack(SyncWorker sync, ref ThingComp comp)
-        {
-            if(sync.isWriting)
-            {
-                sync.Write(comp.parent as Thing);
-            } else
-            {
-                comp = sync.Read<ThingWithComps>().AllComps.Find(_comp => _comp.GetType() == compIlluminatorPackType);
             }
         }
     }
