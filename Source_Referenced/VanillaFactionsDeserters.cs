@@ -254,15 +254,15 @@ namespace Multiplayer.Compat
         #region Shared
 
         // The purchase button is used by contraband tab to purchase contraband, and services tab to purchase quests.
-        private static bool PreDoPurchaseButton(Rect inRect, string text, int intelCost, int criticalIntelCost, Dialog_DeserterNetwork parent, ref bool __result)
+        private static bool PreDoPurchaseButton(Rect inRect, string text, int intelCost, int criticalIntelCost, Dialog_DeserterNetwork parent, bool forceDisabled, ref bool __result)
         {
             if (!MP.IsInMultiplayer)
                 return true;
 
-            if (intelCost > parent.TotalIntel || criticalIntelCost > parent.TotalCriticalIntel)
+            if (intelCost > parent.TotalIntel || criticalIntelCost > parent.TotalCriticalIntel || forceDisabled)
                 GUI.color = Color.grey;
 
-            if (Widgets.ButtonText(inRect, text))
+            if (Widgets.ButtonText(inRect, text) && !forceDisabled)
             {
                 RecacheDialogIntel(ref parent.TotalIntel, ref parent.TotalCriticalIntel, parent.Map);
                 // Check if actually can afford after re-caching, will have to do again after syncing.
