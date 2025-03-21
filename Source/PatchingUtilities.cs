@@ -995,11 +995,13 @@ namespace Multiplayer.Compat
         /// <param name="baseMethod">Method or constructor that is being patched, used for logging to provide information on which patched method had issues.</param>
         /// <param name="extraInstructionsBefore">Extra instructions to insert before the method or constructor is called.</param>
         /// <param name="extraInstructionsAfter">Extra instructions to insert after the method or constructor is called.</param>
-        /// <param name="expectedReplacements">The expected number of times the method should be replaced. Use -1 to to disable, or use -2 to expect unspecified amount (but more than 1 replacement).</param>
-        /// <param name="targetText">The text that should appear before replacing a method. A first occurence of the method after this text will be replaced.</param>
-        /// <param name="excludedText">The text that excludes the next method from being patched. Will prevent skip patching the next time the method was going to be patched.</param>
+        /// <param name="expectedReplacements">The expected number of times the method should be replaced. Use -1 to disable, or use -2 to expect unspecified amount (but more than 1 replacement).</param>
+        /// <param name="targetText">The text that should appear before replacing a method. A first occurence of the method after this text will be replaced. Mutually exclusive with <paramref name="targetInstruction"/>.</param>
+        /// <param name="excludedText">The text that excludes the next method from being patched. Will skip patching the next time the method was going to be patched. Mutually exclusive with <paramref name="excludedInstruction"/>.</param>
+        /// <param name="targetInstruction">A function that will match a <see cref="T:HarmonyLib.CodeInstruction"/> that must appear before replacing a method. A first occurence of the method after this match will be replaced. Mutually exclusive with <paramref name="targetText"/>.</param>
+        /// <param name="excludedInstruction">A function that will match a <see cref="T:HarmonyLib.CodeInstruction"/> that will prevent the next method from being patched. Will skip patching the next time the method was going to be patched. Mutually exclusive with <paramref name="excludedText"/>.</param>
         /// <returns>Modified enumeration of <see cref="T:HarmonyLib.CodeInstruction"/></returns>
-        public static IEnumerable<CodeInstruction> ReplaceMethod(this IEnumerable<CodeInstruction> instr, MethodBase from, MethodBase to = null, MethodBase baseMethod = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructionsBefore = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructionsAfter = null, int expectedReplacements = -1, string targetText = null, string excludedText = null)
+        public static IEnumerable<CodeInstruction> ReplaceMethod(this IEnumerable<CodeInstruction> instr, MethodBase from, MethodBase to = null, MethodBase baseMethod = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructionsBefore = null, Func<CodeInstruction, IEnumerable<CodeInstruction>> extraInstructionsAfter = null, int expectedReplacements = -1, string targetText = null, string excludedText = null, Func<CodeInstruction, bool> targetInstruction = null, Func<CodeInstruction, bool> excludedInstruction = null)
         {
             if (instr == null)
                 throw new ArgumentNullException(nameof(instr));
@@ -1009,30 +1011,48 @@ namespace Multiplayer.Compat
             if (to == null && extraInstructionsBefore == null && extraInstructionsAfter == null)
                 Log.Error($"Call to {nameof(ReplaceMethod)} is meaningless as no useful arguments were provided for method {MethodName()}");
 
-            // Check for text only if expected text isn't null
-            var isCorrectText = targetText == null;
+            if (targetText != null)
+            {
+                if (targetInstruction != null)
+                    Log.Error($"Call to {nameof(ReplaceMethod)} provides both {nameof(targetText)} and {nameof(targetInstruction)}, which are mutually exclusive, for method {MethodName()}");
+                targetInstruction = ci => ci.opcode == OpCodes.Ldstr && ci.operand as string == targetText;
+            }
+
+            if (excludedText != null)
+            {
+                if (excludedInstruction != null)
+                    Log.Error($"Call to {nameof(ReplaceMethod)} provides both {nameof(excludedText)} and {nameof(excludedInstruction)}, which are mutually exclusive, for method {MethodName()}");
+                excludedInstruction = ci => ci.opcode == OpCodes.Ldstr && ci.operand as string == excludedText;
+            }
+
+            // Check for instructions only if target instruction isn't null
+            var isCorrectText = targetInstruction == null;
             var skipNextCall = false;
             var replacedCount = 0;
             var insertInstructionsAfter = false;
 
             foreach (var ci in instr)
             {
-                if (ci.opcode == OpCodes.Ldstr && ci.operand is string s)
+                // Excluded instructions if matched will cancel replacement of the next occurrence
+                // of the method. Used by `MagicCardUtility:CustomPowersHandler`, as the text
+                // `TM_Learn` appears twice there, but in a single case it's combined with
+                // `TM_MCU_PointsToLearn`, in which case we ignore the button (as the
+                // button does nothing in that particular case).
+                if (excludedInstruction?.Invoke(ci) == true)
                 {
-                    // Excluded text (if not null) will cancel replacement of the next occurrence
-                    // of the method. Used by `MagicCardUtility:CustomPowersHandler`, as the text
-                    // `TM_Learn` appears twice there, but in a single case it's combined with
-                    // `TM_MCU_PointsToLearn`, in which case we ignore the button (as the
-                    // button does nothing in that particular case).
-                    if (excludedText != null && s == excludedText)
-                        skipNextCall = true;
-                    else if (s == targetText)
-                        isCorrectText = true;
+                    skipNextCall = true;
+                }
+                else if (targetInstruction?.Invoke(ci) == true)
+                {
+                    isCorrectText = true;
                 }
                 else if (isCorrectText)
                 {
                     if (ci.operand is MethodBase method && method == from)
                     {
+                        // Check for next instruction only if target instruction isn't null
+                        isCorrectText = targetInstruction == null;
+
                         if (skipNextCall)
                         {
                             skipNextCall = false;
@@ -1053,8 +1073,6 @@ namespace Multiplayer.Compat
                             }
 
                             replacedCount++;
-                            // Check for text only if expected text isn't null
-                            isCorrectText = targetText == null;
                             // If extraInstructionsAfter isn't null,
                             // make sure they are actually inserted.
                             insertInstructionsAfter = true;
