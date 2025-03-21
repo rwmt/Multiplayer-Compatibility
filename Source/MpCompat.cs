@@ -26,7 +26,6 @@ namespace Multiplayer.Compat
             harmony.PatchAll();
         }
 
-        static IEnumerable<ISyncMethod> RegisterLambdaMethod_Impl(Type parentType, string parentMethod, params int[] lambdaOrdinals)
         static IEnumerable<ISyncMethod> RegisterLambdaMethod_Impl(Type parentType, string parentMethod, MethodType methodType, params int[] lambdaOrdinals)
         {
             foreach (int ord in lambdaOrdinals)
