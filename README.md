@@ -23,6 +23,7 @@ Android tiers | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetai
 Animals logic | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1098354593) [![url][repo]](https://github.com/quicksilverfox/RimworldMods/tree/master/AnimalsLogic)
 Animal Tab | [![url][steam]](https://steamcommunity.com/workshop/filedetails/?id=712141500) [![url][repo]](https://github.com/fluffy-mods/AnimalTab)
 Anima Obelisk | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2614248835) 
+Auto-Extract Genes | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2882834449) 
 Autoharvester Auto-cycle | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2603143540) 
 Avoid Friendly Fire | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1134165362) [![url][repo]](https://github.com/Falconne/AvoidFriendlyFire)
 Dubs Bad Hygiene | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=836308268) [![url][repo]](https://github.com/Dubwise56/Dubs-Bad-Hygiene)
