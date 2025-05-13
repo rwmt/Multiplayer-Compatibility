@@ -18,16 +18,16 @@ namespace Multiplayer.Compat
         static void FixRNGPre() => Rand.PushState();
         static void FixRNGPos() => Rand.PopState();
 
-        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="methods">Methods that needs patching</param>
         /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
         public static void PatchSystemRand(IEnumerable<string> methods, bool patchPushPop = true)
         {
             foreach (var method in methods)
-                PatchSystemRand(AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method), patchPushPop);
+                PatchSystemRand(method, patchPushPop);
         }
 
-        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="methods">Methods that needs patching</param>
         /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
         public static void PatchSystemRand(IEnumerable<MethodBase> methods, bool patchPushPop = true)
@@ -36,17 +36,29 @@ namespace Multiplayer.Compat
                 PatchSystemRand(method, patchPushPop);
         }
 
-        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="method">Methods that needs patching</param>
         /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
         public static void PatchSystemRand(string method, bool patchPushPop = true)
-            => PatchSystemRand(AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method), patchPushPop);
+        {
+            var m = AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method);
+            if (m == null)
+                Log.Error($"Trying to patch System.Random for method {method}, but the method does not exist.");
+            else
+                PatchSystemRand(m, patchPushPop);
+        }
 
-        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="method">Method that needs patching</param>
         /// <param name="patchPushPop">Determines if the method should be surrounded with push/pop calls</param>
         public static void PatchSystemRand(MethodBase method, bool patchPushPop = true)
         {
+            if (method == null)
+            {
+                Log.Error("Trying to patch System.Random for null method.");
+                return;
+            }
+
             var transpiler = new HarmonyMethod(typeof(PatchingUtilities), nameof(FixRNG));
 
             if (patchPushPop)
@@ -55,16 +67,26 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(method, transpiler: transpiler);
         }
 
-        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="typeName">Type with a parameterless constructor that needs patching</param>
         /// <param name="patchPushPop">Determines if the method should be surrounded with push/pop calls</param>
         public static void PatchSystemRandCtor(string typeName, bool patchPushPop = true)
         {
             var type = AccessTools.TypeByName(typeName);
-            PatchSystemRand(AccessTools.DeclaredConstructor(type) ?? AccessTools.Constructor(type), patchPushPop);
+            if (type == null)
+            {
+                Log.Error($"Trying to patch System.Random in constructor of type {typeName}, but the type does not exist.");
+                return;
+            }
+
+            var ctor = AccessTools.DeclaredConstructor(type) ?? AccessTools.Constructor(type);
+            if (ctor == null)
+                Log.Error($"Trying to patch System.Random in constructor of type {typeName}, but the constructor could not be found.");
+            else
+                PatchSystemRand(ctor, patchPushPop);
         }
 
-        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="System.Random"/> calls using <see cref="FixRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="typeNames">Type with a parameterless constructors that needs patching</param>
         /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
         public static void PatchSystemRandCtor(IEnumerable<string> typeNames, bool patchPushPop = true)
@@ -76,16 +98,16 @@ namespace Multiplayer.Compat
             }
         }
 
-        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
+        /// <summary>Surrounds method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>, as well as applies the transpiler (if provided).</summary>
         /// <param name="methods">Methods that needs patching (as string)</param>
         /// <param name="transpiler">Transpiler that will be applied to the method</param>
         public static void PatchPushPopRand(IEnumerable<string> methods, HarmonyMethod transpiler = null)
         {
             foreach (var method in methods)
-                PatchPushPopRand(AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method), transpiler);
+                PatchPushPopRand(method, transpiler);
         }
 
-        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
+        /// <summary>Surrounds method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>, as well as applies the transpiler (if provided).</summary>
         /// <param name="methods">Method that needs patching</param>
         /// <param name="transpiler">Transpiler that will be applied to the method</param>
         public static void PatchPushPopRand(IEnumerable<MethodBase> methods, HarmonyMethod transpiler = null)
@@ -94,34 +116,43 @@ namespace Multiplayer.Compat
                 PatchPushPopRand(method, transpiler);
         }
 
-        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
+        /// <summary>Surrounds method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>, as well as applies the transpiler (if provided).</summary>
         /// <param name="method">Method that needs patching</param>
         /// <param name="transpiler">Transpiler that will be applied to the method</param>
         public static void PatchPushPopRand(string method, HarmonyMethod transpiler = null)
-            => PatchPushPopRand(AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method), transpiler);
+        {
+            var m = AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method);
+            if (m == null)
+                Log.Error($"Trying to patch Verse.Rand.Push/Pop for method {method}, but the method does not exist..");
+            else
+                PatchPushPopRand(m, transpiler);
+        }
 
-        /// <summary>Surrounds method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>, as well as applies the transpiler (if provided).</summary>
+        /// <summary>Surrounds method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>, as well as applies the transpiler (if provided).</summary>
         /// <param name="method">Method that needs patching</param>
         /// <param name="transpiler">Transpiler that will be applied to the method</param>
         public static void PatchPushPopRand(MethodBase method, HarmonyMethod transpiler = null)
         {
-            MpCompat.harmony.Patch(method,
-                prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(FixRNGPre)),
-                postfix: new HarmonyMethod(typeof(PatchingUtilities), nameof(FixRNGPos)),
-                transpiler: transpiler
-            );
+            if (method == null)
+                Log.Error("Trying to patch Verse.Rand.Push/Pop for null method.");
+            else
+                MpCompat.harmony.Patch(method,
+                    prefix: new HarmonyMethod(typeof(PatchingUtilities), nameof(FixRNGPre)),
+                    postfix: new HarmonyMethod(typeof(PatchingUtilities), nameof(FixRNGPos)),
+                    transpiler: transpiler
+                );
         }
 
-        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="methods">Methods that needs patching</param>
         /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
         public static void PatchUnityRand(IEnumerable<string> methods, bool patchPushPop = true)
         {
             foreach (var method in methods)
-                PatchUnityRand(AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method), patchPushPop);
+                PatchUnityRand(method, patchPushPop);
         }
 
-        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="methods">Methods that needs patching</param>
         /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
         public static void PatchUnityRand(IEnumerable<MethodBase> methods, bool patchPushPop = true)
@@ -130,17 +161,29 @@ namespace Multiplayer.Compat
                 PatchUnityRand(method, patchPushPop);
         }
 
-        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="method">Methods that needs patching</param>
         /// <param name="patchPushPop">Determines if the methods should be surrounded with push/pop calls</param>
         public static void PatchUnityRand(string method, bool patchPushPop = true)
-            => PatchUnityRand(AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method), patchPushPop);
+        {
+            var m = AccessTools.DeclaredMethod(method) ?? AccessTools.Method(method);
+            if (m == null)
+                Log.Error($"Trying to patch UnityEngine.Random for method {method}, but the method does not exist.");
+            else
+                PatchUnityRand(m, patchPushPop);
+        }
 
-        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction})"/>, and optionally surrounds the method with <see cref="Rand.PushState"/> and <see cref="Rand.PopState"/>.</summary>
+        /// <summary>Patches out <see cref="UnityEngine.Random"/> calls using <see cref="FixUnityRNG(IEnumerable{CodeInstruction},MethodBase)"/>, and optionally surrounds the method with <see cref="Rand.PushState()"/> and <see cref="Rand.PopState()"/>.</summary>
         /// <param name="method">Method that needs patching</param>
         /// <param name="patchPushPop">Determines if the method should be surrounded with push/pop calls</param>
         public static void PatchUnityRand(MethodBase method, bool patchPushPop = true)
         {
+            if (method == null)
+            {
+                Log.Error("Trying to patch UnityEngine.Random for null method.");
+                return;
+            }
+
             var transpiler = new HarmonyMethod(typeof(PatchingUtilities), nameof(FixUnityRNG));
 
             if (patchPushPop)
@@ -152,10 +195,11 @@ namespace Multiplayer.Compat
         #endregion
 
         #region System RNG transpiler
+
         private static readonly ConstructorInfo SystemRandConstructor = typeof(Random).GetConstructor(Type.EmptyTypes);
-        private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(Random).GetConstructor(new[] { typeof(int) });
+        private static readonly ConstructorInfo SystemRandSeededConstructor = typeof(Random).GetConstructor([typeof(int)]);
         private static readonly ConstructorInfo RandRedirectorConstructor = typeof(RandRedirector).GetConstructor(Type.EmptyTypes);
-        private static readonly ConstructorInfo RandRedirectorSeededConstructor = typeof(RandRedirector).GetConstructor(new[] { typeof(int) });
+        private static readonly ConstructorInfo RandRedirectorSeededConstructor = typeof(RandRedirector).GetConstructor([typeof(int)]);
 
         /// <summary>Transpiler that replaces all calls to <see cref="System.Random"/> constructor with calls to <see cref="RandRedirector"/> constructor</summary>
         internal static IEnumerable<CodeInstruction> FixRNG(IEnumerable<CodeInstruction> instr, MethodBase original)
@@ -210,18 +254,20 @@ namespace Multiplayer.Compat
 
             public override double NextDouble() => Rand.Range(0f, 1f);
         }
+
         #endregion
 
         #region Unity RNG transpiler
-        private static readonly MethodInfo UnityRandomRangeInt = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.Range), new[] { typeof(int), typeof(int) });
-        private static readonly MethodInfo UnityRandomRangeIntObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), new[] { typeof(int), typeof(int) });
-        private static readonly MethodInfo UnityRandomRangeFloat = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.Range), new[] { typeof(float), typeof(float) });
-        private static readonly MethodInfo UnityRandomRangeFloatObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), new[] { typeof(float), typeof(float) });
+
+        private static readonly MethodInfo UnityRandomRangeInt = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.Range), [typeof(int), typeof(int)]);
+        private static readonly MethodInfo UnityRandomRangeIntObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), [typeof(int), typeof(int)]);
+        private static readonly MethodInfo UnityRandomRangeFloat = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.Range), [typeof(float), typeof(float)]);
+        private static readonly MethodInfo UnityRandomRangeFloatObsolete = AccessTools.Method(typeof(UnityEngine.Random), nameof(UnityEngine.Random.RandomRange), [typeof(float), typeof(float)]);
         private static readonly MethodInfo UnityRandomValue = AccessTools.PropertyGetter(typeof(UnityEngine.Random), nameof(UnityEngine.Random.value));
         private static readonly MethodInfo UnityInsideUnitCircle = AccessTools.PropertyGetter(typeof(UnityEngine.Random), nameof(UnityEngine.Random.insideUnitCircle));
 
-        private static readonly MethodInfo VerseRandomRangeInt = AccessTools.Method(typeof(Rand), nameof(Rand.Range), new[] { typeof(int), typeof(int) });
-        private static readonly MethodInfo VerseRandomRangeFloat = AccessTools.Method(typeof(Rand), nameof(Rand.Range), new[] { typeof(float), typeof(float) });
+        private static readonly MethodInfo VerseRandomRangeInt = AccessTools.Method(typeof(Rand), nameof(Rand.Range), [typeof(int), typeof(int)]);
+        private static readonly MethodInfo VerseRandomRangeFloat = AccessTools.Method(typeof(Rand), nameof(Rand.Range), [typeof(float), typeof(float)]);
         private static readonly MethodInfo VerseRandomValue = AccessTools.PropertyGetter(typeof(Rand), nameof(Rand.Value));
         private static readonly MethodInfo VerseInsideUnitCircle = AccessTools.PropertyGetter(typeof(Rand), nameof(Rand.InsideUnitCircle));
 
@@ -324,8 +370,13 @@ namespace Multiplayer.Compat
                 PatchCancelInInterfaceInternal(method, patch);
         }
 
-        private static void PatchCancelInInterfaceInternal(MethodBase method, HarmonyMethod patch) 
-            => MpCompat.harmony.Patch(method, prefix: patch);
+        private static void PatchCancelInInterfaceInternal(MethodBase method, HarmonyMethod patch)
+        {
+            if (method == null)
+                Log.Error("Trying to patch cancel in interface on a null method.");
+            else
+                MpCompat.harmony.Patch(method, prefix: patch);
+        }
 
         private static bool CancelInInterface() => !MP.InInterface;
 
@@ -336,7 +387,6 @@ namespace Multiplayer.Compat
 
             __result = true;
             return false;
-
         }
 
         #endregion
@@ -675,7 +725,7 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            tryGainMemoryHandlers ??= new List<TryHandleGainMemory>();
+            tryGainMemoryHandlers ??= [];
             tryGainMemoryHandlers.Add(memoryGainHandler);
 
             if (patchedVanillaMethod)
@@ -688,7 +738,7 @@ namespace Multiplayer.Compat
             var targetMethod = AccessTools.DeclaredMethod(
                 typeof(MemoryThoughtHandler),
                 nameof(MemoryThoughtHandler.TryGainMemory),
-                new[] { typeof(Thought_Memory), typeof(Pawn) });
+                [typeof(Thought_Memory), typeof(Pawn)]);
             MpCompat.harmony.Patch(targetMethod, postfix: new HarmonyMethod(typeof(PatchingUtilities), nameof(PostTryGainMemory)));
             patchedVanillaMethod = true;
         }
@@ -952,7 +1002,12 @@ namespace Multiplayer.Compat
 
             var patch = new HarmonyMethod(typeof(PatchingUtilities), nameof(StopSecondHostCall));
             foreach (var method in methods)
-                MpCompat.harmony.Patch(method, prefix: patch);
+            {
+                if (method == null)
+                    Log.Error("Trying to patch unsafe long event, but the method is null.");
+                else
+                    MpCompat.harmony.Patch(method, prefix: patch);
+            }
         }
 
         public static void PatchLongEventMarkers()

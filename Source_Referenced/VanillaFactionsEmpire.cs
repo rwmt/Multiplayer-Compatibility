@@ -4,7 +4,6 @@ using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
-using RimWorld.QuestGen;
 using Verse;
 using Verse.AI.Group;
 using VFEEmpire;
@@ -58,11 +57,14 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<RoyaltyTabWorker>(SyncRoyaltyTabWorker, isImplicit: true, shouldConstruct: true);
 
                 // Hierarchy, not much to patch here
-                // (Re)generates data
-                MP.RegisterSyncMethod(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.Notify_Open));
-                // Invite pawn
-                MpCompat.RegisterLambdaDelegate(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.DoMainSection), 1)[0]
-                    .TransformField("CS$<>8__locals2/CS$<>8__locals1/pawn", Serializer.New<Pawn, int>(WriteRoyalPawn, ReadRoyalPawn));
+                LongEventHandler.ExecuteWhenFinished(() =>
+                {
+                    // (Re)generates data
+                    MP.RegisterSyncMethod(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.Notify_Open));
+                    // Invite pawn
+                    MpCompat.RegisterLambdaDelegate(typeof(RoyaltyTabWorker_Hierarchy), nameof(RoyaltyTabWorker_Hierarchy.DoMainSection), 1)[0]
+                        .TransformField("CS$<>8__locals2/CS$<>8__locals1/pawn", Serializer.New<Pawn, int>(WriteRoyalPawn, ReadRoyalPawn));
+                });
 
                 // Syncing adding/removing honors
                 MP.RegisterSyncMethod(typeof(HonorUtility), nameof(HonorUtility.AddHonor));
@@ -74,8 +76,8 @@ namespace Multiplayer.Compat
 
                 // Vassals
                 MP.RegisterSyncMethod(typeof(VanillaFactionsEmpire), nameof(SyncedVassalizeSettlement));
-                // Deliver tithe
-                MpCompat.RegisterLambdaDelegate(typeof(RoyaltyTabWorker_Vassals), nameof(RoyaltyTabWorker_Vassals.DoVassal), 1);
+                // Deliver special tithe (2), pause special tithe (3), select specific delivery for normal tithe (4)
+                MpCompat.RegisterLambdaDelegate(typeof(RoyaltyTabWorker_Vassals), nameof(RoyaltyTabWorker_Vassals.DoVassal), 2, 3, 4);
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(RoyaltyTabWorker_Vassals), nameof(RoyaltyTabWorker_Vassals.DoPotentialVassal)),
                     postfix: new HarmonyMethod(typeof(VanillaFactionsEmpire), nameof(PostDoPotentialVassal)));
 
@@ -117,26 +119,6 @@ namespace Multiplayer.Compat
                 // Basically when called, it removes the pawns from list with pawns with titles, and if they still have them - they get re-added.
                 // Causes the order to change, which could cause issues before the method is synced.
                 PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(typeof(ColonistTitleCache.RoyaltyTracker), nameof(ColonistTitleCache.RoyaltyTracker.Postfix)));
-            }
-
-            // Quest gen error
-            {
-                var types = new[]
-                {
-                    typeof(Questnode_Root_ArtExhibit),
-                    typeof(QuestNode_Root_DeserterHideout),
-                    typeof(QuestNode_Root_GrandBall),
-                    typeof(QuestNode_Root_NobleVisit),
-                };
-
-                foreach (var type in types)
-                {
-                    var method = AccessTools.DeclaredMethod(type, nameof(QuestNode.TestRunInt));
-                    if (method == null)
-                        Log.Error($"Failed patching {nameof(QuestNode)}.{nameof(QuestNode.TestRunInt)} for type {type}");
-                    else
-                        MpCompat.harmony.Patch(method, prefix: new HarmonyMethod(typeof(VanillaFactionsEmpire), nameof(PreTestRun)));
-                }
             }
         }
 
@@ -358,22 +340,6 @@ namespace Multiplayer.Compat
             permitWorker.faction = faction;
             permitWorker.origin = origin;
             permitWorker.OrderForceTarget(target);
-        }
-
-        #endregion
-
-        #region Quest error fix
-
-        private static bool PreTestRun(ref bool __result)
-        {
-            if (!MP.IsInMultiplayer)
-                return true;
-
-            if (QuestGen_Get.GetMap() != null)
-                return true;
-
-            __result = false;
-            return false;
         }
 
         #endregion
