@@ -199,12 +199,12 @@ namespace Multiplayer.Compat
 
                 case MethodType.Getter:
                     if (methodName == null)
-                        return null;
+                        return AccessTools.DeclaredIndexer(type, args).GetGetMethod(true);
                     return AccessTools.DeclaredProperty(type, methodName).GetGetMethod(true);
 
                 case MethodType.Setter:
                     if (methodName == null)
-                        return null;
+                        return AccessTools.DeclaredIndexer(type, args).GetSetMethod(true);
                     return AccessTools.DeclaredProperty(type, methodName).GetSetMethod(true);
 
                 case MethodType.Constructor:
@@ -217,6 +217,11 @@ namespace Multiplayer.Compat
                     if (methodName == null)
                         return null;
                     return AccessTools.EnumeratorMoveNext(AccessTools.DeclaredMethod(type, methodName, args));
+
+                case MethodType.Async:
+                    if (methodName == null)
+                        return null;
+                    return AccessTools.AsyncMoveNext(AccessTools.DeclaredMethod(type, methodName, args));
 
                 default:
                     return null;
