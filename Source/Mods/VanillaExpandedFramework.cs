@@ -56,6 +56,7 @@ namespace Multiplayer.Compat
                 (PatchDraftedAi, "Drafted AI", true),
                 (PatchMapObjectGeneration, "Thing spawning on map generation (ObjectSpawnsDef)", false),
                 (PatchQuestChainsDevMode, "Quest chain dev mode window", false),
+                (PatchMovingBases, "Moving bases", true),
             ];
 
             foreach (var (patchMethod, componentName, latePatch) in patches)
@@ -70,14 +71,14 @@ namespace Multiplayer.Compat
                     try
                     {
 #if DEBUG
-                        Log.Message($"Patching Vanilla Expanded Framework - {componentName}");
+                        Log.Message($"MPCompat :: Patching Vanilla Expanded Framework - {componentName}");
 #endif
 
                         patchMethod();
                     }
                     catch (Exception e)
                     {
-                        Log.Error($"Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
+                        Log.Error($"MPCompat :: Encountered an error patching {componentName} part of Vanilla Expanded Framework - this part of the mod may not work properly!");
                         Log.Error(e.ToString());
                     }
                 }
@@ -95,6 +96,16 @@ namespace Multiplayer.Compat
                 sync.Write(building.GetValue() as Thing);
             else
                 building.SetValue(sync.Read<Thing>());
+        }
+        private static void SyncCommandWithCompBuilding(SyncWorker sync, ref Command command)
+        {
+            var traverse = Traverse.Create(command);
+            var building = traverse.Field("building");
+
+            if (sync.isWriting)
+                sync.Write(building.GetValue() as ThingComp);
+            else
+                building.SetValue(sync.Read<ThingComp>());
         }
 
         #endregion
@@ -601,7 +612,7 @@ namespace Multiplayer.Compat
                 if (process == null)
                 {
                     sync.Write<ThingComp>(null);
-                    Log.Error("Trying to sync a null process.");
+                    Log.Error("MPCompat :: Trying to sync a null process.");
                     return;
                 }
 
@@ -611,7 +622,7 @@ namespace Multiplayer.Compat
                 // Probably not needed unless some weird bugs going on
                 if (parent == null)
                 {
-                    Log.Error($"Trying to sync a process with no parent. Process={process}");
+                    Log.Error($"MPCompat :: Trying to sync a process with no parent. Process={process}");
                     return;
                 }
 
@@ -626,7 +637,7 @@ namespace Multiplayer.Compat
                 var stack = advancedResourceProcessorProcessStackField(comp);
                 if (stack == null)
                 {
-                    Log.Error($"The process has no stack. Comp={comp}");
+                    Log.Error($"MPCompat :: The process has no stack. Comp={comp}");
                     return;
                 }
 
@@ -634,14 +645,14 @@ namespace Multiplayer.Compat
                 // Shouldn't happen
                 if (list == null)
                 {
-                    Log.Error($"The process has ProcessStack with no process list. Comp={comp}");
+                    Log.Error($"MPCompat :: The process has ProcessStack with no process list. Comp={comp}");
                     return;
                 }
 
                 var id = sync.Read<string>();
                 process = GetProcessById(list, id);
                 if (process == null)
-                    Log.Error($"Could not find the correct process. Comp={comp}, id={id}");
+                    Log.Error($"MPCompat :: Could not find the correct process. Comp={comp}, id={id}");
             }
         }
 
@@ -818,12 +829,12 @@ namespace Multiplayer.Compat
                     }
                     else
                     {
-                        Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder is missing or of unsupported type");
+                        Log.Error("MPCompat :: SyncVEFAbility : Holder is missing or of unsupported type");
                     }
                 }
                 else
                 {
-                    Log.Error("MultiplayerCompat :: SyncVEFAbility : Holder isn't a ThingWithComps");
+                    Log.Error("MPCompat :: SyncVEFAbility : Holder isn't a ThingWithComps");
                 }
             }
         }
@@ -986,7 +997,6 @@ namespace Multiplayer.Compat
         #region Vanilla Furniture Expanded
 
         // Vanilla Furniture Expanded
-        private static AccessTools.FieldRef<object, ThingComp> setStoneBuildingField;
         private static Type randomBuildingGraphicCompType;
         private static FastInvokeHandler randomBuildingGraphicCompChangeGraphicMethod;
 
@@ -1001,14 +1011,12 @@ namespace Multiplayer.Compat
 
             var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
             MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
+            MP.RegisterSyncWorker<Command>(SyncCommandWithCompBuilding, type, shouldConstruct: true);
 
             MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
 
             type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
-            setStoneBuildingField = AccessTools.FieldRefAccess<ThingComp>(type, "building");
-            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
-            MP.RegisterSyncWorker<Command>(SyncSetStoneTypeCommand, type, shouldConstruct: true);
+            MP.RegisterSyncWorker<Command>(SyncCommandWithCompBuilding, type, shouldConstruct: true);
             MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
 
             type = randomBuildingGraphicCompType = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
@@ -1044,14 +1052,16 @@ namespace Multiplayer.Compat
             // Can't be synced with `isImplicit: true`, as it'll cause it to sync it with ThingComp
             // sync worker first before syncing it using this specific sync worker.
             MP.RegisterSyncWorker<CompGlower>(SyncCompGlower);
-        }
 
-        private static void SyncSetStoneTypeCommand(SyncWorker sync, ref Command obj)
-        {
-            if (sync.isWriting)
-                sync.Write(setStoneBuildingField(obj));
-            else
-                setStoneBuildingField(obj) = sync.Read<ThingComp>();
+            // Customizable graphic
+            type = AccessTools.TypeByName("VFECore.CompCustomizableGraphic");
+            // Target static method with (List<CompCustomizableGraphic>, int) arguments rather than
+            // instance type with (int?, bool, bool) types. Technically, the second one should also
+            // work, but all arguments (besides instance) would be repeated. On top of that,
+            // it would also sync the temporary changes to the graphic, which would cause us to sync
+            // unnecessarily frequently, rather than only when changing the graphic itself
+            // (and cause some issues on top of that).
+            MP.RegisterSyncMethod(type, "SelectGraphic", [typeof(List<>).MakeGenericType(type), typeof(int)]);
         }
 
         private static bool Dialog_ChooseGraphic_ReplacementButton(Rect butRect, bool doMouseoverSound, Thing thingToChange, int index, Window window)
@@ -1187,7 +1197,7 @@ namespace Multiplayer.Compat
             // HashSet<string>, using it as IEnumerable<string> for a bit of extra safety in case it ever gets changed to a list or something.
             mvcfEnabledFeaturesSet = AccessTools.Field(type, "EnabledFeatures").GetValue(null) as IEnumerable<string>;
             if (mvcfEnabledFeaturesSet == null)
-                Log.Warning("Cannot access the list of enabled MVCF features, this may cause issues");
+                Log.Warning("MPCompat :: Cannot access the list of enabled MVCF features, this may cause issues");
 
             type = AccessTools.TypeByName("MVCF.Utilities.PawnVerbUtility");
             mvcfPawnVerbUtilityGetManager = AccessTools.MethodDelegate<GetManager>(AccessTools.Method(type, "Manager"));
@@ -1399,7 +1409,7 @@ namespace Multiplayer.Compat
             if (replacedCount != expected)
             {
                 var name = (baseMethod.DeclaringType?.Namespace).NullOrEmpty() ? baseMethod.Name : $"{baseMethod.DeclaringType!.Name}:{baseMethod.Name}";
-                Log.Warning($"Patched incorrect number of VerbManager.Tick calls (patched {replacedCount}, expected {expected}) for method {name}");
+                Log.Warning($"MPCompat :: Patched incorrect number of VerbManager.Tick calls (patched {replacedCount}, expected {expected}) for method {name}");
             }
         }
 
@@ -1470,7 +1480,7 @@ namespace Multiplayer.Compat
                 var map = pipeNetMapField(pipeNet);
                 if (map == null)
                 {
-                    Log.Error($"Trying to sync a PipeNet with a null map. PipeNet={pipeNet}");
+                    Log.Error($"MPCompat :: Trying to sync a PipeNet with a null map. PipeNet={pipeNet}");
                     sync.Write(-1);
                     return;
                 }
@@ -1479,7 +1489,7 @@ namespace Multiplayer.Compat
                 var manager = map.GetComponent(pipeNetManagerType);
                 if (manager == null)
                 {
-                    Log.Error($"Trying to sync a PipeNet with a map that doesn't have PipeNetManager. PipeNet={pipeNet}, Map={map}");
+                    Log.Error($"MPCompat :: Trying to sync a PipeNet with a map that doesn't have PipeNetManager. PipeNet={pipeNet}, Map={map}");
                     sync.Write(-1);
                     return;
                 }
@@ -1505,7 +1515,7 @@ namespace Multiplayer.Compat
                 if (!found)
                 {
                     // We did not find the pipe net - log error and treat as null
-                    Log.Error($"Trying to sync a PipeNet, but it's not held by the manager. PipeNet={pipeNet}, map={map}, manager={manager}");
+                    Log.Error($"MPCompat :: Trying to sync a PipeNet, but it's not held by the manager. PipeNet={pipeNet}, map={map}, manager={manager}");
                     sync.Write(-1);
                 }
                 else
@@ -1671,7 +1681,7 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            Log.ErrorOnce($"Potentially unsupported type for HashCodeToMod call in Multiplayer, desyncs likely to happen. Object type: {obj.GetType()}", obj.GetHashCode());
+            Log.ErrorOnce($"MPCompat :: Potentially unsupported type for HashCodeToMod call in Multiplayer, desyncs likely to happen. Object type: {obj.GetType()}", obj.GetHashCode());
         }
 
         #endregion
@@ -1695,7 +1705,7 @@ namespace Multiplayer.Compat
                 weatherOverlayEffectsNextDamageTickField = AccessTools.FieldRefAccess<SkyOverlay, int>(nextDamageTickField);
             else
             {
-                Log.Error("VFECore.WeatherOverlay_Effects:nextDamageTick field, patch failed.");
+                Log.Error("MPCompat :: VFECore.WeatherOverlay_Effects:nextDamageTick field, patch failed.");
                 return;
             }
 
@@ -1745,7 +1755,7 @@ namespace Multiplayer.Compat
                 if (DefDatabase<ThoughtDef>.AllDefsListForReading.Any(def => thoughtHediffType.IsAssignableFrom(def.thoughtClass)))
                     PatchingUtilities.PatchTryGainMemory(TryGainThoughtHediff);
             }
-            else Log.Error("Trying to patch `VanillaCookingExpanded.Thought_Hediff`, but the type is null. Did it get moved, renamed, or removed?");
+            else Log.Error("MPCompat :: Trying to patch `VanillaCookingExpanded.Thought_Hediff`, but the type is null. Did it get moved, renamed, or removed?");
         }
 
         private static bool TryGainThoughtHediff(Thought_Memory thought)
@@ -2242,7 +2252,7 @@ namespace Multiplayer.Compat
 
             // Error log for person syncing the command.
             if (MP.IsExecutingSyncCommandIssuedBySelf)
-                Log.Error($"Trying to find a quest chain's QuestInfo for quest with ID {quest.id} and name {quest.name}, but there was no matching QuestInfo. This should not happen.");
+                Log.Error($"MPCompat :: Trying to find a quest chain's QuestInfo for quest with ID {quest.id} and name {quest.name}, but there was no matching QuestInfo. This should not happen.");
         }
 
         private static void SyncedQuestChainDevFireNow(QuestScriptDef def, int index)
@@ -2251,7 +2261,7 @@ namespace Multiplayer.Compat
             if (index < 0)
             {
                 if (MP.IsExecutingSyncCommandIssuedBySelf)
-                    Log.Error($"Failed syncing FutureQuestInfo, index too small: index={index}, def={def}");
+                    Log.Error($"MPCompat :: Failed syncing FutureQuestInfo, index too small: index={index}, def={def}");
                 return;
             }
 
@@ -2260,7 +2270,7 @@ namespace Multiplayer.Compat
             if (index >= list.Count)
             {
                 if (MP.IsExecutingSyncCommandIssuedBySelf)
-                    Log.Error($"Failed syncing FutureQuestInfo, index too high: index={index}, count={list.Count}, def={def}");
+                    Log.Error($"MPCompat :: Failed syncing FutureQuestInfo, index too high: index={index}, count={list.Count}, def={def}");
                 return;
             }
 
@@ -2272,7 +2282,7 @@ namespace Multiplayer.Compat
             if (localDef != def)
             {
                 if (MP.IsExecutingSyncCommandIssuedBySelf)
-                    Log.Error($"Failed syncing FutureQuestInfo, QuestScriptDef mismatch: index={index}, count={list.Count}, syncedDef={def}, localDef={localDef}");
+                    Log.Error($"MPCompat :: Failed syncing FutureQuestInfo, QuestScriptDef mismatch: index={index}, count={list.Count}, syncedDef={def}, localDef={localDef}");
                 return;
             }
 
@@ -2282,6 +2292,29 @@ namespace Multiplayer.Compat
                 QuestUtility.SendLetterQuestAvailable(quest);
             // Remove the future quest from the list since it just became an active one
             list.Remove(futureQuestInfo);
+        }
+
+        #endregion
+
+        #region Moving Bases
+
+        private static void PatchMovingBases()
+        {
+            var type = AccessTools.TypeByName("VFECore.MovingBase");
+            MP.RegisterSyncMethod(type, "Attack");
+
+            // Temp gizmo graphic fix.
+            var attackGraphicField = AccessTools.DeclaredField(type, "AttackCommand");
+            if (attackGraphicField == null)
+                Log.Warning("MPCompat :: VFECore.MovingBase:AttackCommand does not exist, temporary patch needs to be updated or removed");
+            else if (!attackGraphicField.IsStatic)
+                Log.Warning("MPCompat :: VFECore.MovingBase:AttackCommand is not static, temporary patch needs to be updated or removed");
+            else if (attackGraphicField.FieldType != typeof(Texture2D))
+                Log.Warning("MPCompat :: VFECore.MovingBase:AttackCommand is not Texture2D, temporary patch needs to be updated or removed");
+            else if (attackGraphicField.GetValue(null) != null)
+                Log.Message("MPCompat :: VFECore.MovingBase:AttackCommand is not null, temporary patch is no longer needed - if the graphic issue fix is included in MP itself");
+            else
+                attackGraphicField.SetValue(null, ContentFinder<Texture2D>.Get("UI/Commands/AttackSettlement", true));
         }
 
         #endregion
