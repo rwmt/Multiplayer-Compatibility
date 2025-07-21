@@ -19,14 +19,6 @@ namespace Multiplayer.Compat
             // Needs to be done late or will cause issues with resource loading from non-main thread.
             LongEventHandler.ExecuteWhenFinished(() => MpCompatPatchLoader.LoadPatch(this));
 
-            #region RNG
-
-            {
-                PatchingUtilities.PatchSystemRand("VFETribals.RitualOutcomeEffectWorker_TribalGathering:Apply", false);
-            }
-
-            #endregion
-
             #region Gizmos
 
             {
