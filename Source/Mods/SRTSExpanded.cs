@@ -79,7 +79,7 @@ namespace Multiplayer.Compat
                 MP.WatchEnd();
         }
 
-        private static bool PreTryLaunch(ThingComp __instance, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan cafr = null)
+        private static bool PreTryLaunch(ThingComp __instance, int destinationTile, TransportersArrivalAction arrivalAction, Caravan cafr = null)
         {
             // Let the method run only if it's synced call
             if (!MP.InInterface)
@@ -91,7 +91,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        private static void SyncedLaunch(ThingComp compLaunchableSrts, int destinationTile, TransportPodsArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
+        private static void SyncedLaunch(ThingComp compLaunchableSrts, int destinationTile, TransportersArrivalAction arrivalAction, Caravan caravanMethodParameter, Caravan caravanFieldValue)
         {
             caravanField(compLaunchableSrts) = caravanFieldValue;
             tryLaunchMethod(compLaunchableSrts, destinationTile, arrivalAction, caravanMethodParameter);

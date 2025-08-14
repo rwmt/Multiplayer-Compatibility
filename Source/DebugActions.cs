@@ -74,7 +74,7 @@ namespace Multiplayer.Compat
             private bool CanAccept()
                 => (doModded || (doVanilla && (selectedOptions.Count != 1 || selectedOptions.Single() != StuffToSearch.PatchedSyncMethods))) &&
                    selectedOptions.Any() &&
-                   !Log.ReachedMaxMessagesLimit;
+                   !Log.reachedMaxMessagesLimit;
 
             private bool Accept()
             {
@@ -127,7 +127,7 @@ namespace Multiplayer.Compat
                 listing.GapLine();
 
                 var buttonActive = CanAccept();
-                var text = (Log.ReachedMaxMessagesLimit, Log.messageCount, buttonActive) switch
+                var text = (Log.reachedMaxMessagesLimit, Log.messageCount, buttonActive) switch
                 {
                     (true, _, _) => "Cannot run, message log full - clear your message log",
                     // If I counted correctly, there can be 48 calls to log at most
