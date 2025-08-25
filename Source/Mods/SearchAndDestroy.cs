@@ -13,7 +13,7 @@ namespace Multiplayer.Compat
     {
         // Fields for accessing private data structures
         private static FastInvokeHandler searchAndDestroyInstance;
-        private static AccessTools.FieldRef<object, object> extendedDataStorageField;
+        private static FastInvokeHandler extendedDataStorageGetter;
         private static AccessTools.FieldRef<object, IDictionary> storeField;
 
         public SearchAndDestroy(ModContentPack mod)
@@ -37,7 +37,7 @@ namespace Multiplayer.Compat
             // Initialize reflection accessors for private fields and properties
             var baseType = AccessTools.TypeByName("SearchAndDestroy.Base");
             searchAndDestroyInstance = MethodInvoker.GetHandler(AccessTools.PropertyGetter(baseType, "Instance"));
-            extendedDataStorageField = AccessTools.FieldRefAccess<object>(baseType, "_extendedDataStorage");
+            extendedDataStorageGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(baseType, "ExtendedDataStorage"));
 
             storeField = AccessTools.FieldRefAccess<IDictionary>(
                 "SearchAndDestroy.Storage.ExtendedDataStorage:_store"
@@ -48,8 +48,31 @@ namespace Multiplayer.Compat
         public static void SyncExtendedPawnData(SyncWorker sync, ref object pawnData)
         {
             var instance = searchAndDestroyInstance(null);
-            var dataStorage = extendedDataStorageField(instance);
+            if (instance == null)
+            {
+                // Instance not initialized yet
+                if (!sync.isWriting)
+                    pawnData = null;
+                return;
+            }
+
+            var dataStorage = extendedDataStorageGetter(instance);
+            if (dataStorage == null)
+            {
+                // ExtendedDataStorage not loaded yet
+                if (!sync.isWriting)
+                    pawnData = null;
+                return;
+            }
+
             var dictionary = storeField(dataStorage);
+            if (dictionary == null)
+            {
+                // Dictionary not initialized
+                if (!sync.isWriting)
+                    pawnData = null;
+                return;
+            }
 
             if (sync.isWriting)
             {
@@ -71,8 +94,10 @@ namespace Multiplayer.Compat
             else
             {
                 var id = sync.Read<int>();
-                if (id != int.MinValue)
+                if (id != int.MinValue && dictionary.Contains(id))
                     pawnData = dictionary[id];
+                else
+                    pawnData = null;
             }
         }
     }
