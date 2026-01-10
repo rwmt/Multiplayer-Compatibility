@@ -19,7 +19,7 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName("RunAndGun.Harmony.Pawn_DraftController_GetGizmos_Patch");
             if (type != null)
             {
-                MP.RegisterSyncDelegateLambda(type, "Postfix", 1);
+                MP.RegisterSyncDelegateLambda(type, "Postfix", 1); // one fucking number, i cant believe this shit.
             }
 
             type = AccessTools.TypeByName("RunAndGun.Utilities.WorldComponent_ToggleData");
