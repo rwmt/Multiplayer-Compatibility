@@ -684,18 +684,33 @@ namespace Multiplayer.Compat
 
             // Comp holding ability
             // CompAbility
-            compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
+            compAbilitiesType = AccessTools.TypeByName("VEF.Abilities.CompAbilities") ?? AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
+            if (compAbilitiesType == null)
+            {
+                Log.Warning("MPCompat :: Abilities.CompAbilities type not found (tried VEF and VFECore namespaces), abilities patch aborted");
+                return;
+            }
             learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
             // Unlock ability, user-input use by Vanilla Psycasts Expanded
             MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
             // CompAbilityApparel
-            compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
+            compAbilitiesApparelType = AccessTools.TypeByName("VEF.Abilities.CompAbilitiesApparel") ?? AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
+            if (compAbilitiesApparelType == null)
+            {
+                Log.Warning("MPCompat :: Abilities.CompAbilitiesApparel type not found (tried VEF and VFECore namespaces)");
+                return;
+            }
             givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
             abilityApparelPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn"));
             //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
 
             // Ability itself
-            var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
+            var type = AccessTools.TypeByName("VEF.Abilities.Ability") ?? AccessTools.TypeByName("VFECore.Abilities.Ability");
+            if (type == null)
+            {
+                Log.Warning("MPCompat :: Abilities.Ability type not found (tried VEF and VFECore namespaces)");
+                return;
+            }
 
             abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
@@ -765,12 +780,12 @@ namespace Multiplayer.Compat
                 }
             }
 
-            type = AccessTools.TypeByName("VFECore.CompShieldField");
+            type = AccessTools.TypeByName("VEF.CompShieldField") ?? AccessTools.TypeByName("VFECore.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
 
             // Time snapshot fix for gizmo itself
-            type = AccessTools.TypeByName("VFECore.Abilities.Command_Ability");
+            type = AccessTools.TypeByName("VEF.Abilities.Command_Ability") ?? AccessTools.TypeByName("VFECore.Abilities.Command_Ability");
             foreach (var targetType in type.AllSubclasses().Concat(type))
             {
                 var method = AccessTools.DeclaredMethod(targetType, nameof(Command.GizmoOnGUIInt));
@@ -859,22 +874,21 @@ namespace Multiplayer.Compat
             MP.WatchEnd();
         }
 
-        private static void PreAbilityCast(object __instance)
+        private static void PreAbilityCast(object __instance, out PatchingUtilities.TimeSnapshot? __state)
         {
             if (!MP.IsInMultiplayer)
+            {
+                __state = null;
                 return;
+            }
 
             var pawn = abilityPawnField(__instance);
-            if (pawn?.Map != null)
-                PatchingUtilities.PushAsyncTimeMapContext(pawn.Map);
+            __state = pawn?.Map != null ? PatchingUtilities.TimeSnapshot.GetAndSetFromMap(pawn.Map) : null;
         }
 
-        private static void PostAbilityCast()
+        private static void PostAbilityCast(PatchingUtilities.TimeSnapshot? __state)
         {
-            if (!MP.IsInMultiplayer)
-                return;
-
-            PatchingUtilities.PopAsyncTimeMapContext();
+            __state?.Set();
         }
 
         // We need to set the time snapshot when constructing the gizmo since it's disabled in
