@@ -1,0 +1,93 @@
+Mono path[0] = '[Rimworld_dir]/RimWorldWin64_Data/Managed'
+Mono config path = '[Rimworld_dir]/MonoBleedingEdge/etc'
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+Initialize engine version: 2022.3.35f1 (011206c7a712)
+[Subsystems] Discovering subsystems at path [Rimworld_dir]/RimWorldWin64_Data/UnitySubsystems
+GfxDevice: [Renderer information redacted]
+Begin MonoManager ReloadAssembly
+- Loaded All Assemblies, in  0.131 seconds
+- Finished resetting the current domain, in  0.001 seconds
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+Command line arguments: -savedatafolder=C:\Users\shema\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios
+RimWorld 1.6.4633 rev1261
+Save data folder overridden to C:\Users\shema\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios
+Current MultiplayerAPI version: 0.6
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Multiplayer version 0.11.0+6bc95f2
+Arch: X64/OS: X64
+Player's username: TianHuan
+MpServerLog: Packet handler Multiplayer.Client.ClientSteamState does not have a PacketHandlerClass attribute
+Unloading 5 Unused Serialized files (Serialized files now loaded: 5)
+Unloading 99 unused Assets to reduce memory usage. Loaded Objects now: 26496.
+Total: 254.227300 ms (FindLiveObjects: 1.639300 ms CreateObjectMapping: 0.576900 ms MarkObjects: 251.634900 ms  DeleteObjects: 0.375700 ms)
+
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Connecting to lan server
+TianHuan 0 Net client connected
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Processed disconnect packet (UsernameAlreadyOnline). Title: Username already online (MpInvalidUsernameAlreadyPlaying), description: You can change your username in the mod settings. (MpChangeUsernameInfo)
+Stopping multiplayer session from System.Void Multiplayer.Client.ClientBaseState::HandleDisconnected(Multiplayer.Common.Networking.Packet.ServerDisconnectPacket packet)
+Processed disconnect packet (Throttled). Title:  (), description:  ()
+Stopping multiplayer session from System.Void Multiplayer.Client.Networking.ClientLiteNetConnection::OnDisconnect(Multiplayer.Common.MpDisconnectReason reason, Multiplayer.Common.ByteReader data)
+TianHuan225 0 Net client disconnected ConnectionRejected
+Connecting to lan server
+TianHuan225 0 Net client connected
+Game data size: 989779. Took 468ms to receive.
+Initial sync opinions: 0...319
+Loaded game in 94ms
+MpServerLog: PlayerList: Received player list with 2 entries
+MpServerLog: PlayerList: Adding player from list 0:TianHuan
+MpServerLog: PlayerList: Adding player from list 2:TianHuan225
+Unloading 3 Unused Serialized files (Serialized files now loaded: 5)
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+Unloading 2 unused Assets to reduce memory usage. Loaded Objects now: 26690.
+Total: 193.827600 ms (FindLiveObjects: 1.696100 ms CreateObjectMapping: 2.463800 ms MarkObjects: 189.584400 ms  DeleteObjects: 0.083000 ms)
+
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+A hidden ritual precept was missing, adding: Funeral (no corpse)
+Init map with cmds 0
+Game loaded
+Unloading 1 Unused Serialized files (Serialized files now loaded: 5)
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 33126.
+Total: 312.961000 ms (FindLiveObjects: 2.207100 ms CreateObjectMapping: 3.477700 ms MarkObjects: 307.197800 ms  DeleteObjects: 0.077800 ms)
+
+Changing real player faction to TianHuan's faction from 
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Debug tool Tree (64, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 140) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+TianHuan225 3751 Desynced after last valid tick 3691: Trace hashes don't match
+MpServerLog: Notification: TianHuan225 has joined (MpPlayerConnected, TianHuan225)
+MpServerLog: PlayerList: Adding player 2:TianHuan225
+MpServerLog: World response sent: 989779
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+MpServerLog: Simulation paused because some players are too far behind: TianHuan225
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Debug tool Tree (64, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 143) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
+Debug tool Tree (63, 140) 0 Actions@\Mental state...@Pawns\ManhunterPermanent@
