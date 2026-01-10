@@ -738,6 +738,9 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "Cast"),
+                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityCast)),
+                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityCast)));
 
             foreach (var target in type.AllSubclasses().Concat(type))
             {
@@ -854,6 +857,24 @@ namespace Multiplayer.Compat
                 return;
 
             MP.WatchEnd();
+        }
+
+        private static void PreAbilityCast(object __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            var pawn = abilityPawnField(__instance);
+            if (pawn?.Map != null)
+                PatchingUtilities.PushAsyncTimeMapContext(pawn.Map);
+        }
+
+        private static void PostAbilityCast()
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            PatchingUtilities.PopAsyncTimeMapContext();
         }
 
         // We need to set the time snapshot when constructing the gizmo since it's disabled in

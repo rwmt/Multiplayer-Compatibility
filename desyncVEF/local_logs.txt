@@ -1,0 +1,408 @@
+Mono path[0] = '[Rimworld_dir]/RimWorldWin64_Data/Managed'
+Mono config path = '[Rimworld_dir]/MonoBleedingEdge/etc'
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+Initialize engine version: 2022.3.35f1 (011206c7a712)
+[Subsystems] Discovering subsystems at path [Rimworld_dir]/RimWorldWin64_Data/UnitySubsystems
+GfxDevice: [Renderer information redacted]
+Begin MonoManager ReloadAssembly
+- Loaded All Assemblies, in  0.117 seconds
+- Finished resetting the current domain, in  0.002 seconds
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+RimWorld 1.6.4633 rev1261
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Tried to get a resource "UI/Commands/AttackSettlement" from a different thread. All resources must be loaded in the main thread.
+Current MultiplayerAPI version: 0.6
+MPCompat :: Initialized compatibility for onyxae.dragonsdescent
+MPCompat :: Encountered an error patching Item Processor part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::GetGizmos
+[Ref BD322CFE]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaMethod_Impl>d__2.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaMethod (System.Type parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x00009] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchItemProcessor () [0x0000b] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+Trying to patch Verse.Rand.Push/Pop for method VFECore.HediffComp_Spreadable:ThrowFleck, but the method does not exist..
+Trying to patch Verse.Rand.Push/Pop for method VFECore.TerrainComp_MoteSpawner:ThrowMote, but the method does not exist..
+Trying to patch Verse.Rand.Push/Pop for method SmokingGun.Verb_ShootWithSmoke:TryCastShot, but the method does not exist..
+Trying to patch Verse.Rand.Push/Pop for method VWEMakeshift.SmokeMaker:ThrowMoteDef, but the method does not exist..
+Trying to patch Verse.Rand.Push/Pop for method VWEMakeshift.SmokeMaker:ThrowFleckDef, but the method does not exist..
+MPCompat :: Encountered an error patching Debug Gizmos part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::CompGetGizmosExtra
+[Ref F4283A4F]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaMethod_Impl>d__2.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaMethod (System.String parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x0000e] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchVFECoreDebug () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Hireable Factions part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find method or property OnAcceptKeyPressed in type 
+[Ref D1DEEE1E]
+  at Multiplayer.Client.Sync.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00075] in /home/runner/work/Multiplayer/Multiplayer/Source/Client/Syncing/Sync.cs:119 
+  at Multiplayer.Common.MultiplayerAPIBridge.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00000] in /home/runner/work/Multiplayer/Multiplayer/Source/Client/MultiplayerAPIBridge.cs:96 
+  at Multiplayer.API.MP.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00000] in <c74c9bf7f68c4e12ac6ee2a0c2bd9227>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchHireableFactions () [0x0001a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Vanilla Faction Mechanoids part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::CompGetGizmosExtra
+[Ref 7BF03275]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaDelegate_Impl>d__7.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaDelegate (System.Type parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x0000a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchVanillaFactionMechanoids () [0x0000a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+Trying to patch System.Random for method AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart, but the method does not exist.
+Trying to patch System.Random for null method.
+Trying to patch System.Random for null method.
+Trying to patch System.Random for null method.
+Trying to patch System.Random for null method.
+Trying to patch System.Random for null method.
+Trying to patch System.Random for null method.
+MPCompat :: Encountered an error patching Animal Behaviour part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find method or property SetObjectForDestruction in type 
+[Ref 4456A8A]
+  at Multiplayer.Client.Sync.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00075] in /home/runner/work/Multiplayer/Multiplayer/Source/Client/Syncing/Sync.cs:119 
+  at Multiplayer.Common.MultiplayerAPIBridge.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00000] in /home/runner/work/Multiplayer/Multiplayer/Source/Client/MultiplayerAPIBridge.cs:96 
+  at Multiplayer.API.MP.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00000] in <c74c9bf7f68c4e12ac6ee2a0c2bd9227>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchAnimalBehaviour () [0x00051] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+Trying to patch Verse.Rand.Push/Pop for method ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail, but the method does not exist..
+MPCompat :: Encountered an error patching Vanilla Apparel Expanded part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::CompGetWornGizmosExtra
+[Ref 4F26F721]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaMethod_Impl>d__2.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaMethod (System.String parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x0000e] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchVanillaApparelExpanded () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Vanilla Weapons Expanded part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::CompGetGizmosExtra
+[Ref 91FE4959]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaMethod_Impl>d__2.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaMethod (System.String parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x0000e] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchVanillaWeaponsExpanded () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Faction Discovery part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.ArgumentNullException: Value cannot be null.
+Parameter name: type
+[Ref B31400F3]
+  at HarmonyLib.AccessTools.FieldRefAccess[F] (System.Type type, System.String fieldName) [0x00003] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchFactionDiscovery () [0x0000f] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+Trying to patch System.Random for null method.
+MPCompat :: Encountered an error patching Vanilla Genes Expanded part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::CompGetGizmosExtra
+[Ref A69FBF96]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaMethod_Impl>d__2.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaMethod (System.Type parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x00009] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchVanillaGenesExpanded () [0x0001d] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: VFECore.WeatherOverlay_Effects:nextDamageTick field, patch failed.
+MPCompat :: Encountered an error patching Extra Pregnancy Approaches part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::AddPregnancyApproachOptions
+[Ref 3C8F9B5]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaDelegate_Impl>d__7.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaDelegate (System.String parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x0000f] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchExtraPregnancyApproaches () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Building stuff requiring non-construction skill part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.ArgumentNullException: Value cannot be null.
+Parameter name: type
+[Ref 222853CE]
+  at HarmonyLib.AccessTools.FieldRefAccess[F] (System.Type type, System.String fieldName) [0x00003] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchWorkGiverDeliverResources () [0x00089] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Expandable projectile part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.NullReferenceException: Object reference not set to an instance of an object
+[Ref 5DF130B8]
+  at HarmonyLib.AccessTools.DeclaredProperty (System.String typeColonName) [0x00007] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at HarmonyLib.AccessTools.DeclaredPropertyGetter (System.String typeColonName) [0x00000] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchExpandableProjectile () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Thing spawning on map generation (ObjectSpawnsDef) part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.NullReferenceException: Null method for rimworld.multiplayer.compat
+[Ref 4DE8F23A]
+  at HarmonyLib.PatchProcessor.Patch () [0x0001d] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at HarmonyLib.Harmony.Patch (System.Reflection.MethodBase original, HarmonyLib.HarmonyMethod prefix, HarmonyLib.HarmonyMethod postfix, HarmonyLib.HarmonyMethod transpiler, HarmonyLib.HarmonyMethod finalizer) [0x0002a] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchMapObjectGeneration () [0x00053] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Quest chain dev mode window part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.NullReferenceException: Null method for rimworld.multiplayer.compat
+[Ref 855C5223]
+  at HarmonyLib.PatchProcessor.Patch () [0x0001d] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at HarmonyLib.Harmony.Patch (System.Reflection.MethodBase original, HarmonyLib.HarmonyMethod prefix, HarmonyLib.HarmonyMethod postfix, HarmonyLib.HarmonyMethod transpiler, HarmonyLib.HarmonyMethod finalizer) [0x0002a] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchQuestChainsDevMode () [0x00031] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Initialized compatibility for oskarpotocki.vanillafactionsexpanded.core
+MPCompat :: Initialized compatibility for oskarpotocki.vanillafactionsexpanded.core
+MPCompat :: Encountered an error patching Abilities part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.ArgumentNullException: Value cannot be null.
+Parameter name: type
+[Ref 70CDE83E]
+  at HarmonyLib.AccessTools.FieldRefAccess[F] (System.Type type, System.String fieldName) [0x00003] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchAbilities () [0x00014] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Vanilla Furniture Expanded part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::CompGetGizmosExtra
+[Ref E22789E4]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaMethod_Impl>d__2.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaMethod (System.String parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x0000e] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchVanillaFurnitureExpanded () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Trying to patch `VanillaCookingExpanded.Thought_Hediff`, but the type is null. Did it get moved, renamed, or removed?
+MPCompat :: Encountered an error patching Teleporter Doors part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find parent method (Normal) ::GetDoorTeleporterGismoz
+[Ref 239C7CD]
+  at Multiplayer.Compat.MpMethodUtil.GetLambdaGeneric (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Type[] genericParentMethodArgs, System.Type[] genericNestedTypeArgs, System.Int32 lambdaOrdinal) [0x00073] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpMethodUtil.GetLambda (System.Type parentType, System.String parentMethod, HarmonyLib.MethodType parentMethodType, System.Type[] parentArgs, System.Int32 lambdaOrdinal) [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.MpCompat+<RegisterLambdaMethod_Impl>d__2.MoveNext () [0x0003a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at System.Collections.Generic.LargeArrayBuilder`1[T].AddRange (System.Collections.Generic.IEnumerable`1[T] items) [0x0003d] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Collections.Generic.EnumerableHelpers.ToArray[T] (System.Collections.Generic.IEnumerable`1[T] source) [0x00033] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x00018] in <1f993cbf88314b1baa1e10ca917bdc64>:0 
+  at Multiplayer.Compat.MpCompat.RegisterLambdaMethod (System.Type parentType, System.String parentMethod, System.Int32[] lambdaOrdinals) [0x00009] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchDoorTeleporter () [0x0000b] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Special Terrain part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.NullReferenceException: Null method for rimworld.multiplayer.compat
+[Ref AAD13DAF]
+  at HarmonyLib.PatchProcessor.Patch () [0x0001d] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at HarmonyLib.Harmony.Patch (System.Reflection.MethodBase original, HarmonyLib.HarmonyMethod prefix, HarmonyLib.HarmonyMethod postfix, HarmonyLib.HarmonyMethod transpiler, HarmonyLib.HarmonyMethod finalizer) [0x0002a] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchSpecialTerrain () [0x00026] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Graphic Customization Dialog part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.ArgumentNullException: Value cannot be null.
+Parameter name: type
+[Ref 89A30942]
+  at HarmonyLib.AccessTools.FieldRefAccess[F] (System.Type type, System.String fieldName) [0x00003] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchGraphicCustomizationDialog () [0x00011] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Drafted AI part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.NullReferenceException: Object reference not set to an instance of an object
+[Ref AA1C1E90]
+  at HarmonyLib.MethodInvoker.GetHandler (System.Reflection.MethodInfo methodInfo, System.Boolean directBoxValueAccess) [0x00000] in <e53399289d9b419d83f9f5b02c5cf609>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchDraftedAi () [0x0000c] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+MPCompat :: Encountered an error patching Moving bases part of Vanilla Expanded Framework - this part of the mod may not work properly!
+System.Exception: Couldn't find method or property Attack in type 
+[Ref 33BEFEFC]
+  at Multiplayer.Client.Sync.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00075] in /home/runner/work/Multiplayer/Multiplayer/Source/Client/Syncing/Sync.cs:119 
+  at Multiplayer.Common.MultiplayerAPIBridge.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00000] in /home/runner/work/Multiplayer/Multiplayer/Source/Client/MultiplayerAPIBridge.cs:96 
+  at Multiplayer.API.MP.RegisterSyncMethod (System.Type type, System.String methodOrPropertyName, Multiplayer.API.SyncType[] argTypes) [0x00000] in <c74c9bf7f68c4e12ac6ee2a0c2bd9227>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework.PatchMovingBases () [0x0000a] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+  at Multiplayer.Compat.VanillaExpandedFramework+<>c__DisplayClass0_0.<.ctor>g__ApplyPatch|0 () [0x00000] in <48dac7a0c04e4cbd8a297c9fd0172cbd>:0 
+Multiplayer version 0.11.0+6bc95f2
+Arch: X64/OS: X64
+Player's username: TianHuan
+MpServerLog: Packet handler Multiplayer.Client.ClientSteamState does not have a PacketHandlerClass attribute
+[DragonBond] Harmony patches applied.
+Unloading 5 Unused Serialized files (Serialized files now loaded: 5)
+MVCF successfully applied 39 patches
+Unloading 99 unused Assets to reduce memory usage. Loaded Objects now: 28105.
+Total: 242.510200 ms (FindLiveObjects: 1.886700 ms CreateObjectMapping: 4.567300 ms MarkObjects: 235.459600 ms  DeleteObjects: 0.596200 ms)
+
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Connecting to lan server
+TianHuan 0 Net client connected
+Processed disconnect packet (UsernameAlreadyOnline). Title: Username already online (MpInvalidUsernameAlreadyPlaying), description: You can change your username in the mod settings. (MpChangeUsernameInfo)
+Stopping multiplayer session from System.Void Multiplayer.Client.ClientBaseState::HandleDisconnected(Multiplayer.Common.Networking.Packet.ServerDisconnectPacket packet)
+Processed disconnect packet (Throttled). Title:  (), description:  ()
+Stopping multiplayer session from System.Void Multiplayer.Client.Networking.ClientLiteNetConnection::OnDisconnect(Multiplayer.Common.MpDisconnectReason reason, Multiplayer.Common.ByteReader data)
+TianHuan643 0 Net client disconnected ConnectionRejected
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Connecting to lan server
+TianHuan643 0 Net client connected
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Game data size: 1144626. Took 808ms to receive.
+Initial sync opinions: 0...1983
+Loaded game in 129ms
+Unloading 3 Unused Serialized files (Serialized files now loaded: 5)
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+MpServerLog: PlayerList: Received player list with 2 entries
+MpServerLog: PlayerList: Adding player from list 0:TianHuan
+MpServerLog: PlayerList: Adding player from list 2:TianHuan643
+Unloading 2 unused Assets to reduce memory usage. Loaded Objects now: 28304.
+Total: 252.793700 ms (FindLiveObjects: 1.975000 ms CreateObjectMapping: 2.753000 ms MarkObjects: 247.984500 ms  DeleteObjects: 0.080700 ms)
+
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Init map with cmds 0
+Game loaded
+Unloading 1 Unused Serialized files (Serialized files now loaded: 5)
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 34690.
+Total: 294.739000 ms (FindLiveObjects: 2.315600 ms CreateObjectMapping: 0.823100 ms MarkObjects: 291.485400 ms  DeleteObjects: 0.114300 ms)
+
+Changing real player faction to TianHuan's faction from 
+Started a job VFEA_UseAbility (Job_-2) A = Thing_Sandstone2024 on pawn Red_Dragon38602 from the interface!
+TianHuan643 4952 Desynced after last valid tick 4891: Wrong random state on map 0
+ived player list with 1 entries
+MpServerLog: PlayerList: Adding player from list 0:TianHuan
+MpServerLog: Got world upload 945931
+Unloading 5704 unused Assets to reduce memory usage. Loaded Objects now: 35089.
+Total: 237.900000 ms (FindLiveObjects: 1.414100 ms CreateObjectMapping: 0.914600 ms MarkObjects: 230.765500 ms  DeleteObjects: 4.805200 ms)
+
+Stopping multiplayer session from static System.Void Multiplayer.Client.Shutdown_Quit_Patch::Prefix()
+Unloading 0 Unused Serialized files (Serialized files now loaded: 5)
+Unloading 0 unused Assets to reduce memory usage. Loaded Objects now: 29399.
+Total: 247.022100 ms (FindLiveObjects: 1.883400 ms CreateObjectMapping: 0.943700 ms MarkObjects: 244.138100 ms  DeleteObjects: 0.056300 ms)
+
+Unloading 2 Unused Serialized files (Serialized files now loaded: 5)
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+Unloading 3 unused Assets to reduce memory usage. Loaded Objects now: 29271.
+Total: 192.758300 ms (FindLiveObjects: 1.041500 ms CreateObjectMapping: 0.750000 ms MarkObjects: 190.885000 ms  DeleteObjects: 0.081400 ms)
+
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Unloading 2 Unused Serialized files (Serialized files now loaded: 5)
+[PhysX] Initialized MultithreadedTaskDispatcher with 22 workers.
+Unloading 2 unused Assets to reduce memory usage. Loaded Objects now: 29296.
+Total: 221.785800 ms (FindLiveObjects: 1.006000 ms CreateObjectMapping: 0.765200 ms MarkObjects: 219.956400 ms  DeleteObjects: 0.057800 ms)
+
+Initializing new game with mods:
+  - brrainz.harmony
+  - Ludeon.RimWorld
+  - Ludeon.RimWorld.Royalty
+  - Ludeon.RimWorld.Ideology
+  - Ludeon.RimWorld.Biotech
+  - Ludeon.RimWorld.Anomaly
+  - Ludeon.RimWorld.Odyssey
+  - rwmt.Multiplayer
+  - rwmt.MultiplayerCompatibility
+  - OskarPotocki.VanillaFactionsExpanded.Core
+  - onyxae.dragonsdescent
+  - Crows.DragonBond
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Unloading 0 Unused Serialized files (Serialized files now loaded: 5)
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 35513.
+Total: 383.135000 ms (FindLiveObjects: 3.260100 ms CreateObjectMapping: 4.403200 ms MarkObjects: 375.373200 ms  DeleteObjects: 0.097800 ms)
+
+Starting the server
+MP: Setting up map 0
+Changing real player faction to TianHuan's faction from 
+Object with load ID Thing_Human4739 is referenced (xml node name: otherPawn) but is not deep-saved. This will cause errors during loading.
+Could not resolve reference to object with loadID Thing_Human4739 of type Verse.Pawn. Was it compressed away, destroyed, had no ID number, or not saved/loaded right? curParent=RimWorld.DirectPawnRelation curPathRelToParent=
+Pawn Haldor has relation "ExLover" with null pawn after loading. This means that we forgot to serialize pawns somewhere (e.g. pawns from passing trade ships).
+Init map with cmds 0
+Game loaded
+Changing real player faction to TianHuan's faction from 
+MpServerLog: New connection: LocalServerConn
+Server started.
+Unloading 1 Unused Serialized files (Serialized files now loaded: 5)
+MpServerLog: PlayerList: Received player list with 1 entries
+MpServerLog: PlayerList: Adding player from list 0:TianHuan
+MpServerLog: Got world upload 1127955
+Unloading 6136 unused Assets to reduce memory usage. Loaded Objects now: 36040.
+Total: 306.263800 ms (FindLiveObjects: 2.905400 ms CreateObjectMapping: 4.500400 ms MarkObjects: 294.629300 ms  DeleteObjects: 4.228400 ms)
+
+Debug tool Tree (128, 132) 0 Actions@\Spawn Pawn...@Spawning\Red_Dragon@Animal
+Debug tool Tree (128, 131) 0 Actions@\T: Tame Animal@Pawns
+Debug tool Tree (127, 132) 0 Actions@\T: Tame Animal@Pawns
+Debug tool Tree (127, 132) 0 Actions@\T: Tame Animal@Pawns
+Debug tool Tree (127, 132) 0 Actions@\T: Tame Animal@Pawns
+Debug tool Tree (128, 132) 0 Actions@\T: Tame Animal@Pawns
+Debug tool Tree (127, 132) 0 Actions@\T: Tame Animal@Pawns
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+Direct3D: detected that using refresh rate causes time drift. Will stop trusting refresh rate until the game window is moved.
+Direct3D: detected that vsync is broken (it does not limit frame rate properly). Delta time will now be calculated using cpu-side time stampling until the game window is moved.
+MpServerLog: New connection: NetConnection (10.0.0.194:63463) ()
+MpServerLog: Disconnected (UsernameAlreadyOnline): NetConnection (10.0.0.194:63463) ()
+MpServerLog: New connection: NetConnection (10.0.0.194:63465) ()
+MpServerLog: Notification: TianHuan643 has joined (MpPlayerConnected, TianHuan643)
+MpServerLog: PlayerList: Adding player 2:TianHuan643
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: Inconsistent player TianHuan map. Last known map: 0, however received command with transition: -1 -> 0
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+Init map with cmds 7
+Game loaded
+Changing real player faction to TianHuan's faction from 
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+Unloading 2 Unused Serialized files (Serialized files now loaded: 5)
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog Error: No handler for packet Client_KeepAlive in state ServerLoading
+MpServerLog: Got world upload 1133699
+MpServerLog: World response sent: 1144626
+Unloading 6160 unused Assets to reduce memory usage. Loaded Objects now: 35893.
+Total: 289.617700 ms (FindLiveObjects: 3.356400 ms CreateObjectMapping: 1.671800 ms MarkObjects: 278.855700 ms  DeleteObjects: 5.733400 ms)
+
+MpServerLog: Simulation paused because some players are too far behind: TianHuan643
+MpServerLog: Simulation paused because some players are too far behind: TianHuan643
+MpServerLog: Simulation paused because some players are too far behind: TianHuan643
+MpServerLog: Simulation paused because some players are too far behind: TianHuan643
+MpServerLog: Simulation paused because some players are too far behind: TianHuan643
+MpServerLog: Simulation paused because some players are too far behind: TianHuan643
