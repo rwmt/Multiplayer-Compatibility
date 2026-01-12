@@ -5,13 +5,11 @@ using Multiplayer.API;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>RunAndGun by roolo, continued by MemeGoddess</summary>
+    /// <summary>RunAndGun by roolo</summary>
     /// <see href="https://github.com/rheirman/RunAndGun"/>
     /// <see href="https://github.com/MemeGoddess/RunAndGun"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550"/>
-    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=3070109648"/>
     [MpCompatFor("roolo.RunAndGun")]
-    [MpCompatFor("MemeGoddess.RunAndGun")]
     class RunandGun
     {
         public RunandGun(ModContentPack mod)
