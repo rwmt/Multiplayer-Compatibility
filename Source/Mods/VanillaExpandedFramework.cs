@@ -684,33 +684,18 @@ namespace Multiplayer.Compat
 
             // Comp holding ability
             // CompAbility
-            compAbilitiesType = AccessTools.TypeByName("VEF.Abilities.CompAbilities");
-            if (compAbilitiesType == null)
-            {
-                Log.Warning("MPCompat :: Abilities.CompAbilities type not found");
-                return;
-            }
+            compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
             learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
             // Unlock ability, user-input use by Vanilla Psycasts Expanded
             MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
             // CompAbilityApparel
-            compAbilitiesApparelType = AccessTools.TypeByName("VEF.Abilities.CompAbilitiesApparel");
-            if (compAbilitiesApparelType == null)
-            {
-                Log.Warning("MPCompat :: Abilities.CompAbilitiesApparel type not found");
-                return;
-            }
+            compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
             givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
             abilityApparelPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn"));
             //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
 
             // Ability itself
-            var type = AccessTools.TypeByName("VEF.Abilities.Ability");
-            if (type == null)
-            {
-                Log.Warning("MPCompat :: Abilities.Ability type not found");
-                return;
-            }
+            var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
 
             abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
@@ -753,9 +738,6 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoAction"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityDoAction)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityDoAction)));
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "Cast"),
-                prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreAbilityCast)),
-                postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostAbilityCast)));
 
             foreach (var target in type.AllSubclasses().Concat(type))
             {
@@ -780,12 +762,12 @@ namespace Multiplayer.Compat
                 }
             }
 
-            type = AccessTools.TypeByName("VEF.CompShieldField");
+            type = AccessTools.TypeByName("VFECore.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
 
             // Time snapshot fix for gizmo itself
-            type = AccessTools.TypeByName("VEF.Abilities.Command_Ability");
+            type = AccessTools.TypeByName("VFECore.Abilities.Command_Ability");
             foreach (var targetType in type.AllSubclasses().Concat(type))
             {
                 var method = AccessTools.DeclaredMethod(targetType, nameof(Command.GizmoOnGUIInt));
@@ -872,23 +854,6 @@ namespace Multiplayer.Compat
                 return;
 
             MP.WatchEnd();
-        }
-
-        private static void PreAbilityCast(object __instance, out PatchingUtilities.TimeSnapshot? __state)
-        {
-            if (!MP.IsInMultiplayer)
-            {
-                __state = null;
-                return;
-            }
-
-            var pawn = abilityPawnField(__instance);
-            __state = pawn?.Map != null ? PatchingUtilities.TimeSnapshot.GetAndSetFromMap(pawn.Map) : null;
-        }
-
-        private static void PostAbilityCast(PatchingUtilities.TimeSnapshot? __state)
-        {
-            __state?.Set();
         }
 
         // We need to set the time snapshot when constructing the gizmo since it's disabled in
