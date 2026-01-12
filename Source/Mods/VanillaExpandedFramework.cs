@@ -685,32 +685,17 @@ namespace Multiplayer.Compat
             // Comp holding ability
             // CompAbility
             compAbilitiesType = AccessTools.TypeByName("VEF.Abilities.CompAbilities");
-            if (compAbilitiesType == null)
-            {
-                Log.Warning("MPCompat :: Abilities.CompAbilities type not found");
-                return;
-            }
             learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
             // Unlock ability, user-input use by Vanilla Psycasts Expanded
             MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
             // CompAbilityApparel
             compAbilitiesApparelType = AccessTools.TypeByName("VEF.Abilities.CompAbilitiesApparel");
-            if (compAbilitiesApparelType == null)
-            {
-                Log.Warning("MPCompat :: Abilities.CompAbilitiesApparel type not found");
-                return;
-            }
             givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
             abilityApparelPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn"));
             //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
 
             // Ability itself
             var type = AccessTools.TypeByName("VEF.Abilities.Ability");
-            if (type == null)
-            {
-                Log.Warning("MPCompat :: Abilities.Ability type not found");
-                return;
-            }
 
             abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
