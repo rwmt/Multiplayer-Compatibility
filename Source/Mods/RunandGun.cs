@@ -10,6 +10,7 @@ namespace Multiplayer.Compat
     /// <see href="https://github.com/MemeGoddess/RunAndGun"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550"/>
     [MpCompatFor("roolo.RunAndGun")]
+    [MpCompatFor("memegoddess.RunAndGun")]
     class RunandGun
     {
         public RunandGun(ModContentPack mod)
