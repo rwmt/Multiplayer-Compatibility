@@ -26,31 +26,26 @@ namespace Multiplayer.Compat
         {
             (Action patchMethod, string componentName, bool latePatch)[] patches =
             [
-                // Item Processor is obsolete and will be removed in a future update (likely during 1.6 update)
-                (PatchItemProcessor, "Item Processor", false),
                 (PatchAdvancedResourceProcessor, "Advanced Resource Processor", true),
                 (PatchOtherRng, "Other RNG", false),
-                (PatchVFECoreDebug, "Debug Gizmos", false),
+                (PatchWeapons, "Weapons", false),
+                (PatchDebug, "Debug Gizmos", false),
                 (PatchAbilities, "Abilities", true),
                 (PatchHireableFactions, "Hireable Factions", false),
                 (PatchVanillaFurnitureExpanded, "Vanilla Furniture Expanded", true),
-                (PatchVanillaFactionMechanoids, "Vanilla Faction Mechanoids", false),
                 (PatchAnimalBehaviour, "Animal Behaviour", false),
-                (PatchExplosiveTrialsEffect, "Explosive Trials Effect", false),
                 (PatchMVCF, "Multi-Verb Combat Framework", false),
                 (PatchVanillaApparelExpanded, "Vanilla Apparel Expanded", false),
-                (PatchVanillaWeaponsExpanded, "Vanilla Weapons Expanded", false),
                 (PatchPipeSystem, "Pipe System", true),
                 (PatchKCSG, "KCSG (custom structure generation)", false),
                 (PatchFactionDiscovery, "Faction Discovery", false),
-                (PatchVanillaGenesExpanded, "Vanilla Genes Expanded", false),
-                (PatchVanillaCookingExpanded, "Vanilla Cooking Expanded", true),
+                (PatchGenes, "Genes", false),
+                (PatchCooking, "Cooking", true),
                 (PatchDoorTeleporter, "Teleporter Doors", true),
                 (PatchSpecialTerrain, "Special Terrain", true),
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
                 (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
-                (PatchExpandableProjectile, "Expandable projectile", false),
                 (PatchStaticCaches, "Static caches", false),
                 (PatchGraphicCustomizationDialog, "Graphic Customization Dialog", true),
                 (PatchDraftedAi, "Drafted AI", true),
@@ -116,70 +111,45 @@ namespace Multiplayer.Compat
 
         private static void PatchOtherRng()
         {
-            PatchingUtilities.PatchPushPopRand(new[]
-            {
+            PatchingUtilities.PatchPushPopRand([
                 // Uses GenView.ShouldSpawnMotesAt and uses RNG if it returns true,
                 // and it's based on player camera position. Need to push/pop or it'll desync
                 // unless all players looking when it's called
-                "VFECore.HediffComp_Spreadable:ThrowFleck",
+                "VEF.Hediffs.HediffComp_Spreadable:ThrowFleck",
                 // GenView.ShouldSpawnMotesAt again
-                "VFECore.TerrainComp_MoteSpawner:ThrowMote",
-                // Musket guns, etc
-                "SmokingGun.Verb_ShootWithSmoke:TryCastShot",
-                "VWEMakeshift.SmokeMaker:ThrowMoteDef",
-                "VWEMakeshift.SmokeMaker:ThrowFleckDef",
-            });
+                "VEF.Maps.TerrainComp_MoteSpawner:ThrowMote",
+            ]);
         }
 
-        private static void PatchVFECoreDebug() 
-            => MpCompat.RegisterLambdaMethod("VFECore.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
-
-        private static void PatchExplosiveTrialsEffect() 
-            => PatchingUtilities.PatchPushPopRand("ExplosiveTrailsEffect.SmokeThrowher:ThrowSmokeTrail");
+        private static void PatchDebug() 
+            => MpCompat.RegisterLambdaMethod("VEF.Pawns.CompPawnDependsOn", "CompGetGizmosExtra", 0).SetDebugOnly();
 
         private static void PatchVanillaApparelExpanded() 
-            => MpCompat.RegisterLambdaMethod("VanillaApparelExpanded.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
-
-        private static void PatchVanillaWeaponsExpanded() 
-            => MpCompat.RegisterLambdaMethod("VanillaWeaponsExpandedLaser.CompLaserCapacitor", "CompGetGizmosExtra", 1);
-
-        private static void PatchVanillaFactionMechanoids()
-        {
-            var type = AccessTools.TypeByName("VFE.Mechanoids.CompMachineChargingStation");
-            MpCompat.RegisterLambdaDelegate(type, "CompGetGizmosExtra", 1, 3).SetContext(SyncContext.MapSelected);
-
-            // Dev recharge fully (0), attach turret (3)
-            type = AccessTools.TypeByName("VFE.Mechanoids.CompMachine");
-            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 3)[0].SetDebugOnly();
-        }
+            => MpCompat.RegisterLambdaMethod("VEF.Apparels.CompSwitchApparel", "CompGetWornGizmosExtra", 0);
 
         private static void PatchAnimalBehaviour()
         {
             // RNG
-            PatchingUtilities.PatchSystemRand("AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart", false);
+            PatchingUtilities.PatchSystemRand("VEF.AnimalBehaviours.DamageWorker_ExtraInfecter:ApplySpecialEffectsToPart", false);
             var rngFixConstructors = new[]
             {
-                "AnimalBehaviours.CompAnimalProduct",
-                "AnimalBehaviours.CompFilthProducer",
-                "AnimalBehaviours.CompGasProducer",
-                "AnimalBehaviours.CompInitialHediff",
-                "AnimalBehaviours.DeathActionWorker_DropOnDeath",
-                "AnimalBehaviours.HediffComp_FilthProducer",
+                "VEF.AnimalBehaviours.CompInitialHediff",
+                "VEF.AnimalBehaviours.DeathActionWorker_DropOnDeath",
             };
             PatchingUtilities.PatchSystemRandCtor(rngFixConstructors, false);
 
             // Gizmos
-            var type = AccessTools.TypeByName("AnimalBehaviours.CompDestroyThisItem");
+            var type = AccessTools.TypeByName("VEF.AnimalBehaviours.CompDestroyThisItem");
             MP.RegisterSyncMethod(type, "SetObjectForDestruction");
             MP.RegisterSyncMethod(type, "CancelObjectForDestruction");
 
-            type = AccessTools.TypeByName("AnimalBehaviours.CompDieAndChangeIntoOtherDef");
+            type = AccessTools.TypeByName("VEF.AnimalBehaviours.CompDieAndChangeIntoOtherDef");
             MP.RegisterSyncMethod(type, "ChangeDef");
 
-            type = AccessTools.TypeByName("AnimalBehaviours.CompDiseasesAfterPeriod");
+            type = AccessTools.TypeByName("VEF.AnimalBehaviours.CompDiseasesAfterPeriod");
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0).SetDebugOnly();
 
-            type = AccessTools.TypeByName("AnimalBehaviours.Pawn_GetGizmos_Patch");
+            type = AccessTools.TypeByName("VEF.AnimalBehaviours.Pawn_GetGizmos_Patch");
             MpCompat.RegisterLambdaDelegate(type, "Postfix", 1);
         }
 
@@ -193,16 +163,15 @@ namespace Multiplayer.Compat
             // KCSG.SymbolResolver_ScatterStuffAround:Resolve uses seeder system RNG, should be fine
             // If not, will need patching
 
-            PatchingUtilities.PatchPushPopRand(new[]
-            {
+            PatchingUtilities.PatchPushPopRand([
                 "KCSG.KCSG_Skyfaller:SaveImpact",
-                "KCSG.KCSG_Skyfaller:Tick",
-            });
+                "KCSG.KCSG_Skyfaller:Tick"
+            ]);
         }
 
-        private static void PatchVanillaGenesExpanded()
+        private static void PatchGenes()
         {
-            var type = AccessTools.TypeByName("VanillaGenesExpanded.CompHumanHatcher");
+            var type = AccessTools.TypeByName("VEF.Genes.CompHumanHatcher");
             PatchingUtilities.PatchSystemRand(AccessTools.Method(type, "Hatch"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0).SetDebugOnly();
         }
@@ -210,14 +179,24 @@ namespace Multiplayer.Compat
         private static void PatchExtraPregnancyApproaches()
         {
             MpCompat.RegisterLambdaDelegate(
-                "VFECore.SocialCardUtility_DrawPregnancyApproach_Patch", 
+                "VEF.Pawns.VanillaExpandedFramework_SocialCardUtility_DrawPregnancyApproach_Patch", 
                 "AddPregnancyApproachOptions",
                 0, 2); // Disable extra approaches (0), set extra approach (2)
         }
 
-        private static void PatchExpandableProjectile()
+        private static void PatchWeapons()
         {
-            MpCompat.harmony.Patch(AccessTools.DeclaredPropertyGetter("VFECore.ExpandableProjectile:StartingPosition"),
+            PatchingUtilities.PatchPushPopRand([
+                // Musket guns, etc
+                "VEF.Weapons.Verb_ShootWithSmoke:TryCastShot",
+                "VEF.Weapons.SmokeMaker:ThrowMoteDef",
+                "VEF.Weapons.SmokeMaker:ThrowFleckDef", // Possibly not needed? No ShouldSpawnMotesAt/mote saturation checks.
+                "VEF.Weapons.SmokeMaker:ThrowSmokeTrail"
+            ]);
+
+            MpCompat.RegisterLambdaMethod("VEF.Weapons.CompLaserCapacitor", "CompGetGizmosExtra", 1);
+
+            MpCompat.harmony.Patch(AccessTools.DeclaredPropertyGetter("VEF.Weapons.ExpandableProjectile:StartingPosition"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PreStartingPositionGetter)),
                 postfix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(PostStartingPositionGetter)));
         }
@@ -236,62 +215,6 @@ namespace Multiplayer.Compat
             // but seems a bit pointless to do it like this since it's just a minor thing.
             if (__state != null)
                 (___startingPosition, ___pawnMoved) = __state.Value;
-        }
-
-        #endregion
-
-        #region Item Processor
-
-        private static void PatchItemProcessor()
-        {
-            var type = AccessTools.TypeByName("ItemProcessor.Building_ItemProcessor");
-            // _1, _5 and _7 are used to check if gizmo should be enabled, so we don't sync them
-            MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2, 3, 4, 6, 8, 9, 10);
-
-            type = AccessTools.TypeByName("ItemProcessor.Command_SetQualityList");
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-            MP.RegisterSyncMethod(type, "AddQuality").SetContext(SyncContext.MapSelected);
-            MpCompat.RegisterLambdaMethod(type, "ProcessInput", 7).SetContext(SyncContext.MapSelected);
-
-            type = AccessTools.TypeByName("ItemProcessor.Command_SetOutputList");
-            MP.RegisterSyncWorker<Command>(SyncCommandWithBuilding, type, shouldConstruct: true);
-            MP.RegisterSyncMethod(type, "TryConfigureIngredientsByOutput");
-
-            // Keep an eye on this in the future, seems like something the devs could combine into a single class at some point
-            foreach (var ingredientNumber in new[] { "First", "Second", "Third", "Fourth" })
-            {
-                type = AccessTools.TypeByName($"ItemProcessor.Command_Set{ingredientNumber}ItemList");
-                MP.RegisterSyncWorker<Command>(SyncSetIngredientCommand, type, shouldConstruct: true);
-                MP.RegisterSyncMethod(type, $"TryInsert{ingredientNumber}Thing").SetContext(SyncContext.MapSelected);
-                MpCompat.RegisterLambdaMethod(type, "ProcessInput", 0);
-            }
-        }
-
-        private static void SyncSetIngredientCommand(SyncWorker sync, ref Command command)
-        {
-            var traverse = Traverse.Create(command);
-            var building = traverse.Field("building");
-            var ingredientList = traverse.Field("things");
-
-            if (sync.isWriting)
-            {
-                sync.Write(building.GetValue() as Thing);
-                var ingredientListValue = ingredientList.GetValue();
-                if (ingredientListValue == null)
-                {
-                    sync.Write(false);
-                }
-                else
-                {
-                    sync.Write(true);
-                    sync.Write(ingredientList.GetValue() as List<Thing>);
-                }
-            }
-            else
-            {
-                building.SetValue(sync.Read<Thing>());
-                if (sync.Read<bool>()) ingredientList.SetValue(sync.Read<List<Thing>>());
-            }
         }
 
         #endregion
@@ -762,7 +685,7 @@ namespace Multiplayer.Compat
                 }
             }
 
-            type = AccessTools.TypeByName("VEF.CompShieldField");
+            type = AccessTools.TypeByName("VEF.Apparels.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
 
@@ -901,7 +824,7 @@ namespace Multiplayer.Compat
 
         private static void PatchHireableFactions()
         {
-            hireDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_Hire");
+            hireDialogType = AccessTools.TypeByName("VEF.Planet.Dialog_Hire");
 
             DialogUtilities.RegisterDialogCloseSync(hireDialogType, true);
             MP.RegisterSyncMethod(hireDialogType, nameof(Window.OnAcceptKeyPressed));
@@ -918,19 +841,19 @@ namespace Multiplayer.Compat
 
             // There seems to be a 50/50 chance trying to open hiring window will fail and cause an error
             // this is here to fix that issue
-            var type = AccessTools.TypeByName("VFECore.Misc.Hireable");
+            var type = AccessTools.TypeByName("VEF.Planet.Hireable");
             MP.RegisterSyncWorker<object>(SyncHireable, type);
             MpCompat.RegisterLambdaDelegate(type, "CommFloatMenuOption", 0);
 
-            hireablesList = AccessTools.StaticFieldRefAccess<IList>(AccessTools.Field(AccessTools.TypeByName("VFECore.Misc.HireableSystemStaticInitialization"), "Hireables"));
+            hireablesList = AccessTools.StaticFieldRefAccess<IList>(AccessTools.Field(AccessTools.TypeByName("VEF.Planet.HireableSystemStaticInitialization"), "Hireables"));
 
-            contractInfoDialogType = AccessTools.TypeByName("VFECore.Misc.Dialog_ContractInfo");
+            contractInfoDialogType = AccessTools.TypeByName("VEF.Planet.Dialog_ContractInfo");
 
             DialogUtilities.RegisterDialogCloseSync(contractInfoDialogType, true);
             MP.RegisterSyncWorker<Window>(SyncContractInfoDialog, contractInfoDialogType);
             MpCompat.RegisterLambdaMethod(contractInfoDialogType, "DoWindowContents", 0);
 
-            MpCompat.RegisterLambdaDelegate("VFECore.HiringContractTracker", "CommFloatMenuOption", 0);
+            MpCompat.RegisterLambdaDelegate("VEF.Planet.HiringContractTracker", "CommFloatMenuOption", 0);
         }
 
         private static void SyncHireDialog(SyncWorker sync, ref Window dialog)
@@ -1007,37 +930,37 @@ namespace Multiplayer.Compat
 
         private static void PatchVanillaFurnitureExpanded()
         {
-            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
+            MpCompat.RegisterLambdaMethod("VEF.Buildings.CompConfigurableSpawner", "CompGetGizmosExtra", 0).SetDebugOnly();
 
-            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetItemsToSpawn");
+            var type = AccessTools.TypeByName("VEF.Buildings.Command_SetItemsToSpawn");
             MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
             MP.RegisterSyncWorker<Command>(SyncCommandWithCompBuilding, type, shouldConstruct: true);
 
-            MpCompat.RegisterLambdaMethod("VanillaFurnitureExpanded.CompRockSpawner", "CompGetGizmosExtra", 0);
+            MpCompat.RegisterLambdaMethod("VEF.Buildings.CompRockSpawner", "CompGetGizmosExtra", 0);
 
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Command_SetStoneType");
+            type = AccessTools.TypeByName("VEF.Buildings.Command_SetStoneType");
             MP.RegisterSyncWorker<Command>(SyncCommandWithCompBuilding, type, shouldConstruct: true);
             MpCompat.RegisterLambdaDelegate(type, "ProcessInput", 1);
 
-            type = randomBuildingGraphicCompType = AccessTools.TypeByName("VanillaFurnitureExpanded.CompRandomBuildingGraphic");
+            type = randomBuildingGraphicCompType = AccessTools.TypeByName("VEF.Buildings.CompRandomBuildingGraphic");
             randomBuildingGraphicCompChangeGraphicMethod = MethodInvoker.GetHandler(AccessTools.DeclaredMethod(type, "ChangeGraphic"));
             MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0);
 
             // Preferably leave it at the end in case it fails - if it fails all the other stuff here will still get patched
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
+            type = AccessTools.TypeByName("VEF.Buildings.Dialog_ChooseGraphic");
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DoWindowContents"),
                 transpiler: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplaceSelectionButton)));
             MP.RegisterSyncMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_SyncChange));
 
             // Glowers
-            type = AccessTools.TypeByName("VanillaFurnitureExpanded.CompGlowerExtended");
+            type = AccessTools.TypeByName("VEF.Buildings.CompGlowerExtended");
             MP.RegisterSyncMethod(type, "SwitchColor");
             compGlowerExtendedGlowerField = AccessTools.FieldRefAccess<CompGlower>(type, "compGlower");
             // Inner method of CompGlowerExtended
             type = AccessTools.Inner(type, "CompGlower_SetGlowColorInternal_Patch");
             PatchingUtilities.PatchCancelInInterface(AccessTools.DeclaredMethod(type, "Postfix"));
 
-            type = dummyGlowerType = AccessTools.TypeByName("VanillaFurnitureExpanded.DummyGlower");
+            type = dummyGlowerType = AccessTools.TypeByName("VEF.Buildings.DummyGlower");
             dummyGlowerParentCompField = AccessTools.FieldRefAccess<ThingComp>(type, "parentComp");
 
             // Syncing of wall-light type of glower doesn't work with MP, as what they do
@@ -1054,7 +977,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncWorker<CompGlower>(SyncCompGlower);
 
             // Customizable graphic
-            type = AccessTools.TypeByName("VFECore.CompCustomizableGraphic");
+            type = AccessTools.TypeByName("VEF.Buildings.CompCustomizableGraphic");
             // Target static method with (List<CompCustomizableGraphic>, int) arguments rather than
             // instance type with (int?, bool, bool) types. Technically, the second one should also
             // work, but all arguments (besides instance) would be repeated. On top of that,
@@ -1097,10 +1020,10 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> Dialog_ChooseGraphic_ReplaceSelectionButton(IEnumerable<CodeInstruction> instr)
         {
             // Technically no need to replace specify the argument types, but including them just in case another method with same name gets added in the future
-            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonInvisible), new[] { typeof(Rect), typeof(bool) });
+            var targetMethod = AccessTools.DeclaredMethod(typeof(Widgets), nameof(Widgets.ButtonInvisible), [typeof(Rect), typeof(bool)]);
             var replacementMethod = AccessTools.DeclaredMethod(typeof(VanillaExpandedFramework), nameof(Dialog_ChooseGraphic_ReplacementButton));
 
-            var type = AccessTools.TypeByName("VanillaFurnitureExpanded.Dialog_ChooseGraphic");
+            var type = AccessTools.TypeByName("VEF.Buildings.Dialog_ChooseGraphic");
             var thingToChangeField = AccessTools.DeclaredField(type, "thingToChange");
             FieldInfo indexField = null;
 
@@ -1563,7 +1486,7 @@ namespace Multiplayer.Compat
 
         private static void PatchFactionDiscovery()
         {
-            newFactionSpawningDialogType = AccessTools.TypeByName("VFECore.Dialog_NewFactionSpawning");
+            newFactionSpawningDialogType = AccessTools.TypeByName("VEF.Factions.Dialog_NewFactionSpawning");
             factionDefField = AccessTools.FieldRefAccess<FactionDef>(newFactionSpawningDialogType, "factionDef");
 
             MP.RegisterSyncMethod(MpMethodUtil.GetLocalFunc(newFactionSpawningDialogType, "SpawnWithBases", localFunc: "SpawnCallback"));
@@ -1573,7 +1496,7 @@ namespace Multiplayer.Compat
 
             // This will only open the dialog for host only on game load, but will
             // allow other players to access it from the mod settings.
-            var type = AccessTools.TypeByName("VFECore.Patch_GameComponentUtility");
+            var type = AccessTools.TypeByName("VEF.Factions.VanillaExpandedFramework_GameComponentUtility_LoadedGame_Patch");
             type = AccessTools.Inner(type, "LoadedGame");
             MpCompat.harmony.Patch(AccessTools.Method(type, "OnGameLoaded"),
                 new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(HostOnlyNewFactionDialog)));
@@ -1597,7 +1520,7 @@ namespace Multiplayer.Compat
                         newFactionSpawningDialogType,
                         AccessTools.allDeclared,
                         null,
-                        new object[] { new List<FactionDef>().GetEnumerator() },
+                        [new List<FactionDef>().GetEnumerator()],
                         null);
                     factionDefField(window) = factionDef;
                 }
@@ -1617,7 +1540,7 @@ namespace Multiplayer.Compat
 
         private static void PatchDoorTeleporter()
         {
-            var type = AccessTools.TypeByName("VFECore.DoorTeleporter");
+            var type = AccessTools.TypeByName("VEF.Buildings.DoorTeleporter");
             // Destroy
             MpCompat.RegisterLambdaMethod(type, "GetDoorTeleporterGismoz", 0).SetContext(SyncContext.None);
             // Teleport to x
@@ -1631,8 +1554,8 @@ namespace Multiplayer.Compat
                     }),
                     true);
 
-            renameDoorTeleporterDialogType = AccessTools.TypeByName("VFECore.Dialog_RenameDoorTeleporter");
-            renameDoorTeleporterDialogConstructor = AccessTools.DeclaredConstructor(renameDoorTeleporterDialogType, new[] { type });
+            renameDoorTeleporterDialogType = AccessTools.TypeByName("VEF.Buildings.Dialog_RenameDoorTeleporter");
+            renameDoorTeleporterDialogConstructor = AccessTools.DeclaredConstructor(renameDoorTeleporterDialogType, [type]);
             renameDoorTeleporterDialogThingField = AccessTools.FieldRefAccess<ThingWithComps>(renameDoorTeleporterDialogType, "DoorTeleporter");
 
             PatchingUtilities.PatchPushPopRand(renameDoorTeleporterDialogConstructor);
@@ -1648,15 +1571,15 @@ namespace Multiplayer.Compat
 
         private static void PatchSpecialTerrain()
         {
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.SpecialTerrainList:TerrainUpdate"),
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VEF.Maps.SpecialTerrainList:TerrainUpdate"),
                 prefix: new HarmonyMethod(typeof(VanillaExpandedFramework), nameof(RemoveTerrainUpdateTimeBudget)));
 
             // Fix unsafe GetHashCode call
-            terrainCompType = AccessTools.TypeByName("VFECore.TerrainComp");
+            terrainCompType = AccessTools.TypeByName("VEF.Maps.TerrainComp");
             terrainCompParentField = AccessTools.FieldRefAccess<object>(terrainCompType, "parent");
-            terrainInstancePositionField = AccessTools.FieldRefAccess<IntVec3>("VFECore.TerrainInstance:positionInt");
+            terrainInstancePositionField = AccessTools.FieldRefAccess<IntVec3>("VEF.Maps.TerrainInstance:positionInt");
 
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.ActiveTerrainUtility:HashCodeToMod"),
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VEF.Maps.ActiveTerrainUtility:HashCodeToMod"),
                 prefix: new HarmonyMethod(MpMethodUtil.MethodOf(SaferGetHashCode)));
         }
 
@@ -1695,7 +1618,7 @@ namespace Multiplayer.Compat
         private static void PatchWeatherOverlayEffects()
         {
             // It'll likely have issues with async time, as there's only 1 timer for all maps.
-            weatherOverlayEffectsType = AccessTools.TypeByName("VFECore.WeatherOverlay_Effects");
+            weatherOverlayEffectsType = AccessTools.TypeByName("VEF.Weathers.WeatherOverlay_Effects");
             var nextDamageTickField = AccessTools.DeclaredField(weatherOverlayEffectsType, "nextDamageTick");
             var nextDamageTickForMapField = AccessTools.DeclaredField(weatherOverlayEffectsType, "nextDamageTickForMap");
 
@@ -1705,7 +1628,7 @@ namespace Multiplayer.Compat
                 weatherOverlayEffectsNextDamageTickField = AccessTools.FieldRefAccess<SkyOverlay, int>(nextDamageTickField);
             else
             {
-                Log.Error("MPCompat :: VFECore.WeatherOverlay_Effects:nextDamageTick field, patch failed.");
+                Log.Error("MPCompat :: VEF.Weathers.WeatherOverlay_Effects:nextDamageTick field, patch failed.");
                 return;
             }
 
@@ -1742,10 +1665,10 @@ namespace Multiplayer.Compat
 
         private static Type thoughtHediffType;
 
-        private static void PatchVanillaCookingExpanded()
+        private static void PatchCooking()
         {
             // Hediff is added the fist time MoodOffset is called, called during alert updates (not synced).
-            thoughtHediffType = AccessTools.TypeByName("VanillaCookingExpanded.Thought_Hediff");
+            thoughtHediffType = AccessTools.TypeByName("VEF.Cooking.Thought_Hediff");
             if (thoughtHediffType != null)
             {
                 // Only apply the patch if there's actually any ThoughtDef that uses this specific hediff type.
@@ -1755,7 +1678,7 @@ namespace Multiplayer.Compat
                 if (DefDatabase<ThoughtDef>.AllDefsListForReading.Any(def => thoughtHediffType.IsAssignableFrom(def.thoughtClass)))
                     PatchingUtilities.PatchTryGainMemory(TryGainThoughtHediff);
             }
-            else Log.Error("MPCompat :: Trying to patch `VanillaCookingExpanded.Thought_Hediff`, but the type is null. Did it get moved, renamed, or removed?");
+            else Log.Error("MPCompat :: Trying to patch `VEF.Cooking.Thought_Hediff`, but the type is null. Did it get moved, renamed, or removed?");
         }
 
         private static bool TryGainThoughtHediff(Thought_Memory thought)
@@ -1796,11 +1719,11 @@ namespace Multiplayer.Compat
                 if (mpMethod == null)
                     throw new MissingMethodException($"Could not access method: {mpMethodPath}");
 
-                thingDefExtensionType = AccessTools.TypeByName("VFECore.ThingDefExtension");
+                thingDefExtensionType = AccessTools.TypeByName("VEF.Things.ThingDefExtension");
                 thingDefExtensionConstructionSkillRequirementField= AccessTools.FieldRefAccess<object>(
                     thingDefExtensionType, "constructionSkillRequirement");
                 constructionSkillRequirementWorkTypeField = AccessTools.FieldRefAccess<WorkTypeDef>(
-                    "VFECore.ConstructionSkillRequirement:workType");
+                    "VEF.Pawns.ConstructionSkillRequirement:workType");
             }
             catch (Exception)
             {
@@ -1889,7 +1812,7 @@ namespace Multiplayer.Compat
 
         private static void PatchGraphicCustomizationDialog()
         {
-            var type = graphicCustomizationDialogType = AccessTools.TypeByName("GraphicCustomization.Dialog_GraphicCustomization");
+            var type = graphicCustomizationDialogType = AccessTools.TypeByName("VEF.Graphics.Dialog_GraphicCustomization");
             graphicCustomizationCompField = AccessTools.FieldRefAccess<ThingComp>(type, "comp");
             graphicCustomizationGeneratedNamesCompField = AccessTools.FieldRefAccess<ThingComp>(type, "compGeneratedName");
             graphicCustomizationPawnField = AccessTools.FieldRefAccess<Pawn>(type, "pawn");
@@ -1905,7 +1828,7 @@ namespace Multiplayer.Compat
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(Window.DoWindowContents)),
                 prefix: new HarmonyMethod(CloseGraphicCustomizationWhenNoLongerValid));
 
-            type = AccessTools.TypeByName("GraphicCustomization.TextureVariant");
+            type = AccessTools.TypeByName("VEF.Graphics.TextureVariant");
             variantsListType = typeof(List<>).MakeGenericType(type);
             textureVariantTexNameField = AccessTools.FieldRefAccess<string>(type, "texName");
             textureVariantTextureField = AccessTools.FieldRefAccess<string>(type, "texture");
@@ -1914,7 +1837,7 @@ namespace Multiplayer.Compat
             textureVariantTextureVariantOverrideField = AccessTools.FieldRefAccess<object>(type, "textureVariantOverride");
             MP.RegisterSyncWorker<object>(SyncTextureVariant, type, shouldConstruct: true);
 
-            textureVariantOverrideType = type = AccessTools.TypeByName("GraphicCustomization.TextureVariantOverride");
+            textureVariantOverrideType = type = AccessTools.TypeByName("VEF.Graphics.TextureVariantOverride");
             textureVariantOverrideChanceField = AccessTools.FieldRefAccess<float>(type, "chance");
             textureVariantOverrideGroupNameField = AccessTools.FieldRefAccess<string>(type, "groupName");
             textureVariantOverrideTexNameField = AccessTools.FieldRefAccess<string>(type, "texName");
@@ -2051,11 +1974,11 @@ namespace Multiplayer.Compat
             // abilities to be autocasted.
 
             getDraftedActionDataMethod = MethodInvoker.GetHandler(
-                AccessTools.DeclaredMethod("VFECore.AI.DraftedActionHolder:GetData"));
+                AccessTools.DeclaredMethod("VEF.AI.DraftedActionHolder:GetData"));
             draftedActionDataGetPawnMethod = MethodInvoker.GetHandler(
-                AccessTools.DeclaredPropertyGetter("VFECore.AI.DraftedActionData:Pawn"));
+                AccessTools.DeclaredPropertyGetter("VEF.AI.DraftedActionData:Pawn"));
 
-            var type = AccessTools.TypeByName("VFECore.AI.DraftedActionData");
+            var type = AccessTools.TypeByName("VEF.AI.DraftedActionData");
             MP.RegisterSyncMethod(type, "ToggleHuntMode");
             MP.RegisterSyncMethod(type, "ToggleAutoForAll");
             MP.RegisterSyncMethod(type, "ToggleAutoCastFor");
@@ -2088,7 +2011,7 @@ namespace Multiplayer.Compat
             // When calling "LongEventHandler.ExecuteWhenFinished" inside a
             // "MapGenerator:GenerateMap" call the seed will differ between
             // players. Is this something we should look into in MP itself?
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.MapGenerator_GenerateMap_Patch:DoMapSpawns"),
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VEF.Maps.VanillaExpandedFramework_MapGenerator_GenerateMap_Patch:DoMapSpawns"),
                 prefix: new HarmonyMethod(PreDoSpawns),
                 finalizer: new HarmonyMethod(PostDoSpawns));
         }
@@ -2115,7 +2038,7 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<GameComponent, IList> questChainsGameCompFutureQuestsField;
 
         // QuestInfo
-        private static AccessTools.FieldRef<object, Quest> questInfoQuestField;
+        private static FastInvokeHandler questInfoQuestGetter;
 
         // FutureQuestInfo
         private static AccessTools.FieldRef<object, QuestScriptDef> futureQuestInfoQuestDefField;
@@ -2125,27 +2048,27 @@ namespace Multiplayer.Compat
             // The window normally opens from debug actions menu, which
             // MP syncs by default. This patch basically makes sure the
             // dialog only opens for the player that attempted to open it.
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.QuestChainsDevWindow:ViewQuestChains"),
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VEF.Storyteller.QuestChainsDevWindow:ViewQuestChains"),
                 prefix: new HarmonyMethod(CancelDevModeWindowIfNotExecutingSelfCommand));
 
             // Prepare field access for our patches/synced methods
-            var type = AccessTools.TypeByName("VFECore.GameComponent_QuestChains");
+            var type = AccessTools.TypeByName("VEF.Storyteller.GameComponent_QuestChains");
             questChainsGameCompInstanceField = AccessTools.StaticFieldRefAccess<GameComponent>(
                 AccessTools.DeclaredField(type, "Instance"));
             questChainsGameCompQuestsField = AccessTools.FieldRefAccess<IList>(type, "quests");
             questChainsGameCompFutureQuestsField = AccessTools.FieldRefAccess<IList>(type, "futureQuests");
 
-            questInfoQuestField = AccessTools.FieldRefAccess<Quest>("VFECore.QuestInfo:quest");
-            futureQuestInfoQuestDefField = AccessTools.FieldRefAccess<QuestScriptDef>("VFECore.FutureQuestInfo:questDef");
+            questInfoQuestGetter = MethodInvoker.GetHandler(AccessTools.DeclaredPropertyGetter("VEF.Storyteller.QuestInfo:Quest"));
+            futureQuestInfoQuestDefField = AccessTools.FieldRefAccess<QuestScriptDef>("VEF.Storyteller.FutureQuestInfo:questDef");
 
             // Sync our button replacement methods
             MP.RegisterSyncMethod(MpMethodUtil.MethodOf(SyncedQuestChainDevForceEnd)).CancelIfAnyArgNull().SetDebugOnly();
             MP.RegisterSyncMethod(MpMethodUtil.MethodOf(SyncedQuestChainDevFireNow)).CancelIfAnyArgNull().SetDebugOnly();
 
             // Replace mod buttons with our own
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.QuestChainsDevWindow:DrawQuestInfo"),
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VEF.Storyteller.QuestChainsDevWindow:DrawQuestInfo"),
                 transpiler: new HarmonyMethod(ReplaceQuestChainsWindowSuccessFailButtons));
-            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VFECore.QuestChainsDevWindow:DrawFutureQuestInfo"),
+            MpCompat.harmony.Patch(AccessTools.DeclaredMethod("VEF.Storyteller.QuestChainsDevWindow:DrawFutureQuestInfo"),
                 transpiler: new HarmonyMethod(ReplaceQuestChainsWindowFireNowButton));
         }
 
@@ -2197,7 +2120,7 @@ namespace Multiplayer.Compat
                 return result;
 
             // If pressed and in MP, redirect the button
-            SyncedQuestChainDevForceEnd(questInfoQuestField(questInfo), QuestEndOutcome.Success);
+            SyncedQuestChainDevForceEnd((Quest)questInfoQuestGetter(questInfo), QuestEndOutcome.Success);
 
             return false;
         }
@@ -2210,7 +2133,7 @@ namespace Multiplayer.Compat
                 return result;
 
             // If pressed and in MP, redirect the button
-            SyncedQuestChainDevForceEnd(questInfoQuestField(questInfo), QuestEndOutcome.Fail);
+            SyncedQuestChainDevForceEnd((Quest)questInfoQuestGetter(questInfo), QuestEndOutcome.Fail);
 
             return false;
         }
@@ -2243,7 +2166,7 @@ namespace Multiplayer.Compat
             // and check if there's a QuestInfo with our quest in the list.
             foreach (var questInfo in questChainsGameCompQuestsField(questChainsGameCompInstanceField()))
             {
-                if (questInfoQuestField(questInfo) == quest)
+                if (questInfoQuestGetter(questInfo) == quest)
                 {
                     quest.End(outcome, false);
                     return;
@@ -2300,19 +2223,19 @@ namespace Multiplayer.Compat
 
         private static void PatchMovingBases()
         {
-            var type = AccessTools.TypeByName("VFECore.MovingBase");
+            var type = AccessTools.TypeByName("VEF.Planet.MovingBase");
             MP.RegisterSyncMethod(type, "Attack");
 
             // Temp gizmo graphic fix.
             var attackGraphicField = AccessTools.DeclaredField(type, "AttackCommand");
             if (attackGraphicField == null)
-                Log.Warning("MPCompat :: VFECore.MovingBase:AttackCommand does not exist, temporary patch needs to be updated or removed");
+                Log.Warning("MPCompat :: VEF.Planet.MovingBase:AttackCommand does not exist, temporary patch needs to be updated or removed");
             else if (!attackGraphicField.IsStatic)
-                Log.Warning("MPCompat :: VFECore.MovingBase:AttackCommand is not static, temporary patch needs to be updated or removed");
+                Log.Warning("MPCompat :: VEF.Planet.MovingBase:AttackCommand is not static, temporary patch needs to be updated or removed");
             else if (attackGraphicField.FieldType != typeof(Texture2D))
-                Log.Warning("MPCompat :: VFECore.MovingBase:AttackCommand is not Texture2D, temporary patch needs to be updated or removed");
+                Log.Warning("MPCompat :: VEF.Planet.MovingBase:AttackCommand is not Texture2D, temporary patch needs to be updated or removed");
             else if (attackGraphicField.GetValue(null) != null)
-                Log.Message("MPCompat :: VFECore.MovingBase:AttackCommand is not null, temporary patch is no longer needed - if the graphic issue fix is included in MP itself");
+                Log.Message("MPCompat :: VEF.Planet.MovingBase:AttackCommand is not null, temporary patch is no longer needed - if the graphic issue fix is included in MP itself");
             else
                 attackGraphicField.SetValue(null, ContentFinder<Texture2D>.Get("UI/Commands/AttackSettlement", true));
         }
