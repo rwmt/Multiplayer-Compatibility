@@ -30,7 +30,7 @@ namespace Multiplayer.Compat
             // Need to check for _steam due to RW bug when
             // running a workshop version while a local
             // copy of a mod is active.
-            if (!ModsConfig.IsActive("OskarPotocki.VFE.Insectoid2") && !ModsConfig.IsActive("OskarPotocki.VFE.Insectoid2_steam"))
+            if (!ModLister.AnyModActiveNoSuffix(["OskarPotocki.VFE.Insectoid2"]))
             {
                 unsafeMethod = AccessTools.DeclaredMethod("AlphaBehavioursAndEvents.BlackCocoon:Tick");
 
