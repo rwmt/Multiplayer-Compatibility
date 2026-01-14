@@ -7,17 +7,16 @@ namespace Multiplayer.Compat
 {
     /// <summary>RunAndGun by roolo</summary>
     /// <see href="https://github.com/rheirman/RunAndGun"/>
+    /// <see href="https://github.com/MemeGoddess/RunAndGun"/>
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550"/>
     [MpCompatFor("roolo.RunAndGun")]
+    [MpCompatFor("memegoddess.RunAndGun")]
     class RunandGun
     {
         public RunandGun(ModContentPack mod)
         {
-            Type type = AccessTools.TypeByName("RunAndGun.Harmony.Pawn_DraftController_GetGizmos_Patch");
-
-            MP.RegisterSyncDelegateLambda(type, "Postfix", 1);
-
-            PatchingUtilities.PatchSystemRand("RunAndGun.Harmony.MentalStateHandler_TryStartMentalState:shouldRunAndGun", false);
+            MpCompat.RegisterLambdaDelegate("RunAndGun.Harmony.Pawn_DraftController_GetGizmos_Patch", "Postfix", 2);
+            PatchingUtilities.PatchUnityRand("RunAndGun.Harmony.MentalStateHandler_TryStartMentalState:shouldRunAndGun", false);
         }
     }
 }

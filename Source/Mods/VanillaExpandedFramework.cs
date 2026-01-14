@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -684,18 +684,18 @@ namespace Multiplayer.Compat
 
             // Comp holding ability
             // CompAbility
-            compAbilitiesType = AccessTools.TypeByName("VFECore.Abilities.CompAbilities");
+            compAbilitiesType = AccessTools.TypeByName("VEF.Abilities.CompAbilities");
             learnedAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesType, "learnedAbilities");
             // Unlock ability, user-input use by Vanilla Psycasts Expanded
             MP.RegisterSyncMethod(compAbilitiesType, "GiveAbility");
             // CompAbilityApparel
-            compAbilitiesApparelType = AccessTools.TypeByName("VFECore.Abilities.CompAbilitiesApparel");
+            compAbilitiesApparelType = AccessTools.TypeByName("VEF.Abilities.CompAbilitiesApparel");
             givenAbilitiesField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesApparelType, "givenAbilities");
             abilityApparelPawnGetter = MethodInvoker.GetHandler(AccessTools.PropertyGetter(compAbilitiesApparelType, "Pawn"));
             //MP.RegisterSyncMethod(compAbilitiesApparelType, "Initialize");
 
             // Ability itself
-            var type = AccessTools.TypeByName("VFECore.Abilities.Ability");
+            var type = AccessTools.TypeByName("VEF.Abilities.Ability");
 
             abilityInitMethod = MethodInvoker.GetHandler(AccessTools.Method(type, "Init"));
             abilityHolderField = AccessTools.FieldRefAccess<Thing>(type, "holder");
@@ -762,12 +762,12 @@ namespace Multiplayer.Compat
                 }
             }
 
-            type = AccessTools.TypeByName("VFECore.CompShieldField");
+            type = AccessTools.TypeByName("VEF.CompShieldField");
             MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetWornGizmosExtra), 0);
             MpCompat.RegisterLambdaMethod(type, "GetGizmos", 0, 2);
 
             // Time snapshot fix for gizmo itself
-            type = AccessTools.TypeByName("VFECore.Abilities.Command_Ability");
+            type = AccessTools.TypeByName("VEF.Abilities.Command_Ability");
             foreach (var targetType in type.AllSubclasses().Concat(type))
             {
                 var method = AccessTools.DeclaredMethod(targetType, nameof(Command.GizmoOnGUIInt));
