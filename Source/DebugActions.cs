@@ -46,7 +46,7 @@ namespace Multiplayer.Compat
             private bool doVanilla = false;
 
             public override bool IsDebug => true;
-            public override Vector2 InitialSize => new(525f, 640f);
+            public override Vector2 InitialSize => new(525f, 680f);
             public override float Margin => 32f;
 
             public DesyncSourceSearchWindow()
@@ -164,17 +164,18 @@ namespace Multiplayer.Compat
             [NonBasic] PatchedSyncMethods,
             [NonBasic] LongEvents,
             MoteSaturation,
+            CustomVtrImplementation,
         }
 
-        private static readonly MethodInfo FindCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Find), nameof(Find.CurrentMap));
-        private static readonly MethodInfo GameCurrentMap = AccessTools.DeclaredPropertyGetter(typeof(Game), nameof(Game.CurrentMap));
-        private static readonly MethodInfo GetHashCodeMethod = AccessTools.DeclaredMethod(typeof(object), nameof(GetHashCode));
+        private static readonly MethodInfo FindCurrentMap = typeof(Find).DeclaredPropertyGetter(nameof(Find.CurrentMap));
+        private static readonly MethodInfo GameCurrentMap = typeof(Game).DeclaredPropertyGetter(nameof(Game.CurrentMap));
+        private static readonly MethodInfo GetHashCodeMethod = typeof(object).DeclaredMethod(nameof(GetHashCode));
 
         private static readonly HashSet<MethodInfo> NonTickingUpdateMethodsOverrides = new[] 
         {
-            AccessTools.DeclaredMethod(typeof(MapComponent), nameof(MapComponent.MapComponentUpdate)),
-            AccessTools.DeclaredMethod(typeof(GameComponent), nameof(GameComponent.GameComponentUpdate)),
-            AccessTools.DeclaredMethod(typeof(WorldComponent), nameof(WorldComponent.WorldComponentUpdate)),
+            typeof(MapComponent).DeclaredMethod(nameof(MapComponent.MapComponentUpdate)),
+            typeof(GameComponent).DeclaredMethod(nameof(GameComponent.GameComponentUpdate)),
+            typeof(WorldComponent).DeclaredMethod(nameof(WorldComponent.WorldComponentUpdate)),
             AccessTools.DeclaredMethod("HugsLib.ModBase:Update"),
             AccessTools.DeclaredMethod("HugsLib.ModBase:FixedUpdate"),
             AccessTools.DeclaredMethod("HugsLib.ModBase:OnGUI"),
@@ -191,11 +192,11 @@ namespace Multiplayer.Compat
 
         private static readonly HashSet<MethodInfo> LongEventMethods = new[]
         {
-            AccessTools.DeclaredMethod(typeof(LongEventHandler), nameof(LongEventHandler.QueueLongEvent),
+            typeof(LongEventHandler).DeclaredMethod(nameof(LongEventHandler.QueueLongEvent),
                 [typeof(Action), typeof(string), typeof(bool), typeof(Action<Exception>), typeof(bool), typeof(Action)]),
-            AccessTools.DeclaredMethod(typeof(LongEventHandler), nameof(LongEventHandler.QueueLongEvent),
+            typeof(LongEventHandler).DeclaredMethod(nameof(LongEventHandler.QueueLongEvent),
                 [typeof(IEnumerable), typeof(string), typeof(Action<Exception>), typeof(bool)]),
-            AccessTools.DeclaredMethod(typeof(LongEventHandler), nameof(LongEventHandler.QueueLongEvent),
+            typeof(LongEventHandler).DeclaredMethod(nameof(LongEventHandler.QueueLongEvent),
                 [typeof(Action), typeof(string), typeof(string), typeof(bool), typeof(Action<Exception>), typeof(bool)]),
         }.Where(x => x != null).ToHashSet();
 
@@ -203,10 +204,18 @@ namespace Multiplayer.Compat
         // private, so it should be very unlikely that anyone is using it.
         private static readonly HashSet<MethodInfo> MoteSaturationMethods = new[]
         {
-            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.MoteCount)),
-            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.Saturation)),
-            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.Saturated)),
-            AccessTools.DeclaredPropertyGetter(typeof(MoteCounter), nameof(MoteCounter.SaturatedLowPriority)),
+            typeof(MoteCounter).DeclaredPropertyGetter(nameof(MoteCounter.MoteCount)),
+            typeof(MoteCounter).DeclaredPropertyGetter(nameof(MoteCounter.Saturation)),
+            typeof(MoteCounter).DeclaredPropertyGetter(nameof(MoteCounter.Saturated)),
+            typeof(MoteCounter).DeclaredPropertyGetter(nameof(MoteCounter.SaturatedLowPriority)),
+        }.Where(x => x != null).ToHashSet();
+
+        private static readonly HashSet<MethodInfo> VtrMethodOverrides = new[]
+        {
+            typeof(Thing).DeclaredPropertyGetter(nameof(Thing.UpdateRateTicks)),
+            typeof(Thing).DeclaredPropertyGetter(nameof(Thing.MinTickIntervalRate)),
+            typeof(Thing).DeclaredPropertyGetter(nameof(Thing.MaxTickIntervalRate)),
+            typeof(WorldObject).DeclaredPropertyGetter(nameof(WorldObject.UpdateRateTicks)),
         }.Where(x => x != null).ToHashSet();
 
         [DebugAction(CategoryName, "Unsafe stuff logger", allowedGameStates = AllowedGameStates.Entry)]
@@ -409,6 +418,13 @@ namespace Multiplayer.Compat
                     Log.Warning("== Code that runs based on how saturated the motes are may cause desyncs as mote saturation may differ between players. ==");
                     Log.Message(found.Append("\n").Join(delimiter: "\n"));
                 }
+
+                if (log.TryGetValue(StuffToSearch.CustomVtrImplementation, out found) && found.Any())
+                {
+                    Log.Warning("== Custom Variable Tick Rate found: ==");
+                    Log.Warning("== Code that uses variable tick rate may cause desyncs if the tick rate depends on some features such as, current player's map, player's camera location, or what the player has selected. ==");
+                    Log.Message(found.Append("\n").Join(delimiter: "\n"));
+                }
             }
             else Log.Warning("== No unpatched RNG or potentially unsafe methods found ==");
 
@@ -484,6 +500,8 @@ namespace Multiplayer.Compat
 
             if (IsOverrideOfAny(baseMethodInfo, NonTickingUpdateMethodsOverrides))
                 foundStuff.Add(StuffToSearch.NonTickingUpdate);
+            if (IsOverrideOfAny(baseMethodInfo, VtrMethodOverrides))
+                foundStuff.Add(StuffToSearch.CustomVtrImplementation);
 
             foreach (var ci in instr)
             {
