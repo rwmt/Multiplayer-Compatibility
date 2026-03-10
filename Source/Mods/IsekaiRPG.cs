@@ -40,6 +40,10 @@ namespace Multiplayer.Compat
         // ── Cached reflected method ──────────────────────────────────────
         private static MethodInfo updateRankTraitMethod;
 
+        // ── Pawn generation RNG fields -------------──────────────────────
+        private static FieldInfo raidRankSystemRandomField;
+        private static FieldInfo pawnStatGeneratorRandomField;
+
         // ── Debug logging toggle ──────────────────────────────────────────
         internal static bool DebugLog = false;
 
@@ -108,6 +112,16 @@ namespace Multiplayer.Compat
 
             PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
             if (DebugLog) Log.Message($"[IsekaiMP]   [OK] ITab stat field watch patched ({statSyncFields.Length} fields)");
+
+            // ── Desync fix — per-pawn RNG seeding ────────────────────────
+            var raidRankSystemType = AccessTools.TypeByName("IsekaiLeveling.MobRanking.RaidRankSystem");
+            var pawnStatGeneratorType = AccessTools.TypeByName("IsekaiLeveling.PawnStatGenerator");
+            raidRankSystemRandomField = AccessTools.Field(raidRankSystemType, "random");
+            pawnStatGeneratorRandomField = AccessTools.Field(pawnStatGeneratorType, "random");
+            PatchAndLog(raidRankSystemType, "AssignRaidPawnRank", prefix: nameof(AssignRaidPawnRankPrefix));
+            PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(InitializePawnStatsPrefix));
+            Log.Message("[IsekaiMP]   [OK] Per-pawn RNG seeding patched (raid + general pawn desync fix)");
+
 
             Log.Message("[IsekaiMP] Initialization complete — all patches applied successfully.");
         }
@@ -409,5 +423,19 @@ namespace Multiplayer.Compat
                 }
             }
         }
+
+        private static void AssignRaidPawnRankPrefix(Pawn pawn)
+        {
+            if (!MP.IsInMultiplayer || pawn == null) return;
+            raidRankSystemRandomField?.SetValue(null, new Random(pawn.thingIDNumber));
+            pawnStatGeneratorRandomField?.SetValue(null, new Random(pawn.thingIDNumber + 1337));
+        }
+
+        private static void InitializePawnStatsPrefix(Pawn pawn)
+        {
+            if (!MP.IsInMultiplayer || pawn == null) return;
+            pawnStatGeneratorRandomField?.SetValue(null, new Random(pawn.thingIDNumber));
+        }
+
     }
 }
