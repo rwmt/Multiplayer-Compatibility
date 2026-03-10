@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
+using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -40,9 +42,14 @@ namespace Multiplayer.Compat
         // ── Cached reflected method ──────────────────────────────────────
         private static MethodInfo updateRankTraitMethod;
 
-        // ── Pawn generation RNG fields -------------──────────────────────
+        // ── Pawn generation RNG fields (desync fix) ──────────────────────
         private static FieldInfo raidRankSystemRandomField;
         private static FieldInfo pawnStatGeneratorRandomField;
+        private static FieldInfo treeAutoAssignerRngField;
+
+        // ── ManaCore bulk-absorb sync ─────────────────────────────────────
+        private static Type manaCoreCompType;
+        private static FieldInfo manaCoreCompPendingBulkAbsorbField;
 
         // ── Debug logging toggle ──────────────────────────────────────────
         internal static bool DebugLog = false;
@@ -122,6 +129,22 @@ namespace Multiplayer.Compat
             PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(InitializePawnStatsPrefix));
             if (DebugLog) Log.Message("[IsekaiMP]   [OK] Per-pawn RNG seeding patched (raid + general pawn desync fix)");
 
+            // ── Desync fix — TreeAutoAssigner unseeded RNG ───────────────
+            var treeAutoAssignerType = AccessTools.TypeByName("IsekaiLeveling.SkillTree.TreeAutoAssigner");
+            treeAutoAssignerRngField = AccessTools.Field(treeAutoAssignerType, "rng");
+            PatchAndLog(isekaiComponentType, "PostSpawnSetup", prefix: nameof(PostSpawnSetupPrefix));
+            PatchAndLog(isekaiComponentType, "LevelUp", prefix: nameof(LevelUpPrefix));
+            if (DebugLog) Log.Message("[IsekaiMP]   [OK] TreeAutoAssigner RNG seeded per-pawn");
+
+            // ── Desync fix — ManaCore bulk-absorb client-side state ───────
+            manaCoreCompType = AccessTools.TypeByName("IsekaiLeveling.CompUseEffect_ManaCore");
+            if (manaCoreCompType != null)
+            {
+                manaCoreCompPendingBulkAbsorbField = AccessTools.Field(manaCoreCompType, "pendingBulkAbsorb");
+                PatchAndLog(manaCoreCompType, "CompFloatMenuOptions", postfix: nameof(ManaCoreFloatMenuOptionsPostfix));
+                MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedSetPendingBulkAbsorb));
+                if (DebugLog) Log.Message("[IsekaiMP]   [OK] ManaCore bulk-absorb float menu synced");
+            }
 
             if (DebugLog) Log.Message("[IsekaiMP] Initialization complete — all patches applied successfully.");
         }
@@ -437,5 +460,83 @@ namespace Multiplayer.Compat
             pawnStatGeneratorRandomField?.SetValue(null, new Random(pawn.thingIDNumber));
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // DESYNC FIX — TreeAutoAssigner unseeded RNG
+        // TreeAutoAssigner.rng is a static unseeded Random used to pick
+        // class trees and shuffle BFS node order for NPCs. It is seeded
+        // with the pawn's stable thingIDNumber before each call so all
+        // clients produce the same tree assignment.
+        // ═══════════════════════════════════════════════════════════════
+
+        private static void PostSpawnSetupPrefix(object __instance)
+        {
+            if (!MP.IsInMultiplayer) return;
+            var pawn = ((ThingComp)(object)__instance).parent as Pawn;
+            if (pawn == null) return;
+            int seed = pawn.thingIDNumber;
+            treeAutoAssignerRngField?.SetValue(null, new Random(seed));
+            // Also re-seed the stat generator for the direct RollRandomTraits call
+            // that PostSpawnSetup makes when traitsRolled is false.
+            pawnStatGeneratorRandomField?.SetValue(null, new Random(seed));
+        }
+
+        private static void LevelUpPrefix(object __instance)
+        {
+            if (!MP.IsInMultiplayer) return;
+            var pawn = ((ThingComp)(object)__instance).parent as Pawn;
+            if (pawn == null) return;
+            treeAutoAssignerRngField?.SetValue(null, new Random(pawn.thingIDNumber));
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // DESYNC FIX — ManaCore "Absorb all" float menu
+        // pendingBulkAbsorb is set by the float menu lambda on the
+        // initiating client only. We wrap the enabled option to call a
+        // SyncMethod that sets the field on ALL clients before the
+        // UseItem job completes and DoEffect reads the value.
+        // ═══════════════════════════════════════════════════════════════
+
+        private static void ManaCoreFloatMenuOptionsPostfix(object __instance, Pawn selPawn,
+            ref IEnumerable<FloatMenuOption> __result)
+        {
+            if (!MP.IsInMultiplayer) return;
+            __result = WrapManaCoreAbsorbOptions(__instance, selPawn, __result);
+        }
+
+        private static IEnumerable<FloatMenuOption> WrapManaCoreAbsorbOptions(
+            object comp, Pawn selPawn, IEnumerable<FloatMenuOption> original)
+        {
+            var item = ((ThingComp)(object)comp).parent;
+            foreach (var opt in original)
+            {
+                // Disabled options (null action) need no wrapping.
+                if (opt.action == null) { yield return opt; continue; }
+
+                // Replace the enabled "Absorb all" action with a synced equivalent.
+                var capturedItem = item;
+                int count = capturedItem?.stackCount ?? 0;
+                yield return new FloatMenuOption(opt.Label, () =>
+                {
+                    // Sync pendingBulkAbsorb to all clients, then queue the job.
+                    SyncedSetPendingBulkAbsorb(capturedItem, count);
+                    selPawn.jobs.TryTakeOrderedJob(
+                        JobMaker.MakeJob(DefDatabase<JobDef>.GetNamed("UseItem"), capturedItem));
+                });
+            }
+        }
+
+        private static void SyncedSetPendingBulkAbsorb(Thing item, int count)
+        {
+            if (item == null || manaCoreCompType == null) return;
+            if (item is not ThingWithComps twc) return;
+            foreach (var comp in twc.AllComps)
+            {
+                if (manaCoreCompType.IsInstanceOfType(comp))
+                {
+                    manaCoreCompPendingBulkAbsorbField.SetValue(comp, count);
+                    return;
+                }
+            }
+        }
     }
 }
