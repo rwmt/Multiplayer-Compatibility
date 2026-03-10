@@ -27,12 +27,15 @@ namespace Multiplayer.Compat
         private static Type raidRankSystemType;
         private static Type pawnStatGeneratorType;
         private static Type treeAutoAssignerType;
+        // private static Type manaCoreCompType;
 
         // ── IsekaiStatAllocation field accessors ─────────────────────────
         private static FieldInfo[] statAllocationFields;          // [6]: indexed by StatAllocationFieldNames
         private static FieldInfo statAllocationAvailablePoints;
         private static FieldInfo isekaiCompStatsField;
         private static FieldInfo isekaiCompPassiveTreeField;
+        // private static FieldInfo manaCoreCompPendingBulkAbsorbField;
+
 
         // ── Window_StatsAttribution field accessors ──────────────────────
         private static AccessTools.FieldRef<object, Pawn> statsWindowPawn;
@@ -48,12 +51,8 @@ namespace Multiplayer.Compat
         private static FieldInfo pawnStatGeneratorRandomField;
         private static FieldInfo treeAutoAssignerRngField;
 
-        // ── ManaCore bulk-absorb sync ─────────────────────────────────────
-        private static Type manaCoreCompType;
-        private static FieldInfo manaCoreCompPendingBulkAbsorbField;
-
         // ── Debug logging toggle ──────────────────────────────────────────
-        internal static bool DebugLog = false;
+        internal static bool DebugLog = true;
 
         // ── Constructor — called by MP at startup ─────────────────────────
         public IsekaiRPGCompat(ModContentPack mod)
@@ -67,6 +66,8 @@ namespace Multiplayer.Compat
             raidRankSystemType = Resolve("IsekaiLeveling.MobRanking.RaidRankSystem");
             pawnStatGeneratorType = Resolve("IsekaiLeveling.PawnStatGenerator");
             treeAutoAssignerType = Resolve("IsekaiLeveling.SkillTree.TreeAutoAssigner");
+            // manaCoreCompType = AccessTools.TypeByName("IsekaiLeveling.CompUseEffect_ManaCore");
+
 
             if (isekaiComponentType == null
                 || isekaiStatAllocationType == null
@@ -76,6 +77,7 @@ namespace Multiplayer.Compat
                 || raidRankSystemType == null
                 || pawnStatGeneratorType == null
                 || treeAutoAssignerType == null
+            // || manaCoreCompType == null
             )
             {
                 Log.Error("[IsekaiMP] One or more required types could not be resolved — patches will NOT be applied.");
@@ -99,8 +101,6 @@ namespace Multiplayer.Compat
             // IsekaiComponent
             isekaiCompStatsField = AccessTools.Field(isekaiComponentType, "stats");
             isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType, "passiveTree");
-            PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
 
             // IsekaiStatAllocation
             statAllocationFields = new FieldInfo[StatAllocationFieldNames.Length];
@@ -108,13 +108,11 @@ namespace Multiplayer.Compat
                 statAllocationFields[i] = AccessTools.Field(isekaiStatAllocationType, StatAllocationFieldNames[i]);
             statAllocationAvailablePoints = AccessTools.Field(isekaiStatAllocationType, "availableStatPoints");
             statSyncFields = new ISyncField[StatAllocationFieldNames.Length + 1];
-            MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, isekaiStatAllocationType);
 
             // ITab_IsekaiStats
             for (int i = 0; i < StatAllocationFieldNames.Length; i++)
                 statSyncFields[i] = MP.RegisterSyncField(isekaiStatAllocationType, StatAllocationFieldNames[i]);
             statSyncFields[StatAllocationFieldNames.Length] = MP.RegisterSyncField(isekaiStatAllocationType, "availableStatPoints");
-            PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
 
             // Window_StatsAttribution
             statsWindowPawn = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
@@ -122,29 +120,35 @@ namespace Multiplayer.Compat
             for (int i = 0; i < PendingFieldNames.Length; i++)
                 statsWindowPending[i] = AccessTools.FieldRefAccess<int>(windowStatsType, PendingFieldNames[i]);
             statsWindowPointsSpent = AccessTools.FieldRefAccess<int>(windowStatsType, "pointsSpent");
-            PatchAndLog(windowStatsType, "ApplyChanges", prefix: nameof(ApplyChangesPrefix));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedApplyStats));
 
-            // PassiveTreeTracker
+
+            // Patch
+            PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
+
+            PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
+
+            PatchAndLog(windowStatsType, "ApplyChanges", prefix: nameof(ApplyChangesPrefix));
+
             PatchAndLog(passiveTreeTrackerType, "Unlock", prefix: nameof(UnlockNodePrefix));
             PatchAndLog(passiveTreeTrackerType, "Respec", prefix: nameof(RespecPrefix));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedUnlockNode));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRespec));
 
-            // RNG 
             PatchAndLog(raidRankSystemType, "AssignRaidPawnRank", prefix: nameof(AssignRaidPawnRankPrefix));
             PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(InitializePawnStatsPrefix));
             PatchAndLog(isekaiComponentType, "PostSpawnSetup", prefix: nameof(PostSpawnSetupPrefix));
             PatchAndLog(isekaiComponentType, "LevelUp", prefix: nameof(LevelUpPrefix));
 
+            // Sync
+            MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, isekaiStatAllocationType);
+            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
+            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedApplyStats));
+            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedUnlockNode));
+            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRespec));
+            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRandomSeedForPawn));
+
             // ManaCore Usage Sync
-            manaCoreCompType = AccessTools.TypeByName("IsekaiLeveling.CompUseEffect_ManaCore");
-            if (manaCoreCompType != null)
-            {
-                manaCoreCompPendingBulkAbsorbField = AccessTools.Field(manaCoreCompType, "pendingBulkAbsorb");
-                PatchAndLog(manaCoreCompType, "CompFloatMenuOptions", postfix: nameof(ManaCoreFloatMenuOptionsPostfix));
-                MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedSetPendingBulkAbsorb));
-            }
+            // manaCoreCompPendingBulkAbsorbField = AccessTools.Field(manaCoreCompType, "pendingBulkAbsorb");
+            // PatchAndLog(manaCoreCompType, "CompFloatMenuOptions", postfix: nameof(ManaCoreFloatMenuOptionsPostfix));
+            // MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedSetPendingBulkAbsorb));
 
         }
 
@@ -153,8 +157,6 @@ namespace Multiplayer.Compat
             var type = AccessTools.TypeByName(typeName);
             if (type == null)
                 Log.Error($"[IsekaiMP] Could not resolve type '{typeName}' — mod version may have changed.");
-            else if (DebugLog)
-                Log.Message($"[IsekaiMP]   Resolved: {typeName}");
             return type;
         }
 
@@ -235,15 +237,12 @@ namespace Multiplayer.Compat
                 }
             }
 
-            if (DebugLog) Log.Message($"[IsekaiMP] ApplyChanges for {pawn.LabelShort}: [{string.Join(",", pending)}] spent={pointsSpent} god={godMode}");
-
             SyncedApplyStats(pawn, pending, pointsSpent, godMode);
             return false;
         }
 
         private static void SyncedApplyStats(Pawn pawn, int[] statValues, int pointsSpent, bool godMode)
         {
-            if (DebugLog) Log.Message($"[IsekaiMP] SyncedApplyStats for {pawn.LabelShort}: [{string.Join(",", statValues)}] spent={pointsSpent} god={godMode}");
 
             var comp = GetCompByType(pawn, isekaiComponentType);
             if (comp == null) return;
@@ -257,7 +256,6 @@ namespace Multiplayer.Compat
             {
                 int remaining = (int)statAllocationAvailablePoints.GetValue(statsObj);
                 statAllocationAvailablePoints.SetValue(statsObj, remaining - pointsSpent);
-                if (DebugLog) Log.Message($"[IsekaiMP] SyncedApplyStats: availableStatPoints {remaining} → {remaining - pointsSpent}");
             }
 
             RefreshStatsWindows(pawn, statsObj);
@@ -276,7 +274,6 @@ namespace Multiplayer.Compat
                 // Reset the cached pointsSpent counter so the display is correct immediately.
                 statsWindowPointsSpent(window) = 0;
 
-                if (DebugLog) Log.Message($"[IsekaiMP] RefreshStatsWindows: reset pending fields for {pawn.LabelShort}");
             }
         }
 
@@ -290,7 +287,6 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsInMultiplayer || _suppressUnlockPrefix || pawn == null) return true;
 
-            if (DebugLog) Log.Message($"[IsekaiMP] UnlockNode intercepted for {pawn.LabelShort} — node '{nodeId}'");
             SyncedUnlockNode(pawn, nodeId);
             __result = false;
             return false;
@@ -298,7 +294,6 @@ namespace Multiplayer.Compat
 
         private static void SyncedUnlockNode(Pawn pawn, string nodeId)
         {
-            if (DebugLog) Log.Message($"[IsekaiMP] SyncedUnlockNode for {pawn.LabelShort} — node '{nodeId}'");
 
             var comp = GetCompByType(pawn, isekaiComponentType);
             if (comp == null) { Log.Warning($"[IsekaiMP] SyncedUnlockNode: no IsekaiComponent on {pawn.LabelShort}"); return; }
@@ -311,7 +306,6 @@ namespace Multiplayer.Compat
             {
                 bool result = (bool)AccessTools.DeclaredMethod(passiveTreeTrackerType, "Unlock")
                                                .Invoke(passiveTree, new object[] { nodeId, pawn });
-                if (DebugLog) Log.Message($"[IsekaiMP] SyncedUnlockNode: Unlock('{nodeId}') returned {result}");
             }
             finally { _suppressUnlockPrefix = false; }
         }
@@ -333,14 +327,12 @@ namespace Multiplayer.Compat
                 return true;
             }
 
-            if (DebugLog) Log.Message($"[IsekaiMP] Respec intercepted for {owner.LabelShort}");
             SyncedRespec(owner);
             return false;
         }
 
         private static void SyncedRespec(Pawn pawn)
         {
-            if (DebugLog) Log.Message($"[IsekaiMP] SyncedRespec for {pawn.LabelShort}");
 
             var comp = GetCompByType(pawn, isekaiComponentType);
             if (comp == null) { Log.Warning($"[IsekaiMP] SyncedRespec: no IsekaiComponent on {pawn.LabelShort}"); return; }
@@ -352,7 +344,6 @@ namespace Multiplayer.Compat
             try
             {
                 AccessTools.DeclaredMethod(passiveTreeTrackerType, "Respec").Invoke(passiveTree, null);
-                if (DebugLog) Log.Message($"[IsekaiMP] SyncedRespec: completed for {pawn.LabelShort}");
             }
             finally { _suppressRespecPrefix = false; }
         }
@@ -374,14 +365,12 @@ namespace Multiplayer.Compat
                 return true;
             }
 
-            if (DebugLog) Log.Message($"[IsekaiMP] DevAddLevel intercepted for {pawn.LabelShort} — levels={levels}");
             SyncedDevAddLevel(pawn, levels);
             return false;
         }
 
         private static void SyncedDevAddLevel(Pawn pawn, int levels)
         {
-            if (DebugLog) Log.Message($"[IsekaiMP] SyncedDevAddLevel for {pawn.LabelShort} — levels={levels}");
 
             var comp = GetCompByType(pawn, isekaiComponentType);
             if (comp == null) { Log.Warning($"[IsekaiMP] SyncedDevAddLevel: no IsekaiComponent on {pawn.LabelShort}"); return; }
@@ -390,7 +379,6 @@ namespace Multiplayer.Compat
             try
             {
                 AccessTools.DeclaredMethod(isekaiComponentType, "DevAddLevel").Invoke(comp, new object[] { levels });
-                if (DebugLog) Log.Message($"[IsekaiMP] SyncedDevAddLevel: completed for {pawn.LabelShort}");
             }
             finally { _suppressDevAddLevelPrefix = false; }
         }
@@ -448,37 +436,50 @@ namespace Multiplayer.Compat
         // RNG Prefixes
         // ═══════════════════════════════════════════════════════════════
 
-        private static void AssignRaidPawnRankPrefix(Pawn pawn)
-        {
-            UpdateRandomSeedForPawn(pawn);
+        private static bool _suppressRandomSeed = false;
+
+        private static bool AssignRaidPawnRankPrefix(Pawn pawn)
+        {   
+            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
+            SyncedRandomSeedForPawn(pawn);
+            return false;
         }
 
-        private static void InitializePawnStatsPrefix(Pawn pawn)
+        private static bool InitializePawnStatsPrefix(Pawn pawn)
         {
-            UpdateRandomSeedForPawn(pawn);
+            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
+            SyncedRandomSeedForPawn(pawn);
+            return false;
         }
-        private static void PostSpawnSetupPrefix(object __instance)
+        private static bool PostSpawnSetupPrefix(object __instance)
         {
-            if (!MP.IsInMultiplayer) return;
             var pawn = ((ThingComp)(object)__instance).parent as Pawn;
-            UpdateRandomSeedForPawn(pawn);
+            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
+            SyncedRandomSeedForPawn(pawn);
+            return false;
         }
 
-        private static void LevelUpPrefix(object __instance)
+        private static bool LevelUpPrefix(object __instance)
         {
-            if (!MP.IsInMultiplayer) return;
             var pawn = ((ThingComp)(object)__instance).parent as Pawn;
-            UpdateRandomSeedForPawn(pawn);
+            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
+            SyncedRandomSeedForPawn(pawn);
+            return false;
         }
-
-        private static void UpdateRandomSeedForPawn(Pawn pawn)
+        
+        private static void SyncedRandomSeedForPawn(Pawn pawn)
         {
-            if (pawn == null) return;
-            int seed = Gen.HashCombineInt(pawn.thingIDNumber, Find.TickManager.TicksGame);
 
-            pawnStatGeneratorRandomField?.SetValue(null, new Random(seed));
-            raidRankSystemRandomField?.SetValue(null, new Random(seed));
-            treeAutoAssignerRngField?.SetValue(null, new Random(seed));
+            int seed = pawn.thingIDNumber; // Gen.HashCombineInt(pawn.thingIDNumber, Find.TickManager.TicksGame);
+            _suppressRandomSeed = true;
+            try
+            {
+                pawnStatGeneratorRandomField?.SetValue(null, new Random(seed));
+                raidRankSystemRandomField?.SetValue(null, new Random(seed));
+                treeAutoAssignerRngField?.SetValue(null, new Random(seed));
+            }
+            finally { _suppressRandomSeed = false; }
+
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -489,47 +490,47 @@ namespace Multiplayer.Compat
         // UseItem job completes and DoEffect reads the value.
         // ═══════════════════════════════════════════════════════════════
 
-        private static void ManaCoreFloatMenuOptionsPostfix(object __instance, Pawn selPawn,
-            ref IEnumerable<FloatMenuOption> __result)
-        {
-            if (!MP.IsInMultiplayer) return;
-            __result = WrapManaCoreAbsorbOptions(__instance, selPawn, __result);
-        }
+        // private static void ManaCoreFloatMenuOptionsPostfix(object __instance, Pawn selPawn,
+        //     ref IEnumerable<FloatMenuOption> __result)
+        // {
+        //     if (!MP.IsInMultiplayer) return;
+        //     __result = WrapManaCoreAbsorbOptions(__instance, selPawn, __result);
+        // }
 
-        private static IEnumerable<FloatMenuOption> WrapManaCoreAbsorbOptions(
-            object comp, Pawn selPawn, IEnumerable<FloatMenuOption> original)
-        {
-            var item = ((ThingComp)(object)comp).parent;
-            foreach (var opt in original)
-            {
-                // Disabled options (null action) need no wrapping.
-                if (opt.action == null) { yield return opt; continue; }
+        // private static IEnumerable<FloatMenuOption> WrapManaCoreAbsorbOptions(
+        //     object comp, Pawn selPawn, IEnumerable<FloatMenuOption> original)
+        // {
+        //     var item = ((ThingComp)(object)comp).parent;
+        //     foreach (var opt in original)
+        //     {
+        //         // Disabled options (null action) need no wrapping.
+        //         if (opt.action == null) { yield return opt; continue; }
 
-                // Replace the enabled "Absorb all" action with a synced equivalent.
-                var capturedItem = item;
-                int count = capturedItem?.stackCount ?? 0;
-                yield return new FloatMenuOption(opt.Label, () =>
-                {
-                    // Sync pendingBulkAbsorb to all clients, then queue the job.
-                    SyncedSetPendingBulkAbsorb(capturedItem, count);
-                    selPawn.jobs.TryTakeOrderedJob(
-                        JobMaker.MakeJob(DefDatabase<JobDef>.GetNamed("UseItem"), capturedItem));
-                });
-            }
-        }
+        //         // Replace the enabled "Absorb all" action with a synced equivalent.
+        //         var capturedItem = item;
+        //         int count = capturedItem?.stackCount ?? 0;
+        //         yield return new FloatMenuOption(opt.Label, () =>
+        //         {
+        //             // Sync pendingBulkAbsorb to all clients, then queue the job.
+        //             SyncedSetPendingBulkAbsorb(capturedItem, count);
+        //             selPawn.jobs.TryTakeOrderedJob(
+        //                 JobMaker.MakeJob(DefDatabase<JobDef>.GetNamed("UseItem"), capturedItem));
+        //         });
+        //     }
+        // }
 
-        private static void SyncedSetPendingBulkAbsorb(Thing item, int count)
-        {
-            if (item == null || manaCoreCompType == null) return;
-            if (item is not ThingWithComps twc) return;
-            foreach (var comp in twc.AllComps)
-            {
-                if (manaCoreCompType.IsInstanceOfType(comp))
-                {
-                    manaCoreCompPendingBulkAbsorbField.SetValue(comp, count);
-                    return;
-                }
-            }
-        }
+        // private static void SyncedSetPendingBulkAbsorb(Thing item, int count)
+        // {
+        //     if (item == null || manaCoreCompType == null) return;
+        //     if (item is not ThingWithComps twc) return;
+        //     foreach (var comp in twc.AllComps)
+        //     {
+        //         if (manaCoreCompType.IsInstanceOfType(comp))
+        //         {
+        //             manaCoreCompPendingBulkAbsorbField.SetValue(comp, count);
+        //             return;
+        //         }
+        //     }
+        // }
     }
 }
