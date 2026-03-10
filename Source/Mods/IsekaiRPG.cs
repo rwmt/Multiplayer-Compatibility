@@ -14,19 +14,23 @@ namespace Multiplayer.Compat
     public class IsekaiRPGCompat
     {
         // Ordered list of stat fields in IsekaiStatAllocation — index is shared across all arrays.
-        private static readonly string[] StatAllocFieldNames = ["strength", "vitality", "dexterity", "intelligence", "wisdom", "charisma"];
+        private static readonly string[] StatAllocationFieldNames = ["strength", "vitality", "dexterity", "intelligence", "wisdom", "charisma"];
         // Matching pending field names in Window_StatsAttribution (same order).
         private static readonly string[] PendingFieldNames = ["pendingSTR", "pendingVIT", "pendingDEX", "pendingINT", "pendingWIS", "pendingCHA"];
 
         // ── Type references ──────────────────────────────────────────────
         private static Type isekaiComponentType;
+        private static Type isekaiStatAllocationType;
         private static Type passiveTreeTrackerType;
         private static Type windowStatsType;
         private static Type iTabType;
+        private static Type raidRankSystemType;
+        private static Type pawnStatGeneratorType;
+        private static Type treeAutoAssignerType;
 
         // ── IsekaiStatAllocation field accessors ─────────────────────────
-        private static FieldInfo[] statAllocFields;          // [6]: indexed by StatAllocFieldNames
-        private static FieldInfo statAllocAvailablePoints;
+        private static FieldInfo[] statAllocationFields;          // [6]: indexed by StatAllocationFieldNames
+        private static FieldInfo statAllocationAvailablePoints;
         private static FieldInfo isekaiCompStatsField;
         private static FieldInfo isekaiCompPassiveTreeField;
 
@@ -36,13 +40,10 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, int> statsWindowPointsSpent;
 
         // ── MP sync fields for ITab watch ────────────────────────────────
-        // Indices 0..5 = stat fields (StatAllocFieldNames), index 6 = availableStatPoints
+        // Indices 0..5 = stat fields (StatAllocationFieldNames), index 6 = availableStatPoints
         private static ISyncField[] statSyncFields;
 
-        // ── Cached reflected method ──────────────────────────────────────
-        private static MethodInfo updateRankTraitMethod;
-
-        // ── Pawn generation RNG fields (desync fix) ──────────────────────
+        // ── Pawn generation RNG fields ────────────────────────────────────
         private static FieldInfo raidRankSystemRandomField;
         private static FieldInfo pawnStatGeneratorRandomField;
         private static FieldInfo treeAutoAssignerRngField;
@@ -54,99 +55,97 @@ namespace Multiplayer.Compat
         // ── Debug logging toggle ──────────────────────────────────────────
         internal static bool DebugLog = false;
 
-        // ── Constructor — called by MP at startup ────────────────────────
+        // ── Constructor — called by MP at startup ─────────────────────────
         public IsekaiRPGCompat(ModContentPack mod)
         {
-            if (DebugLog) Log.Message("[IsekaiMP] Initializing multiplayer compatibility for Isekai RPG Leveling...");
-
+            // types
             isekaiComponentType = Resolve("IsekaiLeveling.IsekaiComponent");
-            passiveTreeTrackerType = Resolve("IsekaiLeveling.SkillTree.PassiveTreeTracker");
-            windowStatsType = Resolve("IsekaiLeveling.UI.Window_StatsAttribution");
+            isekaiStatAllocationType = Resolve("IsekaiLeveling.IsekaiStatAllocation");
             iTabType = Resolve("IsekaiLeveling.UI.ITab_IsekaiStats");
+            windowStatsType = Resolve("IsekaiLeveling.UI.Window_StatsAttribution");
+            passiveTreeTrackerType = Resolve("IsekaiLeveling.SkillTree.PassiveTreeTracker");
+            raidRankSystemType = Resolve("IsekaiLeveling.MobRanking.RaidRankSystem");
+            pawnStatGeneratorType = Resolve("IsekaiLeveling.PawnStatGenerator");
+            treeAutoAssignerType = Resolve("IsekaiLeveling.SkillTree.TreeAutoAssigner");
 
-            if (isekaiComponentType == null || passiveTreeTrackerType == null ||
-                windowStatsType == null || iTabType == null)
+            if (isekaiComponentType == null
+                || isekaiStatAllocationType == null
+                || passiveTreeTrackerType == null
+                || windowStatsType == null
+                || iTabType == null
+                || raidRankSystemType == null
+                || pawnStatGeneratorType == null
+                || treeAutoAssignerType == null
+            )
             {
                 Log.Error("[IsekaiMP] One or more required types could not be resolved — patches will NOT be applied.");
                 return;
             }
 
-            // ── Cache fields ───────────────────────────────────────────────
-            var statAllocType = AccessTools.TypeByName("IsekaiLeveling.IsekaiStatAllocation");
+            // random fields
+            raidRankSystemRandomField = AccessTools.Field(raidRankSystemType, "random");
+            pawnStatGeneratorRandomField = AccessTools.Field(pawnStatGeneratorType, "random");
+            treeAutoAssignerRngField = AccessTools.Field(treeAutoAssignerType, "rng");
 
-            statAllocFields = new FieldInfo[StatAllocFieldNames.Length];
-            for (int i = 0; i < StatAllocFieldNames.Length; i++)
-                statAllocFields[i] = AccessTools.Field(statAllocType, StatAllocFieldNames[i]);
+            if (raidRankSystemRandomField == null
+                || pawnStatGeneratorRandomField == null
+                || treeAutoAssignerRngField == null
+            )
+            {
+                Log.Error("[IsekaiMP] One or more required fields could not be resolved — patches will NOT be applied.");
+                return;
+            }
 
-            statAllocAvailablePoints = AccessTools.Field(statAllocType, "availableStatPoints");
+            // IsekaiComponent
             isekaiCompStatsField = AccessTools.Field(isekaiComponentType, "stats");
             isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType, "passiveTree");
-            updateRankTraitMethod = AccessTools.DeclaredMethod(
-                AccessTools.TypeByName("IsekaiLeveling.PawnStatGenerator"), "UpdateRankTraitFromStats");
+            PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
+            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
 
-            MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, statAllocType);
+            // IsekaiStatAllocation
+            statAllocationFields = new FieldInfo[StatAllocationFieldNames.Length];
+            for (int i = 0; i < StatAllocationFieldNames.Length; i++)
+                statAllocationFields[i] = AccessTools.Field(isekaiStatAllocationType, StatAllocationFieldNames[i]);
+            statAllocationAvailablePoints = AccessTools.Field(isekaiStatAllocationType, "availableStatPoints");
+            statSyncFields = new ISyncField[StatAllocationFieldNames.Length + 1];
+            MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, isekaiStatAllocationType);
 
-            // ── Window_StatsAttribution ───────────────────────────────────
+            // ITab_IsekaiStats
+            for (int i = 0; i < StatAllocationFieldNames.Length; i++)
+                statSyncFields[i] = MP.RegisterSyncField(isekaiStatAllocationType, StatAllocationFieldNames[i]);
+            statSyncFields[StatAllocationFieldNames.Length] = MP.RegisterSyncField(isekaiStatAllocationType, "availableStatPoints");
+            PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
+
+            // Window_StatsAttribution
             statsWindowPawn = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
             statsWindowPending = new AccessTools.FieldRef<object, int>[PendingFieldNames.Length];
             for (int i = 0; i < PendingFieldNames.Length; i++)
                 statsWindowPending[i] = AccessTools.FieldRefAccess<int>(windowStatsType, PendingFieldNames[i]);
             statsWindowPointsSpent = AccessTools.FieldRefAccess<int>(windowStatsType, "pointsSpent");
-
             PatchAndLog(windowStatsType, "ApplyChanges", prefix: nameof(ApplyChangesPrefix));
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedApplyStats));
-            if (DebugLog) Log.Message("[IsekaiMP]   [OK] Stat attribution window (ApplyChanges) patched");
 
-            // ── Skill tree ────────────────────────────────────────────────
+            // PassiveTreeTracker
             PatchAndLog(passiveTreeTrackerType, "Unlock", prefix: nameof(UnlockNodePrefix));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedUnlockNode));
-            if (DebugLog) Log.Message("[IsekaiMP]   [OK] Skill tree node unlock patched");
-
             PatchAndLog(passiveTreeTrackerType, "Respec", prefix: nameof(RespecPrefix));
+            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedUnlockNode));
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRespec));
-            if (DebugLog) Log.Message("[IsekaiMP]   [OK] Skill tree respec patched");
 
-            // ── Dev buttons ───────────────────────────────────────────────
-            PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
-            if (DebugLog) Log.Message("[IsekaiMP]   [OK] Dev button DevAddLevel patched");
-
-            // ── ITab field watch ──────────────────────────────────────────
-            statSyncFields = new ISyncField[StatAllocFieldNames.Length + 1];
-            for (int i = 0; i < StatAllocFieldNames.Length; i++)
-                statSyncFields[i] = MP.RegisterSyncField(statAllocType, StatAllocFieldNames[i]);
-            statSyncFields[StatAllocFieldNames.Length] = MP.RegisterSyncField(statAllocType, "availableStatPoints");
-
-            PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
-            if (DebugLog) Log.Message($"[IsekaiMP]   [OK] ITab stat field watch patched ({statSyncFields.Length} fields)");
-
-            // ── Desync fix — per-pawn RNG seeding ────────────────────────
-            var raidRankSystemType = AccessTools.TypeByName("IsekaiLeveling.MobRanking.RaidRankSystem");
-            var pawnStatGeneratorType = AccessTools.TypeByName("IsekaiLeveling.PawnStatGenerator");
-            raidRankSystemRandomField = AccessTools.Field(raidRankSystemType, "random");
-            pawnStatGeneratorRandomField = AccessTools.Field(pawnStatGeneratorType, "random");
+            // RNG 
             PatchAndLog(raidRankSystemType, "AssignRaidPawnRank", prefix: nameof(AssignRaidPawnRankPrefix));
             PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(InitializePawnStatsPrefix));
-            if (DebugLog) Log.Message("[IsekaiMP]   [OK] Per-pawn RNG seeding patched (raid + general pawn desync fix)");
-
-            // ── Desync fix — TreeAutoAssigner unseeded RNG ───────────────
-            var treeAutoAssignerType = AccessTools.TypeByName("IsekaiLeveling.SkillTree.TreeAutoAssigner");
-            treeAutoAssignerRngField = AccessTools.Field(treeAutoAssignerType, "rng");
             PatchAndLog(isekaiComponentType, "PostSpawnSetup", prefix: nameof(PostSpawnSetupPrefix));
             PatchAndLog(isekaiComponentType, "LevelUp", prefix: nameof(LevelUpPrefix));
-            if (DebugLog) Log.Message("[IsekaiMP]   [OK] TreeAutoAssigner RNG seeded per-pawn");
 
-            // ── Desync fix — ManaCore bulk-absorb client-side state ───────
+            // ManaCore Usage Sync
             manaCoreCompType = AccessTools.TypeByName("IsekaiLeveling.CompUseEffect_ManaCore");
             if (manaCoreCompType != null)
             {
                 manaCoreCompPendingBulkAbsorbField = AccessTools.Field(manaCoreCompType, "pendingBulkAbsorb");
                 PatchAndLog(manaCoreCompType, "CompFloatMenuOptions", postfix: nameof(ManaCoreFloatMenuOptionsPostfix));
                 MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedSetPendingBulkAbsorb));
-                if (DebugLog) Log.Message("[IsekaiMP]   [OK] ManaCore bulk-absorb float menu synced");
             }
 
-            if (DebugLog) Log.Message("[IsekaiMP] Initialization complete — all patches applied successfully.");
         }
 
         private static Type Resolve(string typeName)
@@ -217,7 +216,7 @@ namespace Multiplayer.Compat
             if (pawn == null) return true;
 
             // Capture all pending stat values from the window's staging fields.
-            var pending = new int[StatAllocFieldNames.Length];
+            var pending = new int[StatAllocationFieldNames.Length];
             for (int i = 0; i < pending.Length; i++)
                 pending[i] = statsWindowPending[i](__instance);
 
@@ -232,7 +231,7 @@ namespace Multiplayer.Compat
                 {
                     object statsObj = isekaiCompStatsField.GetValue(comp);
                     for (int i = 0; i < pending.Length; i++)
-                        pointsSpent += pending[i] - (int)statAllocFields[i].GetValue(statsObj);
+                        pointsSpent += pending[i] - (int)statAllocationFields[i].GetValue(statsObj);
                 }
             }
 
@@ -251,17 +250,15 @@ namespace Multiplayer.Compat
 
             object statsObj = isekaiCompStatsField.GetValue(comp);
 
-            for (int i = 0; i < statAllocFields.Length; i++)
-                statAllocFields[i].SetValue(statsObj, statValues[i]);
+            for (int i = 0; i < statAllocationFields.Length; i++)
+                statAllocationFields[i].SetValue(statsObj, statValues[i]);
 
             if (!godMode && pointsSpent > 0)
             {
-                int remaining = (int)statAllocAvailablePoints.GetValue(statsObj);
-                statAllocAvailablePoints.SetValue(statsObj, remaining - pointsSpent);
+                int remaining = (int)statAllocationAvailablePoints.GetValue(statsObj);
+                statAllocationAvailablePoints.SetValue(statsObj, remaining - pointsSpent);
                 if (DebugLog) Log.Message($"[IsekaiMP] SyncedApplyStats: availableStatPoints {remaining} → {remaining - pointsSpent}");
             }
-
-            updateRankTraitMethod.Invoke(null, new object[] { pawn, comp });
 
             RefreshStatsWindows(pawn, statsObj);
         }
@@ -273,8 +270,8 @@ namespace Multiplayer.Compat
                 if (!windowStatsType.IsInstanceOfType(window)) continue;
                 if (!ReferenceEquals(statsWindowPawn(window), pawn)) continue;
 
-                for (int i = 0; i < statAllocFields.Length; i++)
-                    statsWindowPending[i](window) = (int)statAllocFields[i].GetValue(statsObj);
+                for (int i = 0; i < statAllocationFields.Length; i++)
+                    statsWindowPending[i](window) = (int)statAllocationFields[i].GetValue(statsObj);
 
                 // Reset the cached pointsSpent counter so the display is correct immediately.
                 statsWindowPointsSpent(window) = 0;
@@ -427,13 +424,13 @@ namespace Multiplayer.Compat
         // SYNC WORKER — IsekaiStatAllocation
         // ═══════════════════════════════════════════════════════════════
 
-        private static void SyncIsekaiStatAllocation(SyncWorker sync, ref object statsAlloc)
+        private static void SyncIsekaiStatAllocation(SyncWorker sync, ref object statsAllocation)
         {
             if (sync.isWriting)
             {
                 // Identify the owning pawn by matching the stats object reference.
-                var statsAllocRef = statsAlloc;
-                sync.Write(FindPawnByComp(c => ReferenceEquals(isekaiCompStatsField.GetValue(c), statsAllocRef)));
+                var statsAllocationRef = statsAllocation;
+                sync.Write(FindPawnByComp(c => ReferenceEquals(isekaiCompStatsField.GetValue(c), statsAllocationRef)));
             }
             else
             {
@@ -442,50 +439,46 @@ namespace Multiplayer.Compat
                 {
                     var comp = GetCompByType(pawn, isekaiComponentType);
                     if (comp != null)
-                        statsAlloc = isekaiCompStatsField.GetValue(comp);
+                        statsAllocation = isekaiCompStatsField.GetValue(comp);
                 }
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // RNG Prefixes
+        // ═══════════════════════════════════════════════════════════════
+
         private static void AssignRaidPawnRankPrefix(Pawn pawn)
         {
-            if (!MP.IsInMultiplayer || pawn == null) return;
-            raidRankSystemRandomField?.SetValue(null, new Random(pawn.thingIDNumber));
-            pawnStatGeneratorRandomField?.SetValue(null, new Random(pawn.thingIDNumber + 1337));
+            UpdateRandomSeedForPawn(pawn);
         }
 
         private static void InitializePawnStatsPrefix(Pawn pawn)
         {
-            if (!MP.IsInMultiplayer || pawn == null) return;
-            pawnStatGeneratorRandomField?.SetValue(null, new Random(pawn.thingIDNumber));
+            UpdateRandomSeedForPawn(pawn);
         }
-
-        // ═══════════════════════════════════════════════════════════════
-        // DESYNC FIX — TreeAutoAssigner unseeded RNG
-        // TreeAutoAssigner.rng is a static unseeded Random used to pick
-        // class trees and shuffle BFS node order for NPCs. It is seeded
-        // with the pawn's stable thingIDNumber before each call so all
-        // clients produce the same tree assignment.
-        // ═══════════════════════════════════════════════════════════════
-
         private static void PostSpawnSetupPrefix(object __instance)
         {
             if (!MP.IsInMultiplayer) return;
             var pawn = ((ThingComp)(object)__instance).parent as Pawn;
-            if (pawn == null) return;
-            int seed = pawn.thingIDNumber;
-            treeAutoAssignerRngField?.SetValue(null, new Random(seed));
-            // Also re-seed the stat generator for the direct RollRandomTraits call
-            // that PostSpawnSetup makes when traitsRolled is false.
-            pawnStatGeneratorRandomField?.SetValue(null, new Random(seed));
+            UpdateRandomSeedForPawn(pawn);
         }
 
         private static void LevelUpPrefix(object __instance)
         {
             if (!MP.IsInMultiplayer) return;
             var pawn = ((ThingComp)(object)__instance).parent as Pawn;
+            UpdateRandomSeedForPawn(pawn);
+        }
+
+        private static void UpdateRandomSeedForPawn(Pawn pawn)
+        {
             if (pawn == null) return;
-            treeAutoAssignerRngField?.SetValue(null, new Random(pawn.thingIDNumber));
+            int seed = Gen.HashCombineInt(pawn.thingIDNumber, Find.TickManager.TicksGame);
+
+            pawnStatGeneratorRandomField?.SetValue(null, new Random(seed));
+            raidRankSystemRandomField?.SetValue(null, new Random(seed));
+            treeAutoAssignerRngField?.SetValue(null, new Random(seed));
         }
 
         // ═══════════════════════════════════════════════════════════════
