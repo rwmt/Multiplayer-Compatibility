@@ -50,7 +50,7 @@ namespace Multiplayer.Compat
         // ── Constructor — called by MP at startup ────────────────────────
         public IsekaiRPGCompat(ModContentPack mod)
         {
-            Log.Message("[IsekaiMP] Initializing multiplayer compatibility for Isekai RPG Leveling...");
+            if (DebugLog) Log.Message("[IsekaiMP] Initializing multiplayer compatibility for Isekai RPG Leveling...");
 
             isekaiComponentType = Resolve("IsekaiLeveling.IsekaiComponent");
             passiveTreeTrackerType = Resolve("IsekaiLeveling.SkillTree.PassiveTreeTracker");
@@ -120,10 +120,10 @@ namespace Multiplayer.Compat
             pawnStatGeneratorRandomField = AccessTools.Field(pawnStatGeneratorType, "random");
             PatchAndLog(raidRankSystemType, "AssignRaidPawnRank", prefix: nameof(AssignRaidPawnRankPrefix));
             PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(InitializePawnStatsPrefix));
-            Log.Message("[IsekaiMP]   [OK] Per-pawn RNG seeding patched (raid + general pawn desync fix)");
+            if (DebugLog) Log.Message("[IsekaiMP]   [OK] Per-pawn RNG seeding patched (raid + general pawn desync fix)");
 
 
-            Log.Message("[IsekaiMP] Initialization complete — all patches applied successfully.");
+            if (DebugLog) Log.Message("[IsekaiMP] Initialization complete — all patches applied successfully.");
         }
 
         private static Type Resolve(string typeName)
