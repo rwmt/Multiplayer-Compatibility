@@ -40,10 +40,6 @@ namespace Multiplayer.Compat
         // ── Cached reflected method ──────────────────────────────────────
         private static MethodInfo updateRankTraitMethod;
 
-        // ── Pawn generation RNG fields (desync fix) ──────────────────────
-        private static FieldInfo raidRankSystemRandomField;
-        private static FieldInfo pawnStatGeneratorRandomField;
-
         // ── Debug logging toggle ──────────────────────────────────────────
         internal static bool DebugLog = false;
 
@@ -76,15 +72,6 @@ namespace Multiplayer.Compat
             isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType, "passiveTree");
             updateRankTraitMethod = AccessTools.DeclaredMethod(
                 AccessTools.TypeByName("IsekaiLeveling.PawnStatGenerator"), "UpdateRankTraitFromStats");
-
-            // ── Desync fix — per-pawn RNG seeding ────────────────────────
-            var raidRankSystemType = AccessTools.TypeByName("IsekaiLeveling.MobRanking.RaidRankSystem");
-            var pawnStatGeneratorType = AccessTools.TypeByName("IsekaiLeveling.PawnStatGenerator");
-            raidRankSystemRandomField = AccessTools.Field(raidRankSystemType, "random");
-            pawnStatGeneratorRandomField = AccessTools.Field(pawnStatGeneratorType, "random");
-            PatchAndLog(raidRankSystemType, "AssignRaidPawnRank", prefix: nameof(AssignRaidPawnRankPrefix));
-            PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(InitializePawnStatsPrefix));
-            Log.Message("[IsekaiMP]   [OK] Per-pawn RNG seeding patched (raid + general pawn desync fix)");
 
             MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, statAllocType);
 
@@ -397,27 +384,6 @@ namespace Multiplayer.Compat
         private static void ITabFillTabPostfix(bool __state)
         {
             if (__state) MP.WatchEnd();
-        }
-
-        // ═══════════════════════════════════════════════════════════════
-        // DESYNC FIX — Per-pawn RNG seeding
-        // Both RaidRankSystem.random and PawnStatGenerator.random are
-        // unseeded System.Random instances that diverge between clients.
-        // Reseeding with pawn.thingIDNumber (stable across all clients)
-        // before each pawn's rank/stat generation makes results identical.
-        // ═══════════════════════════════════════════════════════════════
-
-        private static void AssignRaidPawnRankPrefix(Pawn pawn)
-        {
-            if (!MP.IsInMultiplayer || pawn == null) return;
-            raidRankSystemRandomField?.SetValue(null, new Random(pawn.thingIDNumber));
-            pawnStatGeneratorRandomField?.SetValue(null, new Random(pawn.thingIDNumber + 1337));
-        }
-
-        private static void InitializePawnStatsPrefix(Pawn pawn)
-        {
-            if (!MP.IsInMultiplayer || pawn == null) return;
-            pawnStatGeneratorRandomField?.SetValue(null, new Random(pawn.thingIDNumber));
         }
 
         // ═══════════════════════════════════════════════════════════════
