@@ -27,14 +27,14 @@ namespace Multiplayer.Compat
         private static Type raidRankSystemType;
         private static Type pawnStatGeneratorType;
         private static Type treeAutoAssignerType;
-        // private static Type manaCoreCompType;
+        private static Type manaCoreCompType;
 
         // ── IsekaiStatAllocation field accessors ─────────────────────────
         private static FieldInfo[] statAllocationFields;          // [6]: indexed by StatAllocationFieldNames
         private static FieldInfo statAllocationAvailablePoints;
         private static FieldInfo isekaiCompStatsField;
         private static FieldInfo isekaiCompPassiveTreeField;
-        // private static FieldInfo manaCoreCompPendingBulkAbsorbField;
+
 
 
         // ── Window_StatsAttribution field accessors ──────────────────────
@@ -66,7 +66,7 @@ namespace Multiplayer.Compat
             raidRankSystemType = Resolve("IsekaiLeveling.MobRanking.RaidRankSystem");
             pawnStatGeneratorType = Resolve("IsekaiLeveling.PawnStatGenerator");
             treeAutoAssignerType = Resolve("IsekaiLeveling.SkillTree.TreeAutoAssigner");
-            // manaCoreCompType = AccessTools.TypeByName("IsekaiLeveling.CompUseEffect_ManaCore");
+            manaCoreCompType = Resolve("IsekaiLeveling.CompUseEffect_ManaCore");
 
 
             if (isekaiComponentType == null
@@ -77,7 +77,7 @@ namespace Multiplayer.Compat
                 || raidRankSystemType == null
                 || pawnStatGeneratorType == null
                 || treeAutoAssignerType == null
-            // || manaCoreCompType == null
+                || manaCoreCompType == null
             )
             {
                 Log.Error("[IsekaiMP] One or more required types could not be resolved — patches will NOT be applied.");
@@ -107,9 +107,9 @@ namespace Multiplayer.Compat
             for (int i = 0; i < StatAllocationFieldNames.Length; i++)
                 statAllocationFields[i] = AccessTools.Field(isekaiStatAllocationType, StatAllocationFieldNames[i]);
             statAllocationAvailablePoints = AccessTools.Field(isekaiStatAllocationType, "availableStatPoints");
-            statSyncFields = new ISyncField[StatAllocationFieldNames.Length + 1];
 
             // ITab_IsekaiStats
+            statSyncFields = new ISyncField[StatAllocationFieldNames.Length + 1];
             for (int i = 0; i < StatAllocationFieldNames.Length; i++)
                 statSyncFields[i] = MP.RegisterSyncField(isekaiStatAllocationType, StatAllocationFieldNames[i]);
             statSyncFields[StatAllocationFieldNames.Length] = MP.RegisterSyncField(isekaiStatAllocationType, "availableStatPoints");
@@ -120,7 +120,6 @@ namespace Multiplayer.Compat
             for (int i = 0; i < PendingFieldNames.Length; i++)
                 statsWindowPending[i] = AccessTools.FieldRefAccess<int>(windowStatsType, PendingFieldNames[i]);
             statsWindowPointsSpent = AccessTools.FieldRefAccess<int>(windowStatsType, "pointsSpent");
-
 
             // Patch
             PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
@@ -145,11 +144,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRespec));
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRandomSeedForPawn));
 
-            // ManaCore Usage Sync
-            // manaCoreCompPendingBulkAbsorbField = AccessTools.Field(manaCoreCompType, "pendingBulkAbsorb");
-            // PatchAndLog(manaCoreCompType, "CompFloatMenuOptions", postfix: nameof(ManaCoreFloatMenuOptionsPostfix));
-            // MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedSetPendingBulkAbsorb));
-
+            MP.RegisterSyncDelegateLambda(manaCoreCompType, "GetBulkAbsorbOptions", 0);
         }
 
         private static Type Resolve(string typeName)
@@ -176,6 +171,14 @@ namespace Multiplayer.Compat
         private static ThingComp GetCompByType(Pawn pawn, Type compType)
         {
             foreach (var comp in pawn.AllComps)
+                if (compType.IsInstanceOfType(comp))
+                    return comp;
+            return null;
+        }
+
+        private static ThingComp GetCompByType(ThingWithComps thing, Type compType)
+        {
+            foreach (var comp in thing.AllComps)
                 if (compType.IsInstanceOfType(comp))
                     return comp;
             return null;
@@ -439,7 +442,7 @@ namespace Multiplayer.Compat
         private static bool _suppressRandomSeed = false;
 
         private static bool AssignRaidPawnRankPrefix(Pawn pawn)
-        {   
+        {
             if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
             SyncedRandomSeedForPawn(pawn);
             return false;
@@ -464,9 +467,9 @@ namespace Multiplayer.Compat
             var pawn = ((ThingComp)(object)__instance).parent as Pawn;
             if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
             SyncedRandomSeedForPawn(pawn);
-            return false;
+            return true;
         }
-        
+
         private static void SyncedRandomSeedForPawn(Pawn pawn)
         {
 
@@ -482,55 +485,6 @@ namespace Multiplayer.Compat
 
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // DESYNC FIX — ManaCore "Absorb all" float menu
-        // pendingBulkAbsorb is set by the float menu lambda on the
-        // initiating client only. We wrap the enabled option to call a
-        // SyncMethod that sets the field on ALL clients before the
-        // UseItem job completes and DoEffect reads the value.
-        // ═══════════════════════════════════════════════════════════════
 
-        // private static void ManaCoreFloatMenuOptionsPostfix(object __instance, Pawn selPawn,
-        //     ref IEnumerable<FloatMenuOption> __result)
-        // {
-        //     if (!MP.IsInMultiplayer) return;
-        //     __result = WrapManaCoreAbsorbOptions(__instance, selPawn, __result);
-        // }
-
-        // private static IEnumerable<FloatMenuOption> WrapManaCoreAbsorbOptions(
-        //     object comp, Pawn selPawn, IEnumerable<FloatMenuOption> original)
-        // {
-        //     var item = ((ThingComp)(object)comp).parent;
-        //     foreach (var opt in original)
-        //     {
-        //         // Disabled options (null action) need no wrapping.
-        //         if (opt.action == null) { yield return opt; continue; }
-
-        //         // Replace the enabled "Absorb all" action with a synced equivalent.
-        //         var capturedItem = item;
-        //         int count = capturedItem?.stackCount ?? 0;
-        //         yield return new FloatMenuOption(opt.Label, () =>
-        //         {
-        //             // Sync pendingBulkAbsorb to all clients, then queue the job.
-        //             SyncedSetPendingBulkAbsorb(capturedItem, count);
-        //             selPawn.jobs.TryTakeOrderedJob(
-        //                 JobMaker.MakeJob(DefDatabase<JobDef>.GetNamed("UseItem"), capturedItem));
-        //         });
-        //     }
-        // }
-
-        // private static void SyncedSetPendingBulkAbsorb(Thing item, int count)
-        // {
-        //     if (item == null || manaCoreCompType == null) return;
-        //     if (item is not ThingWithComps twc) return;
-        //     foreach (var comp in twc.AllComps)
-        //     {
-        //         if (manaCoreCompType.IsInstanceOfType(comp))
-        //         {
-        //             manaCoreCompPendingBulkAbsorbField.SetValue(comp, count);
-        //             return;
-        //         }
-        //     }
-        // }
     }
 }
