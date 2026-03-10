@@ -14,7 +14,7 @@ namespace Multiplayer.Compat
         // Ordered list of stat fields in IsekaiStatAllocation — index is shared across all arrays.
         private static readonly string[] StatAllocFieldNames = ["strength", "vitality", "dexterity", "intelligence", "wisdom", "charisma"];
         // Matching pending field names in Window_StatsAttribution (same order).
-        private static readonly string[] PendingFieldNames   = ["pendingSTR", "pendingVIT", "pendingDEX", "pendingINT", "pendingWIS", "pendingCHA"];
+        private static readonly string[] PendingFieldNames = ["pendingSTR", "pendingVIT", "pendingDEX", "pendingINT", "pendingWIS", "pendingCHA"];
 
         // ── Type references ──────────────────────────────────────────────
         private static Type isekaiComponentType;
@@ -24,14 +24,14 @@ namespace Multiplayer.Compat
 
         // ── IsekaiStatAllocation field accessors ─────────────────────────
         private static FieldInfo[] statAllocFields;          // [6]: indexed by StatAllocFieldNames
-        private static FieldInfo   statAllocAvailablePoints;
-        private static FieldInfo   isekaiCompStatsField;
-        private static FieldInfo   isekaiCompPassiveTreeField;
+        private static FieldInfo statAllocAvailablePoints;
+        private static FieldInfo isekaiCompStatsField;
+        private static FieldInfo isekaiCompPassiveTreeField;
 
         // ── Window_StatsAttribution field accessors ──────────────────────
-        private static AccessTools.FieldRef<object, Pawn>  statsWindowPawn;
+        private static AccessTools.FieldRef<object, Pawn> statsWindowPawn;
         private static AccessTools.FieldRef<object, int>[] statsWindowPending; // [6]: indexed by PendingFieldNames
-        private static AccessTools.FieldRef<object, int>   statsWindowPointsSpent;
+        private static AccessTools.FieldRef<object, int> statsWindowPointsSpent;
 
         // ── MP sync fields for ITab watch ────────────────────────────────
         // Indices 0..5 = stat fields (StatAllocFieldNames), index 6 = availableStatPoints
@@ -48,10 +48,10 @@ namespace Multiplayer.Compat
         {
             Log.Message("[IsekaiMP] Initializing multiplayer compatibility for Isekai RPG Leveling...");
 
-            isekaiComponentType    = Resolve("IsekaiLeveling.IsekaiComponent");
+            isekaiComponentType = Resolve("IsekaiLeveling.IsekaiComponent");
             passiveTreeTrackerType = Resolve("IsekaiLeveling.SkillTree.PassiveTreeTracker");
-            windowStatsType        = Resolve("IsekaiLeveling.UI.Window_StatsAttribution");
-            iTabType               = Resolve("IsekaiLeveling.UI.ITab_IsekaiStats");
+            windowStatsType = Resolve("IsekaiLeveling.UI.Window_StatsAttribution");
+            iTabType = Resolve("IsekaiLeveling.UI.ITab_IsekaiStats");
 
             if (isekaiComponentType == null || passiveTreeTrackerType == null ||
                 windowStatsType == null || iTabType == null)
@@ -67,16 +67,16 @@ namespace Multiplayer.Compat
             for (int i = 0; i < StatAllocFieldNames.Length; i++)
                 statAllocFields[i] = AccessTools.Field(statAllocType, StatAllocFieldNames[i]);
 
-            statAllocAvailablePoints   = AccessTools.Field(statAllocType,        "availableStatPoints");
-            isekaiCompStatsField       = AccessTools.Field(isekaiComponentType,  "stats");
-            isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType,  "passiveTree");
-            updateRankTraitMethod      = AccessTools.DeclaredMethod(
+            statAllocAvailablePoints = AccessTools.Field(statAllocType, "availableStatPoints");
+            isekaiCompStatsField = AccessTools.Field(isekaiComponentType, "stats");
+            isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType, "passiveTree");
+            updateRankTraitMethod = AccessTools.DeclaredMethod(
                 AccessTools.TypeByName("IsekaiLeveling.PawnStatGenerator"), "UpdateRankTraitFromStats");
 
             MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, statAllocType);
 
             // ── Window_StatsAttribution ───────────────────────────────────
-            statsWindowPawn    = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
+            statsWindowPawn = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
             statsWindowPending = new AccessTools.FieldRef<object, int>[PendingFieldNames.Length];
             for (int i = 0; i < PendingFieldNames.Length; i++)
                 statsWindowPending[i] = AccessTools.FieldRefAccess<int>(windowStatsType, PendingFieldNames[i]);
@@ -130,7 +130,7 @@ namespace Multiplayer.Compat
                 Log.Error($"[IsekaiMP] Could not find method '{targetType.Name}.{methodName}' — patch skipped.");
                 return;
             }
-            var harmonyPrefix  = prefix  != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), prefix)  : null;
+            var harmonyPrefix = prefix != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), prefix) : null;
             var harmonyPostfix = postfix != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), postfix) : null;
             MpCompat.harmony.Patch(method, prefix: harmonyPrefix, postfix: harmonyPostfix);
         }
@@ -371,7 +371,7 @@ namespace Multiplayer.Compat
 
             if (AccessTools.Property(typeof(RimWorld.ITab), "SelPawn")?.GetValue(__instance) is not Pawn selPawn) return;
 
-            var comp  = GetCompByType(selPawn, isekaiComponentType);
+            var comp = GetCompByType(selPawn, isekaiComponentType);
             var stats = comp != null ? isekaiCompStatsField.GetValue(comp) : null;
             if (stats == null) return;
 
