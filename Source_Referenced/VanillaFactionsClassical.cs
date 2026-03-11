@@ -6,6 +6,7 @@ using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
+using RimWorld.QuestGen;
 using UnityEngine;
 using Verse;
 using VFEC;
@@ -142,9 +143,13 @@ namespace Multiplayer.Compat
             if (canTakeQuest)
             {
                 var senatorInfo = WorldComponent_Senators.Instance.InfoFor(info.Pawn, dialog.Faction);
-                info.Quest = (senatorInfo.Quest = SenatorQuests.GenerateQuestFor(senatorInfo, dialog.Faction));
-                Find.QuestManager.Add(senatorInfo.Quest);
-                QuestUtility.SendLetterQuestAvailable(senatorInfo.Quest);
+                var quests = SenatorQuests.GetValidQuestsFrom(info.Pawn, out var slate);
+                if (quests.Any())
+                {
+                    info.Quest = (senatorInfo.Quest = SenatorQuests.GenerateQuestFor(quests, slate, senatorInfo, dialog.Faction));
+                    Find.QuestManager.Add(senatorInfo.Quest);
+                    QuestUtility.SendLetterQuestAvailable(senatorInfo.Quest);
+                }
             }
             else
                 Messages.Message("VFEC.UI.AlreadyQuest".Translate(), MessageTypeDefOf.RejectInput, false);
