@@ -40,6 +40,7 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, Pawn> statsWindowPawn;
         private static AccessTools.FieldRef<object, int>[] statsWindowPending;
         private static AccessTools.FieldRef<object, int>   statsWindowPointsSpent;
+        private static FastInvokeHandler iTabSelPawnGetter;
 
         // ── MP sync fields ─────────────────────────────────────────────────
         private static ISyncField[] statSyncFields; // [0..5] stats, [6] availableStatPoints
@@ -95,6 +96,8 @@ namespace Multiplayer.Compat
                 statSyncFields[i] = MP.RegisterSyncField(isekaiStatAllocationType, StatAllocationFieldNames[i]);
             statSyncFields[StatAllocationFieldNames.Length] = MP.RegisterSyncField(isekaiStatAllocationType, "availableStatPoints");
 
+            iTabSelPawnGetter  = MethodInvoker.GetHandler(AccessTools.PropertyGetter(typeof(ITab), "SelPawn"));
+            
             statsWindowPawn    = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
             statsWindowPending = new AccessTools.FieldRef<object, int>[PendingFieldNames.Length];
             for (int i = 0; i < PendingFieldNames.Length; i++)
@@ -245,7 +248,7 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsInMultiplayer) return;
 
-            if (AccessTools.Property(typeof(ITab), "SelPawn")?.GetValue(__instance) is not Pawn selPawn) return;
+            if (iTabSelPawnGetter(__instance) is not Pawn selPawn) return;
 
             var comp  = GetCompByType(selPawn, isekaiComponentType);
             var stats = comp != null ? isekaiCompStatsField.GetValue(comp) : null;
@@ -393,7 +396,7 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> UseSeededRaidRng(IEnumerable<CodeInstruction> instructions)
         {
             var target  = raidRankSystemRandomField;
-            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(_currentPawnRng));
+            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(Random));
             foreach (var instr in instructions)
                 yield return (instr.opcode == OpCodes.Ldsfld && instr.operand is FieldInfo fi && fi == target)
                     ? new CodeInstruction(OpCodes.Ldsfld, replace) : instr;
@@ -404,7 +407,7 @@ namespace Multiplayer.Compat
         private static IEnumerable<CodeInstruction> UseSeededTreeRng(IEnumerable<CodeInstruction> instructions)
         {
             var target  = treeAutoAssignerRngField;
-            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(_currentPawnRng));
+            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(Random));
             foreach (var instr in instructions)
                 yield return (instr.opcode == OpCodes.Ldsfld && instr.operand is FieldInfo fi && fi == target)
                     ? new CodeInstruction(OpCodes.Ldsfld, replace) : instr;
