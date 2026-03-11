@@ -15,7 +15,7 @@ namespace Multiplayer.Compat
     public class IsekaiRPGCompat
     {
         private static readonly string[] StatAllocationFieldNames = ["strength", "vitality", "dexterity", "intelligence", "wisdom", "charisma"];
-        private static readonly string[] PendingFieldNames        = ["pendingSTR", "pendingVIT", "pendingDEX", "pendingINT", "pendingWIS", "pendingCHA"];
+        private static readonly string[] PendingFieldNames = ["pendingSTR", "pendingVIT", "pendingDEX", "pendingINT", "pendingWIS", "pendingCHA"];
 
         // ── Types ──────────────────────────────────────────────────────────
         private static Type isekaiComponentType;
@@ -30,38 +30,32 @@ namespace Multiplayer.Compat
 
         // ── Field accessors ────────────────────────────────────────────────
         private static FieldInfo[] statAllocationFields;
-        private static FieldInfo   statAllocationAvailablePoints;
-        private static FieldInfo   isekaiCompStatsField;
-        private static FieldInfo   isekaiCompPassiveTreeField;
-        private static FieldInfo   raidRankSystemRandomField;
-        private static FieldInfo   pawnStatGeneratorRandomField;
-        private static FieldInfo   treeAutoAssignerRngField;
+        private static FieldInfo statAllocationAvailablePoints;
+        private static FieldInfo isekaiCompStatsField;
+        private static FieldInfo isekaiCompPassiveTreeField;
+        private static FieldInfo raidRankSystemRandomField;
+        private static FieldInfo pawnStatGeneratorRandomField;
+        private static FieldInfo treeAutoAssignerRngField;
 
         private static AccessTools.FieldRef<object, Pawn> statsWindowPawn;
         private static AccessTools.FieldRef<object, int>[] statsWindowPending;
-        private static AccessTools.FieldRef<object, int>   statsWindowPointsSpent;
-        private static FastInvokeHandler iTabSelPawnGetter;
+        private static AccessTools.FieldRef<object, int> statsWindowPointsSpent;
 
         // ── MP sync fields ─────────────────────────────────────────────────
         private static ISyncField[] statSyncFields; // [0..5] stats, [6] availableStatPoints
 
-        // ── Deterministic RNG ──────────────────────────────────────────────
-        // Seeded per-pawn from pawn.thingIDNumber before each generation call.
-        // Transpilers redirect readonly Random fields in the mod to load this field instead.
-        private static System.Random _currentPawnRng = new System.Random();
-
         // ── Constructor ────────────────────────────────────────────────────
         public IsekaiRPGCompat(ModContentPack mod)
         {
-            isekaiComponentType      = Resolve("IsekaiLeveling.IsekaiComponent");
+            isekaiComponentType = Resolve("IsekaiLeveling.IsekaiComponent");
             isekaiStatAllocationType = Resolve("IsekaiLeveling.IsekaiStatAllocation");
-            iTabType                 = Resolve("IsekaiLeveling.UI.ITab_IsekaiStats");
-            windowStatsType          = Resolve("IsekaiLeveling.UI.Window_StatsAttribution");
-            passiveTreeTrackerType   = Resolve("IsekaiLeveling.SkillTree.PassiveTreeTracker");
-            raidRankSystemType       = Resolve("IsekaiLeveling.MobRanking.RaidRankSystem");
-            pawnStatGeneratorType    = Resolve("IsekaiLeveling.PawnStatGenerator");
-            treeAutoAssignerType     = Resolve("IsekaiLeveling.SkillTree.TreeAutoAssigner");
-            manaCoreCompType         = Resolve("IsekaiLeveling.CompUseEffect_ManaCore");
+            iTabType = Resolve("IsekaiLeveling.UI.ITab_IsekaiStats");
+            windowStatsType = Resolve("IsekaiLeveling.UI.Window_StatsAttribution");
+            passiveTreeTrackerType = Resolve("IsekaiLeveling.SkillTree.PassiveTreeTracker");
+            raidRankSystemType = Resolve("IsekaiLeveling.MobRanking.RaidRankSystem");
+            pawnStatGeneratorType = Resolve("IsekaiLeveling.PawnStatGenerator");
+            treeAutoAssignerType = Resolve("IsekaiLeveling.SkillTree.TreeAutoAssigner");
+            manaCoreCompType = Resolve("IsekaiLeveling.CompUseEffect_ManaCore");
 
             if (isekaiComponentType == null || isekaiStatAllocationType == null
                 || passiveTreeTrackerType == null || windowStatsType == null
@@ -73,9 +67,13 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            raidRankSystemRandomField    = AccessTools.Field(raidRankSystemType,    "random");
+            raidRankSystemRandomField = AccessTools.Field(raidRankSystemType, "random");
             pawnStatGeneratorRandomField = AccessTools.Field(pawnStatGeneratorType, "random");
-            treeAutoAssignerRngField     = AccessTools.Field(treeAutoAssignerType,  "rng");
+            treeAutoAssignerRngField = AccessTools.Field(treeAutoAssignerType, "rng");
+
+            raidRankSystemRandomField.SetValue(null, PatchingUtilities.RandRedirector.Instance);
+            pawnStatGeneratorRandomField.SetValue(null, PatchingUtilities.RandRedirector.Instance);
+            treeAutoAssignerRngField.SetValue(null, PatchingUtilities.RandRedirector.Instance);
 
             if (raidRankSystemRandomField == null || pawnStatGeneratorRandomField == null || treeAutoAssignerRngField == null)
             {
@@ -83,7 +81,7 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            isekaiCompStatsField      = AccessTools.Field(isekaiComponentType, "stats");
+            isekaiCompStatsField = AccessTools.Field(isekaiComponentType, "stats");
             isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType, "passiveTree");
 
             statAllocationFields = new FieldInfo[StatAllocationFieldNames.Length];
@@ -96,25 +94,17 @@ namespace Multiplayer.Compat
                 statSyncFields[i] = MP.RegisterSyncField(isekaiStatAllocationType, StatAllocationFieldNames[i]);
             statSyncFields[StatAllocationFieldNames.Length] = MP.RegisterSyncField(isekaiStatAllocationType, "availableStatPoints");
 
-            iTabSelPawnGetter  = MethodInvoker.GetHandler(AccessTools.PropertyGetter(typeof(ITab), "SelPawn"));
-            
-            statsWindowPawn    = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
+            statsWindowPawn = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
             statsWindowPending = new AccessTools.FieldRef<object, int>[PendingFieldNames.Length];
             for (int i = 0; i < PendingFieldNames.Length; i++)
                 statsWindowPending[i] = AccessTools.FieldRefAccess<int>(windowStatsType, PendingFieldNames[i]);
             statsWindowPointsSpent = AccessTools.FieldRefAccess<int>(windowStatsType, "pointsSpent");
 
-            PatchAndLog(isekaiComponentType,   "DevAddLevel",          prefix: nameof(DevAddLevelPrefix));
-            PatchAndLog(iTabType,              "FillTab",              prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
-            PatchAndLog(windowStatsType,       "ApplyChanges",         prefix: nameof(ApplyChangesPrefix));
-            PatchAndLog(passiveTreeTrackerType,"Unlock",               prefix: nameof(UnlockNodePrefix));
-            PatchAndLog(passiveTreeTrackerType,"Respec",               prefix: nameof(RespecPrefix));
-            PatchAndLog(pawnStatGeneratorType, "InitializePawnStats",  prefix: nameof(RandomSeedForPawnPrefix));
-            PatchAndLog(raidRankSystemType,    "AssignRaidPawnRank",   prefix: nameof(RandomSeedForPawnPrefix), transpiler: nameof(UseSeededRaidRng));
-            PatchAndLog(raidRankSystemType,    "RollVarianceOffset",   transpiler: nameof(UseSeededRaidRng));
-            PatchAndLog(treeAutoAssignerType,  "AssignTreeProgression",transpiler: nameof(UseSeededTreeRng));
-            PatchAndLog(treeAutoAssignerType,  "PickClass",            transpiler: nameof(UseSeededTreeRng));
-            PatchAndLog(treeAutoAssignerType,  "SpendPointsOnTree",    transpiler: nameof(ReplaceShuffleWithSeeded));
+            PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
+            PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
+            PatchAndLog(windowStatsType, "ApplyChanges", prefix: nameof(ApplyChangesPrefix));
+            PatchAndLog(passiveTreeTrackerType, "Unlock", prefix: nameof(UnlockNodePrefix));
+            PatchAndLog(passiveTreeTrackerType, "Respec", prefix: nameof(RespecPrefix));
 
             MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, isekaiStatAllocationType);
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
@@ -141,8 +131,8 @@ namespace Multiplayer.Compat
                 return;
             }
             MpCompat.harmony.Patch(method,
-                prefix:     prefix     != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), prefix)     : null,
-                postfix:    postfix    != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), postfix)    : null,
+                prefix: prefix != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), prefix) : null,
+                postfix: postfix != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), postfix) : null,
                 transpiler: transpiler != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), transpiler) : null);
         }
 
@@ -248,9 +238,9 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsInMultiplayer) return;
 
-            if (iTabSelPawnGetter(__instance) is not Pawn selPawn) return;
+            if (AccessTools.Property(typeof(ITab), "SelPawn")?.GetValue(__instance) is not Pawn selPawn) return;
 
-            var comp  = GetCompByType(selPawn, isekaiComponentType);
+            var comp = GetCompByType(selPawn, isekaiComponentType);
             var stats = comp != null ? isekaiCompStatsField.GetValue(comp) : null;
             if (stats == null) return;
 
@@ -288,7 +278,7 @@ namespace Multiplayer.Compat
             if (passiveTree == null) { Log.Warning($"[IsekaiMP] SyncedUnlockNode: null passiveTree on {pawn.LabelShort}"); return; }
 
             _suppressUnlockPrefix = true;
-            try   { AccessTools.DeclaredMethod(passiveTreeTrackerType, "Unlock").Invoke(passiveTree, [nodeId, pawn]); }
+            try { AccessTools.DeclaredMethod(passiveTreeTrackerType, "Unlock").Invoke(passiveTree, [nodeId, pawn]); }
             finally { _suppressUnlockPrefix = false; }
         }
 
@@ -318,7 +308,7 @@ namespace Multiplayer.Compat
             if (passiveTree == null) { Log.Warning($"[IsekaiMP] SyncedRespec: null passiveTree on {pawn.LabelShort}"); return; }
 
             _suppressRespecPrefix = true;
-            try   { AccessTools.DeclaredMethod(passiveTreeTrackerType, "Respec").Invoke(passiveTree, null); }
+            try { AccessTools.DeclaredMethod(passiveTreeTrackerType, "Respec").Invoke(passiveTree, null); }
             finally { _suppressRespecPrefix = false; }
         }
 
@@ -349,7 +339,7 @@ namespace Multiplayer.Compat
             if (comp == null) { Log.Warning($"[IsekaiMP] SyncedDevAddLevel: no IsekaiComponent on {pawn.LabelShort}"); return; }
 
             _suppressDevAddLevelPrefix = true;
-            try   { AccessTools.DeclaredMethod(isekaiComponentType, "DevAddLevel").Invoke(comp, [levels]); }
+            try { AccessTools.DeclaredMethod(isekaiComponentType, "DevAddLevel").Invoke(comp, [levels]); }
             finally { _suppressDevAddLevelPrefix = false; }
         }
 
@@ -376,67 +366,5 @@ namespace Multiplayer.Compat
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // DETERMINISTIC RNG — pawn generation seeding and transpilers
-        // ═══════════════════════════════════════════════════════════════════
-
-        // Seed all mod RNG from pawn.thingIDNumber (deterministic, identical on every client).
-        // PawnStatGenerator.random is not readonly — SetValue is reliable.
-        // RaidRankSystem.random and TreeAutoAssigner.rng are readonly — transpilers redirect their ldsfld.
-        private static void RandomSeedForPawnPrefix(Pawn pawn)
-        {
-            if (!MP.IsInMultiplayer) return;
-            var rng = new Random(pawn.thingIDNumber);
-            _currentPawnRng = rng;
-            pawnStatGeneratorRandomField?.SetValue(null, rng);
-        }
-
-        // Redirects ldsfld RaidRankSystem::random → ldsfld _currentPawnRng.
-        // Applied to: AssignRaidPawnRank, RollVarianceOffset.
-        private static IEnumerable<CodeInstruction> UseSeededRaidRng(IEnumerable<CodeInstruction> instructions)
-        {
-            var target  = raidRankSystemRandomField;
-            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(Random));
-            foreach (var instr in instructions)
-                yield return (instr.opcode == OpCodes.Ldsfld && instr.operand is FieldInfo fi && fi == target)
-                    ? new CodeInstruction(OpCodes.Ldsfld, replace) : instr;
-        }
-
-        // Redirects ldsfld TreeAutoAssigner::rng → ldsfld _currentPawnRng.
-        // Applied to: AssignTreeProgression, PickClass.
-        private static IEnumerable<CodeInstruction> UseSeededTreeRng(IEnumerable<CodeInstruction> instructions)
-        {
-            var target  = treeAutoAssignerRngField;
-            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(Random));
-            foreach (var instr in instructions)
-                yield return (instr.opcode == OpCodes.Ldsfld && instr.operand is FieldInfo fi && fi == target)
-                    ? new CodeInstruction(OpCodes.Ldsfld, replace) : instr;
-        }
-
-        // Replaces call Shuffle<PassiveNodeRecord> → call SeededShuffleObj in SpendPointsOnTree.
-        // Harmony cannot patch closed generic instantiations in Mono; call-site replacement is used instead.
-        private static IEnumerable<CodeInstruction> ReplaceShuffleWithSeeded(IEnumerable<CodeInstruction> instructions)
-        {
-            var replacement = AccessTools.Method(typeof(IsekaiRPGCompat), nameof(SeededShuffleObj));
-            foreach (var instr in instructions)
-                yield return ((instr.opcode == OpCodes.Call || instr.opcode == OpCodes.Callvirt)
-                    && instr.operand is MethodInfo mi && mi.Name == "Shuffle")
-                    ? new CodeInstruction(OpCodes.Call, replacement) : instr;
-        }
-
-        // Fisher-Yates shuffle using _currentPawnRng.
-        // Accepts object — IL-compatible with List<PassiveNodeRecord> (reference type, no boxing needed).
-        private static void SeededShuffleObj(object listObj)
-        {
-            var list = listObj as System.Collections.IList;
-            if (list == null) return;
-            for (int i = list.Count - 1; i > 0; i--)
-            {
-                int j = _currentPawnRng.Next(i + 1);
-                object tmp = list[i];
-                list[i]    = list[j];
-                list[j]    = tmp;
-            }
-        }
     }
 }
