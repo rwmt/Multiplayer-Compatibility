@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -51,8 +52,12 @@ namespace Multiplayer.Compat
         private static FieldInfo pawnStatGeneratorRandomField;
         private static FieldInfo treeAutoAssignerRngField;
 
-        // ── Debug logging toggle ──────────────────────────────────────────
-        internal static bool DebugLog = true;
+        // ── Deterministic RNG override (transpiler target) ────────────────
+        // Non-readonly so the prefix can reliably assign it.  Transpilers in
+        // UseSeededRaidRng / UseSeededTreeRng replace every ldsfld that would
+        // load the mod's own readonly Random instances with a load of this
+        // field instead, bypassing the JIT-cached readonly optimisation.
+        private static System.Random _currentPawnRng = new System.Random();
 
         // ── Constructor — called by MP at startup ─────────────────────────
         public IsekaiRPGCompat(ModContentPack mod)
@@ -131,18 +136,19 @@ namespace Multiplayer.Compat
             PatchAndLog(passiveTreeTrackerType, "Unlock", prefix: nameof(UnlockNodePrefix));
             PatchAndLog(passiveTreeTrackerType, "Respec", prefix: nameof(RespecPrefix));
 
-            PatchAndLog(raidRankSystemType, "AssignRaidPawnRank", prefix: nameof(AssignRaidPawnRankPrefix));
-            PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(InitializePawnStatsPrefix));
-            PatchAndLog(isekaiComponentType, "PostSpawnSetup", prefix: nameof(PostSpawnSetupPrefix));
-            PatchAndLog(isekaiComponentType, "LevelUp", prefix: nameof(LevelUpPrefix));
+            PatchAndLog(pawnStatGeneratorType, "InitializePawnStats", prefix: nameof(RandomSeedForPawnPrefix));
+            PatchAndLog(raidRankSystemType, "AssignRaidPawnRank", prefix: nameof(RandomSeedForPawnPrefix), transpiler: nameof(UseSeededRaidRng));
+            PatchAndLog(raidRankSystemType, "RollVarianceOffset", transpiler: nameof(UseSeededRaidRng));
+            PatchAndLog(treeAutoAssignerType, "AssignTreeProgression", transpiler: nameof(UseSeededTreeRng));
+            PatchAndLog(treeAutoAssignerType, "PickClass", transpiler: nameof(UseSeededTreeRng));
 
-            // Sync
+            PatchAndLog(treeAutoAssignerType, "SpendPointsOnTree", transpiler: nameof(ReplaceShuffleWithSeeded));
+
             MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, isekaiStatAllocationType);
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedApplyStats));
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedUnlockNode));
             MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRespec));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRandomSeedForPawn));
 
             MP.RegisterSyncDelegateLambda(manaCoreCompType, "GetBulkAbsorbOptions", 0);
         }
@@ -155,7 +161,7 @@ namespace Multiplayer.Compat
             return type;
         }
 
-        private static void PatchAndLog(Type targetType, string methodName, string prefix = null, string postfix = null)
+        private static void PatchAndLog(Type targetType, string methodName, string prefix = null, string postfix = null, string transpiler = null)
         {
             var method = AccessTools.DeclaredMethod(targetType, methodName);
             if (method == null)
@@ -165,7 +171,8 @@ namespace Multiplayer.Compat
             }
             var harmonyPrefix = prefix != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), prefix) : null;
             var harmonyPostfix = postfix != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), postfix) : null;
-            MpCompat.harmony.Patch(method, prefix: harmonyPrefix, postfix: harmonyPostfix);
+            var harmonyTranspiler = transpiler != null ? new HarmonyMethod(typeof(IsekaiRPGCompat), transpiler) : null;
+            MpCompat.harmony.Patch(method, prefix: harmonyPrefix, postfix: harmonyPostfix, transpiler: harmonyTranspiler);
         }
 
         private static ThingComp GetCompByType(Pawn pawn, Type compType)
@@ -436,53 +443,106 @@ namespace Multiplayer.Compat
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // RNG Prefixes
+        // RNG PREFIX — deterministic pawn generation
         // ═══════════════════════════════════════════════════════════════
 
-        private static bool _suppressRandomSeed = false;
-
-        private static bool AssignRaidPawnRankPrefix(Pawn pawn)
+        /// <summary>
+        /// Seeds <see cref="_currentPawnRng"/> and (where reliable) the mod's own
+        /// non-readonly Random field from <paramref name="pawn"/>.thingIDNumber.
+        ///
+        /// pawn.thingIDNumber is assigned by the deterministic simulation and is
+        /// identical on every client, so both clients always produce the same random
+        /// sequence for this pawn.  No postfix restores the previous state — the next
+        /// patched call reseeds from its own pawn ID, so the advanced-but-seeded
+        /// state left behind is never used in an unsynchronised way.
+        /// </summary>
+        private static void RandomSeedForPawnPrefix(Pawn pawn)
         {
-            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
-            SyncedRandomSeedForPawn(pawn);
-            return false;
+            if (!MP.IsInMultiplayer) return;
+
+            var rng = new Random(pawn.thingIDNumber);
+            _currentPawnRng = rng;
+            // PawnStatGenerator.random is not readonly — SetValue is reliable here.
+            pawnStatGeneratorRandomField?.SetValue(null, rng);
+            // RaidRankSystem.random and TreeAutoAssigner.rng are readonly.
+            // Their uses are redirected to _currentPawnRng via transpilers instead.
         }
 
-        private static bool InitializePawnStatsPrefix(Pawn pawn)
-        {
-            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
-            SyncedRandomSeedForPawn(pawn);
-            return false;
-        }
-        private static bool PostSpawnSetupPrefix(object __instance)
-        {
-            var pawn = ((ThingComp)(object)__instance).parent as Pawn;
-            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
-            SyncedRandomSeedForPawn(pawn);
-            return false;
-        }
+        // ═══════════════════════════════════════════════════════════════
+        // TRANSPILERS — redirect readonly RNG field loads to _currentPawnRng
+        // ═══════════════════════════════════════════════════════════════
 
-        private static bool LevelUpPrefix(object __instance)
+        /// <summary>
+        /// In every method of RaidRankSystem that this is applied to, replaces every
+        /// <c>ldsfld RaidRankSystem::random</c> with <c>ldsfld IsekaiRPGCompat::_currentPawnRng</c>.
+        /// Applied to: AssignRaidPawnRank, RollVarianceOffset.
+        /// </summary>
+        private static IEnumerable<CodeInstruction> UseSeededRaidRng(IEnumerable<CodeInstruction> instructions)
         {
-            var pawn = ((ThingComp)(object)__instance).parent as Pawn;
-            if (!MP.IsInMultiplayer || pawn == null || _suppressRandomSeed) return true;
-            SyncedRandomSeedForPawn(pawn);
-            return true;
-        }
-
-        private static void SyncedRandomSeedForPawn(Pawn pawn)
-        {
-
-            int seed = pawn.thingIDNumber; // Gen.HashCombineInt(pawn.thingIDNumber, Find.TickManager.TicksGame);
-            _suppressRandomSeed = true;
-            try
+            var target = raidRankSystemRandomField;
+            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(_currentPawnRng));
+            foreach (var instr in instructions)
             {
-                pawnStatGeneratorRandomField?.SetValue(null, new Random(seed));
-                raidRankSystemRandomField?.SetValue(null, new Random(seed));
-                treeAutoAssignerRngField?.SetValue(null, new Random(seed));
+                if (instr.opcode == OpCodes.Ldsfld && instr.operand is FieldInfo fi && fi == target)
+                    yield return new CodeInstruction(OpCodes.Ldsfld, replace);
+                else
+                    yield return instr;
             }
-            finally { _suppressRandomSeed = false; }
+        }
 
+        /// <summary>
+        /// In every method of TreeAutoAssigner that this is applied to, replaces every
+        /// <c>ldsfld TreeAutoAssigner::rng</c> with <c>ldsfld IsekaiRPGCompat::_currentPawnRng</c>.
+        /// Applied to: AssignTreeProgression, PickClass.
+        /// </summary>
+        private static IEnumerable<CodeInstruction> UseSeededTreeRng(IEnumerable<CodeInstruction> instructions)
+        {
+            var target = treeAutoAssignerRngField;
+            var replace = AccessTools.Field(typeof(IsekaiRPGCompat), nameof(_currentPawnRng));
+            foreach (var instr in instructions)
+            {
+                if (instr.opcode == OpCodes.Ldsfld && instr.operand is FieldInfo fi && fi == target)
+                    yield return new CodeInstruction(OpCodes.Ldsfld, replace);
+                else
+                    yield return instr;
+            }
+        }
+
+        /// <summary>
+        /// In SpendPointsOnTree, replaces the <c>call Shuffle&lt;PassiveNodeRecord&gt;</c> instruction
+        /// with <c>call SeededShuffleObj</c>.  This sidesteps the Mono limitation where Harmony
+        /// cannot patch closed generic method instantiations via MakeGenericMethod.
+        /// SeededShuffleObj accepts <c>object</c>; CLR treats any reference-type argument
+        /// (including <c>List&lt;PassiveNodeRecord&gt;</c>) as <c>object</c> without boxing.
+        /// </summary>
+        private static IEnumerable<CodeInstruction> ReplaceShuffleWithSeeded(IEnumerable<CodeInstruction> instructions)
+        {
+            var replacement = AccessTools.Method(typeof(IsekaiRPGCompat), nameof(SeededShuffleObj));
+            foreach (var instr in instructions)
+            {
+                if ((instr.opcode == OpCodes.Call || instr.opcode == OpCodes.Callvirt)
+                    && instr.operand is MethodInfo mi && mi.Name == "Shuffle")
+                    yield return new CodeInstruction(OpCodes.Call, replacement);
+                else
+                    yield return instr;
+            }
+        }
+
+        /// <summary>
+        /// Fisher-Yates shuffle using <see cref="_currentPawnRng"/>.
+        /// Accepts <c>object</c> (IL-compatible with any <c>List&lt;T&gt;</c> reference-type argument).
+        /// </summary>
+        private static void SeededShuffleObj(object listObj)
+        {
+            var list = listObj as System.Collections.IList;
+            if (list == null) return;
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = _currentPawnRng.Next(i + 1);
+                object tmp = list[i];
+                list[i] = list[j];
+                list[j] = tmp;
+            }
         }
 
 
