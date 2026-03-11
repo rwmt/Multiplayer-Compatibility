@@ -7,6 +7,7 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -27,6 +28,7 @@ namespace Multiplayer.Compat
                 (PatchPsysets, "Psysets", false),
                 (PatchPsyringDialog, "Psyring", false),
                 (RegisterSyncGizmos, "General gizmos", true),
+                (PatchAbilityToggle, "Ability toggle gizmo", true),
                 (PatchPsychicStatusGizmo, "Psychic status gizmo", true),
                 (PatchPsycasterHediff, "Skill point usage", true),
                 (PatchMotesAndFlecks, "Motes and flecks", true),
@@ -139,7 +141,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncEnsurePsysetExists));
             MP.RegisterSyncWorker<PsysetRenameHolder>(SyncPsysetRenameHolder);
 
-            var abilityDefType = AccessTools.TypeByName("VFECore.Abilities.AbilityDef");
+            var abilityDefType = AccessTools.TypeByName("VEF.Abilities.AbilityDef");
             abilityDefHashSetType = typeof(HashSet<>).MakeGenericType(abilityDefType);
             abilityDefHashSetAddMethod = MethodInvoker.GetHandler(AccessTools.Method(abilityDefHashSetType, "Add"));
 
@@ -422,6 +424,72 @@ namespace Multiplayer.Compat
 
         #endregion
 
+        #region Ability toggle
+
+        // Command_AbilityToggle (Hurricane gizmo)
+        private static AccessTools.FieldRef<object, object> commandAbilityFieldRef;
+        private static Type iAbilityToggleType;
+        private static PropertyInfo toggleToggleProperty;
+        private static AccessTools.FieldRef<object, Pawn> abilityPawnFieldRef;
+        private static AccessTools.FieldRef<object, object> abilityDefFieldRef;
+        private static Type compAbilitiesLocalType;
+        private static AccessTools.FieldRef<object, IEnumerable> learnedAbilitiesLocalField;
+
+        private static void PatchAbilityToggle()
+        {
+            var commandAbilityToggleType = AccessTools.TypeByName("VanillaPsycastsExpanded.Staticlord.Command_AbilityToggle");
+            var commandAbilityType = AccessTools.TypeByName("VEF.Abilities.Command_Ability");
+
+            commandAbilityFieldRef = AccessTools.FieldRefAccess<object>(commandAbilityType, "ability");
+
+            iAbilityToggleType = AccessTools.TypeByName("VanillaPsycastsExpanded.Staticlord.IAbilityToggle");
+            toggleToggleProperty = AccessTools.Property(iAbilityToggleType, "Toggle");
+
+            var abilityType = AccessTools.TypeByName("VEF.Abilities.Ability");
+            abilityPawnFieldRef = AccessTools.FieldRefAccess<Pawn>(abilityType, "pawn");
+            abilityDefFieldRef = AccessTools.FieldRefAccess<object>(abilityType, "def");
+
+            compAbilitiesLocalType = AccessTools.TypeByName("VEF.Abilities.CompAbilities");
+            learnedAbilitiesLocalField = AccessTools.FieldRefAccess<IEnumerable>(compAbilitiesLocalType, "learnedAbilities");
+
+            MP.RegisterSyncMethod(typeof(VanillaPsycastsExpanded), nameof(SyncedAbilityToggle));
+
+            MpCompat.harmony.Patch(AccessTools.Method(commandAbilityToggleType, "ProcessInput"),
+                prefix: new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(PreAbilityToggleProcessInput)));
+        }
+
+        private static bool PreAbilityToggleProcessInput(object __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+
+            var ability = commandAbilityFieldRef(__instance);
+            var pawn = abilityPawnFieldRef(ability);
+            var def = (Def)abilityDefFieldRef(ability);
+
+            SyncedAbilityToggle(pawn, def);
+            return false;
+        }
+
+        private static void SyncedAbilityToggle(Pawn pawn, Def abilityDef)
+        {
+            var comp = pawn.AllComps.FirstOrDefault(c => compAbilitiesLocalType.IsInstanceOfType(c));
+            if (comp == null)
+                return;
+
+            foreach (var ability in learnedAbilitiesLocalField(comp))
+            {
+                if ((Def)abilityDefFieldRef(ability) == abilityDef && iAbilityToggleType.IsInstanceOfType(ability))
+                {
+                    var current = (bool)toggleToggleProperty.GetValue(ability);
+                    toggleToggleProperty.SetValue(ability, !current);
+                    break;
+                }
+            }
+        }
+
+        #endregion
+
         #region Other
 
         private static void RegisterSyncGizmos()
@@ -442,6 +510,36 @@ namespace Multiplayer.Compat
                 "VanillaPsycastsExpanded.FixedTemperatureZone:ThrowFleck",
                 "VanillaPsycastsExpanded.Conflagrator.FireTornado:ThrowPuff",
             });
+
+            // FleckMaker.ThrowSmoke in tick methods uses RNG after visibility check
+            var transpiler = new HarmonyMethod(typeof(VanillaPsycastsExpanded), nameof(TranspileThrowSmokeRandFix));
+            MpCompat.harmony.Patch(
+                AccessTools.Method("VanillaPsycastsExpanded.Staticlord.Vortex:Tick"),
+                transpiler: transpiler);
+            MpCompat.harmony.Patch(
+                AccessTools.Method("VanillaPsycastsExpanded.Staticlord.GameCondition_PsychicFlashstorm:GameConditionTick"),
+                transpiler: transpiler);
+        }
+
+        private static IEnumerable<CodeInstruction> TranspileThrowSmokeRandFix(IEnumerable<CodeInstruction> instr)
+        {
+            var target = AccessTools.Method(typeof(FleckMaker), nameof(FleckMaker.ThrowSmoke),
+                [typeof(Vector3), typeof(Map), typeof(float)]);
+            var replacement = AccessTools.Method(typeof(VanillaPsycastsExpanded), nameof(ThrowSmokeRandSafe));
+
+            foreach (var ci in instr)
+            {
+                if (ci.operand is MethodInfo method && method == target)
+                    ci.operand = replacement;
+                yield return ci;
+            }
+        }
+
+        private static void ThrowSmokeRandSafe(Vector3 loc, Map map, float size)
+        {
+            Rand.PushState();
+            FleckMaker.ThrowSmoke(loc, map, size);
+            Rand.PopState();
         }
 
         private static void PatchITab()
