@@ -238,9 +238,9 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsInMultiplayer) return;
 
-            if (AccessTools.Property(typeof(ITab), "SelPawn")?.GetValue(__instance) is not Pawn selPawn) return;
+            if (Find.Selector.SingleSelectedThing is not Pawn selectedPawn) return;
 
-            var comp = GetCompByType(selPawn, isekaiComponentType);
+            var comp = GetCompByType(selectedPawn, isekaiComponentType);
             var stats = comp != null ? isekaiCompStatsField.GetValue(comp) : null;
             if (stats == null) return;
 
