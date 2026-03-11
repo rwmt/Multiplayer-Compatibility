@@ -41,5 +41,6 @@
 
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
+    <Publicize Include="VFEC" />
   </ItemGroup>
 </Project>
