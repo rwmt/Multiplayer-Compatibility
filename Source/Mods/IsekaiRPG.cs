@@ -17,7 +17,8 @@ namespace Multiplayer.Compat
         private static readonly string[] StatAllocationFieldNames = ["strength", "vitality", "dexterity", "intelligence", "wisdom", "charisma"];
         private static readonly string[] PendingFieldNames = ["pendingSTR", "pendingVIT", "pendingDEX", "pendingINT", "pendingWIS", "pendingCHA"];
 
-        // ── Types ──────────────────────────────────────────────────────────
+        #region Fields
+
         private static Type isekaiComponentType;
         private static Type isekaiStatAllocationType;
         private static Type passiveTreeTrackerType;
@@ -27,8 +28,10 @@ namespace Multiplayer.Compat
         private static Type pawnStatGeneratorType;
         private static Type treeAutoAssignerType;
         private static Type manaCoreCompType;
+        private static Type windowCreatureStatsType;
+        private static Type iTabCreatureStatsType;
+        private static Type mobRankComponentType;
 
-        // ── Field accessors ────────────────────────────────────────────────
         private static FieldInfo[] statAllocationFields;
         private static FieldInfo statAllocationAvailablePoints;
         private static FieldInfo isekaiCompStatsField;
@@ -36,15 +39,21 @@ namespace Multiplayer.Compat
         private static FieldInfo raidRankSystemRandomField;
         private static FieldInfo pawnStatGeneratorRandomField;
         private static FieldInfo treeAutoAssignerRngField;
+        private static FieldInfo mobRankStatsField;
 
         private static AccessTools.FieldRef<object, Pawn> statsWindowPawn;
         private static AccessTools.FieldRef<object, int>[] statsWindowPending;
         private static AccessTools.FieldRef<object, int> statsWindowPointsSpent;
+        private static AccessTools.FieldRef<object, Pawn> creatureWindowPawn;
+        private static AccessTools.FieldRef<object, int>[] creatureWindowPending;
+        private static AccessTools.FieldRef<object, int> creatureWindowPointsSpent;
 
-        // ── MP sync fields ─────────────────────────────────────────────────
-        private static ISyncField[] statSyncFields; // [0..5] stats, [6] availableStatPoints
+        private static ISyncField[] statSyncFields;
 
-        // ── Constructor ────────────────────────────────────────────────────
+        #endregion
+
+        #region Constructor
+
         public IsekaiRPGCompat(ModContentPack mod)
         {
             isekaiComponentType = Resolve("IsekaiLeveling.IsekaiComponent");
@@ -77,42 +86,73 @@ namespace Multiplayer.Compat
 
             if (raidRankSystemRandomField == null || pawnStatGeneratorRandomField == null || treeAutoAssignerRngField == null)
             {
-                Log.Error("[IsekaiMP] One or more required fields could not be resolved — patches will NOT be applied.");
+                Log.Warning("[IsekaiMP] One or more required fields could not be resolved — patches will NOT be applied.");
                 return;
             }
+            else
+            {
 
-            isekaiCompStatsField = AccessTools.Field(isekaiComponentType, "stats");
-            isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType, "passiveTree");
+                isekaiCompStatsField = AccessTools.Field(isekaiComponentType, "stats");
+                isekaiCompPassiveTreeField = AccessTools.Field(isekaiComponentType, "passiveTree");
 
-            statAllocationFields = new FieldInfo[StatAllocationFieldNames.Length];
-            for (int i = 0; i < StatAllocationFieldNames.Length; i++)
-                statAllocationFields[i] = AccessTools.Field(isekaiStatAllocationType, StatAllocationFieldNames[i]);
-            statAllocationAvailablePoints = AccessTools.Field(isekaiStatAllocationType, "availableStatPoints");
+                statAllocationFields = new FieldInfo[StatAllocationFieldNames.Length];
+                for (int i = 0; i < StatAllocationFieldNames.Length; i++)
+                    statAllocationFields[i] = AccessTools.Field(isekaiStatAllocationType, StatAllocationFieldNames[i]);
+                statAllocationAvailablePoints = AccessTools.Field(isekaiStatAllocationType, "availableStatPoints");
 
-            statSyncFields = new ISyncField[StatAllocationFieldNames.Length + 1];
-            for (int i = 0; i < StatAllocationFieldNames.Length; i++)
-                statSyncFields[i] = MP.RegisterSyncField(isekaiStatAllocationType, StatAllocationFieldNames[i]);
-            statSyncFields[StatAllocationFieldNames.Length] = MP.RegisterSyncField(isekaiStatAllocationType, "availableStatPoints");
+                statSyncFields = new ISyncField[StatAllocationFieldNames.Length + 1];
+                for (int i = 0; i < StatAllocationFieldNames.Length; i++)
+                    statSyncFields[i] = MP.RegisterSyncField(isekaiStatAllocationType, StatAllocationFieldNames[i]);
+                statSyncFields[StatAllocationFieldNames.Length] = MP.RegisterSyncField(isekaiStatAllocationType, "availableStatPoints");
 
-            statsWindowPawn = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
-            statsWindowPending = new AccessTools.FieldRef<object, int>[PendingFieldNames.Length];
-            for (int i = 0; i < PendingFieldNames.Length; i++)
-                statsWindowPending[i] = AccessTools.FieldRefAccess<int>(windowStatsType, PendingFieldNames[i]);
-            statsWindowPointsSpent = AccessTools.FieldRefAccess<int>(windowStatsType, "pointsSpent");
+                statsWindowPawn = AccessTools.FieldRefAccess<Pawn>(windowStatsType, "pawn");
+                statsWindowPending = new AccessTools.FieldRef<object, int>[PendingFieldNames.Length];
+                for (int i = 0; i < PendingFieldNames.Length; i++)
+                    statsWindowPending[i] = AccessTools.FieldRefAccess<int>(windowStatsType, PendingFieldNames[i]);
+                statsWindowPointsSpent = AccessTools.FieldRefAccess<int>(windowStatsType, "pointsSpent");
 
-            PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
-            PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
-            PatchAndLog(windowStatsType, "ApplyChanges", prefix: nameof(ApplyChangesPrefix));
-            PatchAndLog(passiveTreeTrackerType, "Unlock", prefix: nameof(UnlockNodePrefix));
-            PatchAndLog(passiveTreeTrackerType, "Respec", prefix: nameof(RespecPrefix));
+                PatchAndLog(isekaiComponentType, "DevAddLevel", prefix: nameof(DevAddLevelPrefix));
+                PatchAndLog(iTabType, "FillTab", prefix: nameof(ITabFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
+                PatchAndLog(windowStatsType, "ApplyChanges", prefix: nameof(ApplyChangesPrefix));
+                PatchAndLog(passiveTreeTrackerType, "Unlock", prefix: nameof(UnlockNodePrefix));
+                PatchAndLog(passiveTreeTrackerType, "Respec", prefix: nameof(RespecPrefix));
 
-            MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, isekaiStatAllocationType);
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedApplyStats));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedUnlockNode));
-            MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRespec));
-            MP.RegisterSyncDelegateLambda(manaCoreCompType, "GetBulkAbsorbOptions", 0);
+                MP.RegisterSyncWorker<object>(SyncIsekaiStatAllocation, isekaiStatAllocationType);
+                MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedDevAddLevel));
+                MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedApplyStats));
+                MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedUnlockNode));
+                MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedRespec));
+                MP.RegisterSyncDelegateLambda(manaCoreCompType, "GetBulkAbsorbOptions", 0);
+            }
+
+            windowCreatureStatsType = AccessTools.TypeByName("IsekaiLeveling.UI.Window_CreatureStats");
+            iTabCreatureStatsType = AccessTools.TypeByName("IsekaiLeveling.UI.ITab_CreatureStats");
+            mobRankComponentType = AccessTools.TypeByName("IsekaiLeveling.MobRanking.MobRankComponent");
+
+            if (windowCreatureStatsType == null || iTabCreatureStatsType == null || mobRankComponentType == null)
+            {
+                Log.Warning("[IsekaiMP] Animal stats types not found — animal stat sync will not be applied.");
+            }
+            else
+            {
+                mobRankStatsField = AccessTools.Field(mobRankComponentType, "stats");
+
+                creatureWindowPawn = AccessTools.FieldRefAccess<Pawn>(windowCreatureStatsType, "pawn");
+                creatureWindowPending = new AccessTools.FieldRef<object, int>[PendingFieldNames.Length];
+                for (int i = 0; i < PendingFieldNames.Length; i++)
+                    creatureWindowPending[i] = AccessTools.FieldRefAccess<int>(windowCreatureStatsType, PendingFieldNames[i]);
+                creatureWindowPointsSpent = AccessTools.FieldRefAccess<int>(windowCreatureStatsType, "pointsSpent");
+
+                PatchAndLog(windowCreatureStatsType, "ApplyChanges", prefix: nameof(CreatureApplyChangesPrefix));
+                PatchAndLog(iTabCreatureStatsType, "FillTab", prefix: nameof(ITabCreatureFillTabPrefix), postfix: nameof(ITabFillTabPostfix));
+
+                MP.RegisterSyncMethod(typeof(IsekaiRPGCompat), nameof(SyncedApplyCreatureStats));
+            }
         }
+
+        #endregion
+
+        #region Utility
 
         private static Type Resolve(string typeName)
         {
@@ -165,9 +205,9 @@ namespace Multiplayer.Compat
             return null;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // STAT ALLOCATION
-        // ═══════════════════════════════════════════════════════════════════
+        #endregion
+
+        #region Stat Allocation
 
         private static bool ApplyChangesPrefix(object __instance)
         {
@@ -230,9 +270,9 @@ namespace Multiplayer.Compat
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ITAB — stat field watch
-        // ═══════════════════════════════════════════════════════════════════
+        #endregion
+
+        #region ITab
 
         private static void ITabFillTabPrefix(object __instance, ref bool __state)
         {
@@ -255,9 +295,9 @@ namespace Multiplayer.Compat
             if (__state) MP.WatchEnd();
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SKILL TREE
-        // ═══════════════════════════════════════════════════════════════════
+        #endregion
+
+        #region Skill Tree
 
         private static bool _suppressUnlockPrefix = false;
 
@@ -312,9 +352,9 @@ namespace Multiplayer.Compat
             finally { _suppressRespecPrefix = false; }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // DEV TOOLS
-        // ═══════════════════════════════════════════════════════════════════
+        #endregion
+
+        #region Dev Tools
 
         private static bool _suppressDevAddLevelPrefix = false;
 
@@ -343,9 +383,9 @@ namespace Multiplayer.Compat
             finally { _suppressDevAddLevelPrefix = false; }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SYNC WORKER — IsekaiStatAllocation
-        // ═══════════════════════════════════════════════════════════════════
+        #endregion
+
+        #region Sync Worker
 
         private static void SyncIsekaiStatAllocation(SyncWorker sync, ref object statsAllocation)
         {
@@ -366,5 +406,88 @@ namespace Multiplayer.Compat
             }
         }
 
+        #endregion
+
+        #region Animal Stats
+
+        private static bool CreatureApplyChangesPrefix(object __instance)
+        {
+            if (!MP.IsInMultiplayer) return true;
+
+            Pawn pawn = creatureWindowPawn(__instance);
+            if (pawn == null) return true;
+
+            var pending = new int[StatAllocationFieldNames.Length];
+            for (int i = 0; i < pending.Length; i++)
+                pending[i] = creatureWindowPending[i](__instance);
+
+            int pointsSpent = 0;
+            bool godMode = Prefs.DevMode && DebugSettings.godMode;
+            if (!godMode)
+            {
+                var comp = GetCompByType(pawn, mobRankComponentType);
+                if (comp != null)
+                {
+                    object statsObj = mobRankStatsField.GetValue(comp);
+                    for (int i = 0; i < pending.Length; i++)
+                        pointsSpent += pending[i] - (int)statAllocationFields[i].GetValue(statsObj);
+                }
+            }
+
+            SyncedApplyCreatureStats(pawn, pending, pointsSpent, godMode);
+            return false;
+        }
+
+        private static void SyncedApplyCreatureStats(Pawn pawn, int[] statValues, int pointsSpent, bool godMode)
+        {
+            var comp = GetCompByType(pawn, mobRankComponentType);
+            if (comp == null) return;
+
+            object statsObj = mobRankStatsField.GetValue(comp);
+            if (statsObj == null) return;
+
+            for (int i = 0; i < statAllocationFields.Length; i++)
+                statAllocationFields[i].SetValue(statsObj, statValues[i]);
+
+            if (!godMode && pointsSpent > 0)
+            {
+                int remaining = (int)statAllocationAvailablePoints.GetValue(statsObj);
+                statAllocationAvailablePoints.SetValue(statsObj, remaining - pointsSpent);
+            }
+
+            RefreshCreatureStatsWindows(pawn, statsObj);
+        }
+
+        private static void RefreshCreatureStatsWindows(Pawn pawn, object statsObj)
+        {
+            foreach (var window in Find.WindowStack.Windows)
+            {
+                if (!windowCreatureStatsType.IsInstanceOfType(window)) continue;
+                if (!ReferenceEquals(creatureWindowPawn(window), pawn)) continue;
+
+                for (int i = 0; i < statAllocationFields.Length; i++)
+                    creatureWindowPending[i](window) = (int)statAllocationFields[i].GetValue(statsObj);
+
+                creatureWindowPointsSpent(window) = 0;
+            }
+        }
+
+        private static void ITabCreatureFillTabPrefix(object __instance, ref bool __state)
+        {
+            if (!MP.IsInMultiplayer) return;
+
+            if (Find.Selector.SingleSelectedThing is not Pawn selectedPawn) return;
+
+            var comp = GetCompByType(selectedPawn, mobRankComponentType);
+            var stats = comp != null ? mobRankStatsField.GetValue(comp) : null;
+            if (stats == null) return;
+
+            __state = true;
+            MP.WatchBegin();
+            foreach (var field in statSyncFields)
+                field.Watch(stats);
+        }
+
+        #endregion
     }
 }
