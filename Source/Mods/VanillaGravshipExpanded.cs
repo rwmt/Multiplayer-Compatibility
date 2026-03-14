@@ -286,7 +286,7 @@ namespace Multiplayer.Compat
                 // with its own delegate (which opens ShowRitualBeginWindow instead of launching).
                 // Since b__5 is never called, MP's sync never fires.
                 //
-                // Fix: intercept CheckConfirmSettle when VGE state is active, and use a [SyncMethod]
+                // Fix: intercept CheckConfirmSettle when VGE state is active, and use a synced method
                 // to sync the tile selection. The synced method closes the tile picker, removes the
                 // GravshipTravelSession, and calls ShowRitualBeginWindow (which MP handles via RitualSession).
 
@@ -481,7 +481,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        [SyncMethod]
+
         private static void SyncedBlackBoxConvert(Thing blackBox)
         {
             var currentProject = Find.ResearchManager.currentProj;
@@ -525,7 +525,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        [SyncMethod]
+
         private static void SyncedSetVacCheckpoint(Thing checkpoint, float resistance, bool allowDrafted)
         {
             resistance = UnityEngine.Mathf.Clamp01(resistance);
@@ -595,7 +595,7 @@ namespace Multiplayer.Compat
             SyncedRenameAsteroid(worldObj, newName);
         }
 
-        [SyncMethod]
+
         private static void SyncedRenameAsteroid(WorldObject worldObject, string name)
         {
             if (worldObject is SpaceMapParent smp)
@@ -645,7 +645,7 @@ namespace Multiplayer.Compat
         /// switches to map view, and calls ShowRitualBeginWindow so MP creates
         /// a RitualSession for the launch ritual.
         /// </summary>
-        [SyncMethod]
+
         private static void SyncedGravshipTileSelected(Building_GravEngine gravEngine, PlanetTile tile)
         {
             var state = vgeLaunchStateField();
@@ -747,7 +747,7 @@ namespace Multiplayer.Compat
         /// The target tile was stored in vgeCheckConfirmSettleTargetTileField during
         /// the earlier tile selection step.
         /// </summary>
-        [SyncMethod]
+
         private static void SyncedVgeLaunchConfirm(Building_GravEngine engine)
         {
             var tile = vgeCheckConfirmSettleTargetTileField();
@@ -838,7 +838,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        [SyncMethod]
+
         private static void SyncedSettleTile(MapParent mapParent)
         {
             CloseMapDecisionDialog();
@@ -846,7 +846,7 @@ namespace Multiplayer.Compat
                 SettleInExistingMapUtility.Settle(mapParent.Map);
         }
 
-        [SyncMethod]
+
         private static void SyncedAbandonTile(MapParent mapParent)
         {
             CloseMapDecisionDialog();
@@ -896,7 +896,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        [SyncMethod]
+
         private static void SyncedGravshipNamed(Building_GravEngine engine, string name)
         {
             engine.RenamableLabel = name;
@@ -999,7 +999,7 @@ namespace Multiplayer.Compat
             return false;
         }
 
-        [SyncMethod]
+
         private static void SyncedSetBarrierColor(Thing barrier, float r, float g, float b)
         {
             barrierColorField(barrier) = new Color(r, g, b);
