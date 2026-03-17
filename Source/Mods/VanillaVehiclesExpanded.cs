@@ -11,8 +11,6 @@ namespace Multiplayer.Compat
     {
         public VanillaVehiclesExpanded(ModContentPack mod)
         {
-            MpSyncWorkers.Requires<Designation>();
-
             var type = AccessTools.TypeByName("VanillaVehiclesExpanded.GarageDoor");
 
             // Open (0), close (2), and cancel (1, 3)

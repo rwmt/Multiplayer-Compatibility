@@ -39,35 +39,10 @@ namespace Multiplayer.Compat
                 return;
             }
 
-            if (type == typeof(ThingDefCount))
-                MP.RegisterSyncWorker<ThingDefCount>(SyncThingDefCount);
-            else if (type == typeof(GameCondition))
+            if (type == typeof(GameCondition))
                 MP.RegisterSyncWorker<GameCondition>(SyncGameCondition, isImplicit: true);
-            else if (type == typeof(DesignationManager))
-                MP.RegisterSyncWorker<DesignationManager>(SyncDesignationManager);
-            else if (type == typeof(Designation))
-            {
-                Requires<DesignationManager>();
-                MP.RegisterSyncWorker<Designation>(SyncDesignation, isImplicit: true);
-            }
             else
                 Log.Error($"Trying to register SyncWorker of type {type}, but it's not supported.\n{new StackTrace(1)}");
-        }
-
-        private static void SyncThingDefCount(SyncWorker sync, ref ThingDefCount thingDefCount)
-        {
-            if (sync.isWriting)
-            {
-                sync.Write(thingDefCount.ThingDef);
-                sync.Write(thingDefCount.Count);
-            }
-            else
-            {
-                var def = sync.Read<ThingDef>();
-                var count = sync.Read<int>();
-
-                thingDefCount = new ThingDefCount(def, count);
-            }
         }
 
         private static void SyncGameCondition(SyncWorker sync, ref GameCondition gameCondition)
@@ -88,44 +63,6 @@ namespace Multiplayer.Compat
 
                 gameCondition = manager.ActiveConditions.FirstOrDefault(condition => condition.uniqueID == id);
             }
-        }
-
-        private static void SyncDesignation(SyncWorker sync, ref Designation designation)
-        {
-            if (sync.isWriting)
-            {
-                var canSync = designation?.designationManager != null;
-                sync.Write(canSync);
-
-                if (canSync)
-                {
-                    sync.Write(designation.designationManager);
-                    sync.Write(designation.target);
-                    sync.Write(designation.def);
-                }
-            }
-            else
-            {
-                if (sync.Read<bool>())
-                {
-                    var manager = sync.Read<DesignationManager>();
-                    var target = sync.Read<LocalTargetInfo>();
-                    var def = sync.Read<DesignationDef>();
-
-                    if (target.HasThing)
-                        designation = manager.DesignationOn(target.Thing, def);
-                    else
-                        designation = manager.DesignationAt(target.Cell, def);
-                }
-            }
-        }
-
-        private static void SyncDesignationManager(SyncWorker sync, ref DesignationManager manager)
-        {
-            if (sync.isWriting)
-                sync.Write(manager.map);
-            else
-                manager = sync.Read<Map>().designationManager;
         }
 
         private static void SyncPocketMapParent(SyncWorker sync, ref PocketMapParent pmp)
