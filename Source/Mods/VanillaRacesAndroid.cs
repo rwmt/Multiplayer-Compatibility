@@ -70,8 +70,6 @@ namespace Multiplayer.Compat
 
         public VanillaRacesAndroid(ModContentPack mod)
         {
-            MpSyncWorkers.Requires<ThingDefCount>();
-
             LongEventHandler.ExecuteWhenFinished(LatePatch);
 
             // Android creation/modification
