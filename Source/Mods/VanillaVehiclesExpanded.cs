@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using System.Reflection;
+using HarmonyLib;
 using Multiplayer.API;
 using Verse;
 
@@ -9,10 +10,13 @@ namespace Multiplayer.Compat
     [MpCompatFor("OskarPotocki.VanillaVehiclesExpanded")]
     public class VanillaVehiclesExpanded
     {
+        // handbrakeDealsDamage is a per-player mod setting that causes desync
+        // when it differs between host and client (Messages.Message consumes unique ID)
+        private static FieldInfo handbrakeDealsDamageField;
+        private static bool savedHandbrakeValue;
+
         public VanillaVehiclesExpanded(ModContentPack mod)
         {
-            MpSyncWorkers.Requires<Designation>();
-
             var type = AccessTools.TypeByName("VanillaVehiclesExpanded.GarageDoor");
 
             // Open (0), close (2), and cancel (1, 3)
@@ -36,6 +40,38 @@ namespace Multiplayer.Compat
             type = AccessTools.TypeByName("VanillaVehiclesExpanded.CompVehicleWreck");
             // Restore (0)/cancel (1)
             MpCompat.RegisterLambdaDelegate(type, nameof(ThingComp.CompGetGizmosExtra), 0, 1);
+
+            // Force handbrakeDealsDamage to consistent value in MP.
+            // This per-player setting controls whether Messages.Message is called
+            // during vehicle slowdown, which consumes a unique ID and causes desync.
+            var settingsType = AccessTools.TypeByName("VanillaVehiclesExpanded.VanillaVehiclesExpandedSettings");
+            handbrakeDealsDamageField = AccessTools.Field(settingsType, "handbrakeDealsDamage");
+
+            var slowdownMethod = AccessTools.DeclaredMethod(
+                AccessTools.TypeByName("VanillaVehiclesExpanded.CompVehicleMovementController"), "Slowdown");
+            if (slowdownMethod != null && handbrakeDealsDamageField != null)
+            {
+                MpCompat.harmony.Patch(slowdownMethod,
+                    prefix: new HarmonyMethod(typeof(VanillaVehiclesExpanded), nameof(PreSlowdown)),
+                    postfix: new HarmonyMethod(typeof(VanillaVehiclesExpanded), nameof(PostSlowdown)));
+            }
+        }
+
+        private static void PreSlowdown()
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            savedHandbrakeValue = (bool)handbrakeDealsDamageField.GetValue(null);
+            handbrakeDealsDamageField.SetValue(null, true); // Force default (true) for consistency
+        }
+
+        private static void PostSlowdown()
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            handbrakeDealsDamageField.SetValue(null, savedHandbrakeValue);
         }
     }
 }
