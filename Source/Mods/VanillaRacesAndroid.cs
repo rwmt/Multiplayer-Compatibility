@@ -203,7 +203,7 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
                     postfix: new HarmonyMethod(typeof(VanillaRacesAndroid), nameof(ClearCache)));
 
-                var field = AccessTools.DeclaredField("VREAndroids.InteractionUtility_CanInitiateRandomInteraction_Patch:cachedResults");
+                var field = AccessTools.DeclaredField("VREAndroids.SocialInteractionUtility_CanInitiateRandomInteraction_Patch:cachedResults");
                 canInitiateRandomInteractionCacheField = AccessTools.StaticFieldRefAccess<IDictionary>(field);
 
                 field = AccessTools.DeclaredField("MentalBreaker_CanDoRandomMentalBreaks_Patch:cachedResults");
@@ -460,7 +460,7 @@ namespace Multiplayer.Compat
         // HealthCardUtility:CreateSurgeryBill is a MP sync method. Because of this, when the method is called the execution
         // is cancelled and the result will be null. However, prefixes, postfixes, and finalizers will still run as normal.
         // We need to make sure this one doesn't run as it throws an error (even if harmless).
-        private static bool CancelOperationModificationIfResultNull([HarmonyArgument("__result")] Bill_Medical result) => result != null;
+        private static bool CancelOperationModificationIfResultNull(Bill_Medical __0) => __0 != null;
 
         private static void ClearCache()
         {
