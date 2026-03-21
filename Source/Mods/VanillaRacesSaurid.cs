@@ -1,4 +1,6 @@
-﻿using Verse;
+﻿using HarmonyLib;
+using Multiplayer.API;
+using Verse;
 
 namespace Multiplayer.Compat
 {
@@ -12,8 +14,10 @@ namespace Multiplayer.Compat
     {
         public VanillaRacesSaurid(ModContentPack mod)
         {
-            // Hatch now (0), regenerate child (1)
-            MpCompat.RegisterLambdaMethod("VRESaurids.Comp_HumanHatcher", "CompGetGizmosExtra", 0, 1).SetDebugOnly();
+            // Dev gizmos - Hatch now, Regenerate child (method groups, not lambdas)
+            var type = AccessTools.TypeByName("VRESaurids.Comp_HumanHatcher");
+            MP.RegisterSyncMethod(type, "Hatch").SetDebugOnly();
+            MP.RegisterSyncMethod(type, "RegenerateChild").SetDebugOnly();
         }
     }
 }
