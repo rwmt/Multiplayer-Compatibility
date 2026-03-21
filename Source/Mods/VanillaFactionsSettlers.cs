@@ -18,8 +18,6 @@ namespace Multiplayer.Compat
             MP.RegisterSyncDialogNodeTree(type, "ProtectionFee");
             // Caravan gizmo - turn in wanted criminal to settlement
             MpCompat.RegisterLambdaDelegate(type, "CommandTurnInWanted", 0);
-            // Toggle mode
-            MpCompat.RegisterLambdaMethod(AccessTools.TypeByName("Warmup.CompWarmUpReduction"), "CompGetGizmosExtra", 1);
             // Five fingers fillet table
             PatchingUtilities.PatchUnityRand("VFE_Settlers.JobGivers.JobDriver_PlayFiveFingerFillet:WatchTickAction", false);
         }
