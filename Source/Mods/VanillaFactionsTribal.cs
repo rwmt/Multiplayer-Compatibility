@@ -74,7 +74,7 @@ namespace Multiplayer.Compat
         [MpCompatPrefix("VFETribals.GameComponent_Tribals", "AddCornerstone")]
         private static bool PreAddCornerstone(Def def, int ___availableCornerstonePoints, IList ___cornerstones)
         {
-            if (MP.IsInMultiplayer || !MP.IsExecutingSyncCommand)
+            if (!MP.IsInMultiplayer || !MP.IsExecutingSyncCommand)
                 return true;
 
             // Make sure that after syncing the cornerstone selection we're not in a situation where
