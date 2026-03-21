@@ -20,7 +20,6 @@ namespace Multiplayer.Compat
     /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2834132683"/>
     [MpCompatFor("smashphil.srtsexpanded")]
     [MpCompatFor("smashphil.neceros.srtsexpanded")]
-    [MpCompatFor("Shashlichnik.srtsexpanded")]
     [MpCompatFor("Nephlite.Carryalls")]
     [MpCompatFor("Azazellz.TransportShuttleStandalone")]
     class SRTSExpanded
