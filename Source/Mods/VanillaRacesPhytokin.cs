@@ -14,10 +14,10 @@ namespace Multiplayer.Compat
     {
         public VanillaRacesPhytokin(ModContentPack mod)
         {
-            // Dev mode gizmos
-            // Reset dryad counter (in case of counter breaking)
-            MpCompat.RegisterLambdaDelegate("VanillaRacesExpandedPhytokin.CompDryadCounter", "CompGetGizmosExtra", 0).SetDebugOnly();
+            // Plant saplingchild gizmo (Command_Target on pregnant phytokin hediff)
+            MP.RegisterSyncMethod(AccessTools.DeclaredMethod("VanillaRacesExpandedPhytokin.HediffComp_Saplingchild:TryCreateSaplingChild"));
 
+            // Dev mode gizmos
             var type = AccessTools.TypeByName("VanillaRacesExpandedPhytokin.CompVariablePollutionPump");
             // Force pump now
             MP.RegisterSyncMethod(type, "Pump").SetDebugOnly(); // Also called while ticking
