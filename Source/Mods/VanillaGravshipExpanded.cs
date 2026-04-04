@@ -86,6 +86,19 @@ namespace Multiplayer.Compat
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.GameCondition_Comet:Init");
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_AstrofuelPipeRupture:ApplyOutcome");
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_VerminInfestation:ApplyOutcome");
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_OxygenLeak:ApplyOutcome");
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_VacBarrierFlicker:ApplyOutcome");
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_UnwantedAttention:ApplyOutcome");
+
+            // Launch boon RNG fixes
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_AsteroidDiscovery:ApplyBoon");
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_CaravanEncounter:ApplyBoon");
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_LandmarkSpotted:ApplyBoon");
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_RichDepositDetected:ApplyBoon");
+
+            // Landing flow RNG fixes - crash landing and boon selection
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.WorldComponent_GravshipController_LandingEnded_Patch:ApplyCrashlanding");
+            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.WorldComponent_GravshipController_LandingEnded_Patch:TryTriggerLaunchBoon");
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_ArtilleryBeam:Impact");
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_Asteroid:TryDropLoot");
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_SpaceDebris:TryDropLoot");
