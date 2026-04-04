@@ -1,7 +1,10 @@
-﻿using System;
+using System;
+using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
+using RimWorld;
 using Verse;
+using Verse.AI;
 
 namespace Multiplayer.Compat
 {
@@ -17,6 +20,9 @@ namespace Multiplayer.Compat
         private static GetChecker getCompUnlockerCheckerMethod;
         private static Type rpgStyleInventoryTabType;
 
+        // Meditation economy sync support
+        private static AccessTools.FieldRef<bool> meditationEconomyField;
+
         public CommonSense(ModContentPack mod)
         {
             var type = AccessTools.TypeByName("CommonSense.CompUnloadChecker");
@@ -31,6 +37,18 @@ namespace Multiplayer.Compat
 
             // Gizmo patch
             MpCompat.RegisterLambdaMethod("CommonSense.DoCleanComp", "CompGetGizmosExtra", 1);
+
+            // Meditation economy: cancel the original postfix in MP and replace with
+            // a host-authoritative version that syncs the EndJobWith decision.
+            meditationEconomyField = AccessTools.StaticFieldRefAccess<bool>(
+                AccessTools.Field(AccessTools.TypeByName("CommonSense.Settings"), "meditation_economy"));
+            MpCompat.harmony.Patch(
+                AccessTools.Method("CommonSense.JobDriver_MeditationTick_CommonSensePatch:Postfix"),
+                prefix: new HarmonyMethod(typeof(CommonSense), nameof(CancelMeditationPostfixInMp)));
+            MpCompat.harmony.Patch(
+                AccessTools.Method(typeof(JobDriver_Meditate), "MeditationTick"),
+                postfix: new HarmonyMethod(typeof(CommonSense), nameof(HostAuthorativeMeditationCheck)));
+            MP.RegisterSyncMethod(typeof(CommonSense), nameof(SyncedEndMeditationJob));
 
             // RPG Style Inventory patch sync (popup menu)
             rpgStyleInventoryTabType = AccessTools.TypeByName("Sandy_Detailed_RPG_Inventory.Sandy_Detailed_RPG_GearTab");
@@ -49,6 +67,44 @@ namespace Multiplayer.Compat
             }
 
             LongEventHandler.ExecuteWhenFinished(LatePatch);
+        }
+
+        // Cancel the original CommonSense meditation postfix in MP -
+        // replaced by HostAuthorativeMeditationCheck below.
+        private static bool CancelMeditationPostfixInMp() => !MP.IsInMultiplayer;
+
+        // Host-authoritative replacement for CommonSense's meditation economy.
+        // Mirrors the original logic but only evaluates on the host, then syncs
+        // the EndJobWith decision to all clients for deterministic execution.
+        private static void HostAuthorativeMeditationCheck(JobDriver_Meditate __instance)
+        {
+            if (!MP.IsInMultiplayer || !MP.IsHosting)
+                return;
+
+            if (!meditationEconomyField.Invoke() || __instance?.pawn == null)
+                return;
+
+            var pawn = __instance.pawn;
+            bool meditating = pawn.GetTimeAssignment() == TimeAssignmentDefOf.Meditate;
+
+            var entropy = pawn.psychicEntropy;
+            var joy = pawn.needs?.joy;
+            var joyKind = pawn.CurJob?.def?.joyKind;
+
+            if (!meditating
+                && (joy == null || joy.CurLevel >= 0.98f || joyKind != null && joy.tolerances?.BoredOf(joyKind) == true)
+                && (entropy == null || !entropy.NeedsPsyfocus || entropy.CurrentPsyfocus == 1f))
+            {
+                SyncedEndMeditationJob(pawn);
+            }
+        }
+
+        // Synced method: host tells all clients to end this pawn's meditation job.
+        // Executed on all clients at the same tick for deterministic state.
+        private static void SyncedEndMeditationJob(Pawn pawn)
+        {
+            if (pawn.jobs?.curDriver is JobDriver_Meditate driver)
+                driver.EndJobWith(JobCondition.InterruptForced);
         }
 
         private static void LatePatch()
@@ -82,7 +138,7 @@ namespace Multiplayer.Compat
         private static void RpgStyleCompatPrefix(ref object _____instance)
         {
             // Yes, it should have 5 `_` symbols. The field has 2 in name, and we need to add 3 to access it through harmony argument
-            // The __instance field used by the mod 
+            // The __instance field used by the mod
             if (MP.IsInMultiplayer)
                 _____instance ??= Activator.CreateInstance(rpgStyleInventoryTabType);
         }
