@@ -140,7 +140,7 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("VanillaGravshipExpanded.CompWorldArtillery");
 
                 var startAttack = AccessTools.DeclaredMethod(type, "StartAttack");
-                MP.RegisterSyncMethod(startAttack).SetContext(SyncContext.MapSelected);
+                MP.RegisterSyncMethod(startAttack);
                 MpCompat.harmony.Patch(startAttack,
                     prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreStartAttack)));
 
