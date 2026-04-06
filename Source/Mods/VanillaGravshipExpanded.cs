@@ -78,44 +78,9 @@ namespace Multiplayer.Compat
         {
             LongEventHandler.ExecuteWhenFinished(LatePatch);
 
-            // RNG fixes
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.ArtilleryUtility:SpawnArtilleryProjectile");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Astrofire:SpawnSetup");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Astrofire:TickInterval");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.GameCondition_MicrometeorStorm:GameConditionTick");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.GameCondition_Comet:Init");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_AstrofuelPipeRupture:ApplyOutcome");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_VerminInfestation:ApplyOutcome");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_OxygenLeak:ApplyOutcome");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_VacBarrierFlicker:ApplyOutcome");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LandingOutcomeWorker_UnwantedAttention:ApplyOutcome");
-
-            // Launch boon RNG fixes
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_AsteroidDiscovery:ApplyBoon");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_CaravanEncounter:ApplyBoon");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_LandmarkSpotted:ApplyBoon");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.LaunchBoonWorker_RichDepositDetected:ApplyBoon");
-
-            // Landing flow RNG fixes - crash landing and boon selection
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.WorldComponent_GravshipController_LandingEnded_Patch:ApplyCrashlanding");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.WorldComponent_GravshipController_LandingEnded_Patch:TryTriggerLaunchBoon");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_ArtilleryBeam:Impact");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_Asteroid:TryDropLoot");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_SpaceDebris:TryDropLoot");
-
-            // VGE's CompPowerPlantGravEngine.DesiredPowerOutput accesses ValidSubstructure during
-            // CompTick. When a substructure completes, UpdateSubstructureIfNeeded creates a
-            // Dialog_NamePlayerGravship whose constructor uses Rand to generate a name suggestion.
-            // This consumes game RNG and causes desync between host and client.
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.CompPowerPlantGravEngine:get_DesiredPowerOutput");
-
-            // Visual-only RNG fixes (prevent camera-dependent Rand from diverging game state)
+            // RNG fixes — rendering context only (frame-rate-dependent Rand consumption)
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_Gauss:DrawAt");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_JavelinRocket:EmitExhaust");
             PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Projectile_JavelinRocket:DrawAt");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.Verb_ShootWithSmoke:ThrowSmoke");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.GameCondition_Comet:DoCellSteadyEffects");
-            PatchingUtilities.PatchPushPopRand("VanillaGravshipExpanded.GameCondition_SpaceSolarFlare:DoCellSteadyEffects");
         }
 
         private static void LatePatch()
