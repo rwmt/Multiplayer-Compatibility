@@ -139,10 +139,7 @@ namespace Multiplayer.Compat
             {
                 var type = AccessTools.TypeByName("VanillaGravshipExpanded.CompWorldArtillery");
 
-                var startAttack = AccessTools.DeclaredMethod(type, "StartAttack");
-                MP.RegisterSyncMethod(startAttack).SetContext(SyncContext.MapSelected);
-                MpCompat.harmony.Patch(startAttack,
-                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreStartAttack)));
+                MP.RegisterSyncMethod(type, "StartAttack").SetContext(SyncContext.MapSelected);
 
                 MP.RegisterSyncMethod(type, "Reset");
             }
@@ -465,16 +462,6 @@ namespace Multiplayer.Compat
         }
 
         #region Patches
-
-        /// <summary>
-        /// Hide world view immediately on the calling client when starting
-        /// an artillery attack, since waiting for sync may take a while.
-        /// </summary>
-        private static void PreStartAttack()
-        {
-            if (!MP.IsExecutingSyncCommand)
-                CameraJumper.TryHideWorld();
-        }
 
         /// <summary>
         /// Intercept the black box convert gravdata lambda and sync it.
