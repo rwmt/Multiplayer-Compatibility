@@ -126,14 +126,10 @@ namespace Multiplayer.Compat
             #region Gizmo actions
 
             {
-                // Building_GravshipBlackBox - convert gravdata to research
-                // Lambda captures a local (currentProject), creating a display class MP can't serialize.
-                // Sync via prefix + SyncMethod instead.
-                var blackBoxType = AccessTools.TypeByName("VanillaGravshipExpanded.Building_GravshipBlackBox");
-                var blackBoxLambda = MpMethodUtil.GetLambda(blackBoxType, "GetGizmos", lambdaOrdinal: 0);
-                MpCompat.harmony.Patch(blackBoxLambda,
-                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreBlackBoxConvert)));
-                MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedBlackBoxConvert));
+                // Building_GravshipBlackBox - convert gravdata to research (lambda 0)
+                // Lambda captures this + currentProject local, creating a display class.
+                // RegisterLambdaDelegate decomposes the display class fields for serialization.
+                MpCompat.RegisterLambdaDelegate("VanillaGravshipExpanded.Building_GravshipBlackBox", "GetGizmos", 0);
 
                 // Building_SealantPopper - toggle autoRebuild (lambda 1, after isActive getter at 0)
                 MpCompat.RegisterLambdaMethod("VanillaGravshipExpanded.Building_SealantPopper", "GetGizmos", 1);
@@ -439,47 +435,6 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsExecutingSyncCommand)
                 CameraJumper.TryHideWorld();
-        }
-
-        /// <summary>
-        /// Intercept the black box convert gravdata lambda and sync it.
-        /// The lambda captures a local variable (currentProject), so we
-        /// replicate the logic in SyncedBlackBoxConvert instead.
-        /// </summary>
-        private static bool PreBlackBoxConvert(object __instance)
-        {
-            if (!MP.IsInMultiplayer)
-                return true;
-
-            // __instance is the display class; get the building from its fields
-            var buildingField = __instance.GetType().GetField("<>4__this");
-            if (buildingField?.GetValue(__instance) is Thing building)
-                SyncedBlackBoxConvert(building);
-
-            return false;
-        }
-
-
-        private static void SyncedBlackBoxConvert(Thing blackBox)
-        {
-            var currentProject = Find.ResearchManager.currentProj;
-            if (currentProject == null || currentProject.IsFinished)
-                return;
-
-            var storedField = AccessTools.Field(blackBox.GetType(), "storedGravdata");
-            if (storedField == null)
-                return;
-
-            var stored = (float)storedField.GetValue(blackBox);
-            if (stored <= 0)
-                return;
-
-            float progressNeeded = currentProject.Cost - Find.ResearchManager.GetProgress(currentProject);
-            float gravdataToConvert = Math.Min(stored, progressNeeded);
-            Find.ResearchManager.AddProgress(currentProject, gravdataToConvert);
-            storedField.SetValue(blackBox, stored - gravdataToConvert);
-            Messages.Message("VGE_ConvertedGravdataToResearch".Translate(gravdataToConvert, currentProject.LabelCap),
-                MessageTypeDefOf.TaskCompletion);
         }
 
         /// <summary>
