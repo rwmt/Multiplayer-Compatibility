@@ -74,6 +74,10 @@ namespace Multiplayer.Compat
         private static MethodInfo initiateTakeoffMethod;
         private static PropertyInfo validSubstructureProperty;
 
+        // Landing determinism — recompute BlockingThings for both clients
+        private static MethodInfo getBlockingThingsMethod;
+        private static MethodInfo gravshipThingsGetter;
+
         public VanillaGravshipExpanded(ModContentPack mod)
         {
             LongEventHandler.ExecuteWhenFinished(LatePatch);
@@ -423,6 +427,28 @@ namespace Multiplayer.Compat
             }
 
             #endregion
+
+            #region Landing determinism — BlockingThings recomputation
+
+            {
+                // GravshipMapGenUtility.BlockingThings is a static HashSet<Thing> populated
+                // during the landing UI flow (TryBeginLanding → GetBlockingThings), which only
+                // runs on the acting player. ApplyCrashlanding reads it during tick (both clients).
+                // Recompute from live map state so both clients iterate the same blocker set.
+                var gravshipMapGenUtilType = AccessTools.TypeByName("VanillaGravshipExpanded.GravshipMapGenUtility");
+                getBlockingThingsMethod = AccessTools.Method(gravshipMapGenUtilType, "GetBlockingThings");
+
+                var gravshipType = AccessTools.TypeByName("VanillaGravshipExpanded.Gravship");
+                gravshipThingsGetter = AccessTools.PropertyGetter(gravshipType, "Things");
+
+                var landingEndedPatchType = AccessTools.TypeByName(
+                    "VanillaGravshipExpanded.WorldComponent_GravshipController_LandingEnded_Patch");
+                var applyCrashlandingMethod = AccessTools.DeclaredMethod(landingEndedPatchType, "ApplyCrashlanding");
+                MpCompat.harmony.Patch(applyCrashlandingMethod,
+                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreApplyCrashlanding)));
+            }
+
+            #endregion
         }
 
         #region Patches
@@ -435,6 +461,28 @@ namespace Multiplayer.Compat
         {
             if (!MP.IsExecutingSyncCommand)
                 CameraJumper.TryHideWorld();
+        }
+
+        /// <summary>
+        /// Recompute BlockingThings from live map state before ApplyCrashlanding reads it.
+        /// The static is normally populated during UI (TryBeginLanding), which only runs on
+        /// the acting player — the other client's set is empty, causing N vs 0 Rand.Chance
+        /// calls and downstream RNG divergence on raid/caravan pawn generation.
+        /// </summary>
+        private static void PreApplyCrashlanding(object gravship, Map map)
+        {
+            if (!MP.IsInMultiplayer)
+                return;
+
+            var things = (IEnumerable<Thing>)gravshipThingsGetter.Invoke(gravship, null);
+            var cells = new HashSet<IntVec3>();
+            foreach (var thing in things)
+            {
+                foreach (var cell in thing.OccupiedRect())
+                    cells.Add(cell);
+            }
+
+            getBlockingThingsMethod.Invoke(null, new object[] { cells, map });
         }
 
         /// <summary>
