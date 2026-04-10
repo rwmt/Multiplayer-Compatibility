@@ -45,10 +45,6 @@ namespace Multiplayer.Compat
         private static AccessTools.FieldRef<object, object> vacBarrierDialogBarriersField;
         private static MethodInfo notifyBarrierColorChangedMethod;
 
-        // Mod settings - orbitalObjectsMultiplier must be consistent in MP
-        private static AccessTools.FieldRef<float> orbitalObjectsMultiplierField;
-        private static float savedMultiplier;
-
         // VGE launch flow - sync tile selection for gravship destinations
         private static AccessTools.FieldRef<object> vgeLaunchStateField;
         private static AccessTools.FieldRef<object, PlanetTile> vgeLaunchStateTargetTileField;
@@ -99,10 +95,7 @@ namespace Multiplayer.Compat
             {
                 var type = AccessTools.TypeByName("VanillaGravshipExpanded.CompWorldArtillery");
 
-                var startAttack = AccessTools.DeclaredMethod(type, "StartAttack");
-                MP.RegisterSyncMethod(startAttack);
-                MpCompat.harmony.Patch(startAttack,
-                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreStartAttack)));
+                MP.RegisterSyncMethod(type, "StartAttack");
 
                 MP.RegisterSyncMethod(type, "Reset");
             }
@@ -337,30 +330,6 @@ namespace Multiplayer.Compat
 
             #endregion
 
-            #region Mod settings sync (orbitalObjectsMultiplier)
-
-            {
-                // orbitalObjectsMultiplier is a per-player mod setting that affects
-                // WorldComponent_LocationGenerator.WorldComponentTick via transpiler.
-                // If host and client have different values, world RNG state diverges.
-                // Force a consistent value (default 2.0) during world tick in MP.
-                var settingsType = AccessTools.TypeByName("VanillaGravshipExpanded.GravshipsMod_Settings");
-                orbitalObjectsMultiplierField = AccessTools.StaticFieldRefAccess<float>(
-                    AccessTools.DeclaredField(settingsType, "orbitalObjectsMultiplier"));
-
-                MpCompat.harmony.Patch(
-                    AccessTools.DeclaredMethod(typeof(WorldComponent_LocationGenerator), "WorldComponentTick"),
-                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreLocationGeneratorTick)),
-                    postfix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PostLocationGeneratorTick)));
-
-                MpCompat.harmony.Patch(
-                    AccessTools.DeclaredMethod(typeof(WorldComponent_LocationGenerator), "GenerateUntilTarget", new[] { typeof(PlanetLayer) }),
-                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreLocationGeneratorTick)),
-                    postfix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PostLocationGeneratorTick)));
-            }
-
-            #endregion
-
             #region TakeoffEnded map decision sync
 
             {
@@ -417,16 +386,6 @@ namespace Multiplayer.Compat
         }
 
         #region Patches
-
-        /// <summary>
-        /// Hide world view immediately on the calling client when starting
-        /// an artillery attack, since waiting for sync may take a while.
-        /// </summary>
-        private static void PreStartAttack()
-        {
-            if (!MP.IsExecutingSyncCommand)
-                CameraJumper.TryHideWorld();
-        }
 
         /// <summary>
         /// In MP, replace the Find.Selector iteration in SetSelectedVacCheckpointsTo
@@ -808,28 +767,6 @@ namespace Multiplayer.Compat
                     break;
                 }
             }
-        }
-
-        /// <summary>
-        /// Force orbitalObjectsMultiplier to its default value during
-        /// WorldComponent_LocationGenerator methods in MP, so host and client
-        /// produce identical results regardless of per-player mod settings.
-        /// </summary>
-        private static void PreLocationGeneratorTick()
-        {
-            if (!MP.IsInMultiplayer)
-                return;
-
-            savedMultiplier = orbitalObjectsMultiplierField();
-            orbitalObjectsMultiplierField() = 2f; // orbitalObjectsMultiplierBase default
-        }
-
-        private static void PostLocationGeneratorTick()
-        {
-            if (!MP.IsInMultiplayer)
-                return;
-
-            orbitalObjectsMultiplierField() = savedMultiplier;
         }
 
         private static void PreOxygenGizmoOnGUI(Gizmo_Slider __instance)
