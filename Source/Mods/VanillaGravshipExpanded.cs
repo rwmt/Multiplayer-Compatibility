@@ -209,9 +209,11 @@ namespace Multiplayer.Compat
             #region Building_Gravlift (launch to orbit)
 
             {
-                // Gizmo lambda sets IsGravliftLaunch then calls ShowRitualBeginWindow.
-                // MP intercepts ShowRitualBeginWindow to create a RitualSession.
-                MpCompat.RegisterLambdaMethod("VanillaGravshipExpanded.Building_Gravlift", "GetGizmos", 0);
+                // Ordinal 2: gizmo action — sets IsGravliftLaunch, calls ShowLaunchRitual
+                // Captures locals (isInOrbit, comp) via display class, so must use Delegate not Method.
+                // (0: LINQ Select projection, 1: LINQ FirstOrDefault predicate — both non-capturing in <>c)
+                // Verified: https://github.com/Vanilla-Expanded/VanillaGravshipExpanded/blob/main/Source/Things/Building_Gravlift.cs
+                MpCompat.RegisterLambdaDelegate("VanillaGravshipExpanded.Building_Gravlift", "GetGizmos", 2);
             }
 
             #endregion
