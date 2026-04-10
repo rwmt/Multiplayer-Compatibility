@@ -62,11 +62,6 @@ namespace Multiplayer.Compat
         private static Func<PlanetTile, bool> hasGravshipSession;
         private static MethodInfo stopTilePickerInt;
 
-        // TakeoffEnded map decision - cached VGE extension methods
-        private static MethodInfo canEverKeepThisMapMethod;
-        private static MethodInfo shouldAlwaysKeepThisMapMethod;
-        private static MethodInfo shouldHaveKeepMapUIMethod;
-
         // VGE PreLaunchConfirmation sync - VGE replaces the vanilla launch action
         private static Action capturedOriginalLaunchAction;
         private static MethodInfo destroyTreesAroundSubstructureMethod;
@@ -368,21 +363,15 @@ namespace Multiplayer.Compat
 
             {
                 // VGE's TakeoffEnded patch shows a Dialog_MessageBox asking the player to
-                // settle or abandon the map after gravship launch. The dialog is per-client
-                // and the button actions (settle/abandon) are not synced.
-                // Patch VGE's prefix to replace the dialog actions with synced versions.
+                // settle or abandon the map after gravship launch. The button actions
+                // (settle/abandon) are local functions — per-client and unsynced.
+                // Let VGE create the dialog natively, then swap the button actions with
+                // synced versions in a postfix. No VGE condition logic is copied.
                 var takeoffPatchType = AccessTools.TypeByName(
                     "VanillaGravshipExpanded.WorldComponent_GravshipController_TakeoffEnded_Patch");
                 MpCompat.harmony.Patch(
                     AccessTools.DeclaredMethod(takeoffPatchType, "Prefix"),
-                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreTakeoffEndedPatch)));
-
-                canEverKeepThisMapMethod = AccessTools.Method(
-                    "VanillaGravshipExpanded.WorldComponent_GravshipController_TakeoffEnded_Patch:CanEverKeepThisMap");
-                shouldAlwaysKeepThisMapMethod = AccessTools.Method(
-                    "VanillaGravshipExpanded.WorldComponent_GravshipController_TakeoffEnded_Patch:ShouldAlwaysKeepThisMap");
-                shouldHaveKeepMapUIMethod = AccessTools.Method(
-                    "VanillaGravshipExpanded.WorldComponent_GravshipController_TakeoffEnded_Patch:ShouldHaveKeepMapUI");
+                    postfix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PostTakeoffEndedPatch)));
 
                 MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedSettleTile));
                 MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedAbandonTile));
@@ -714,61 +703,33 @@ namespace Multiplayer.Compat
         }
 
         /// <summary>
-        /// Intercept VGE's TakeoffEnded patch to replace dialog button actions
-        /// with synced versions. VGE creates Dialog_MessageBox with settle/abandon
-        /// actions that are per-client and unsynced.
+        /// Postfix on VGE's TakeoffEnded prefix. VGE creates Dialog_MessageBox with
+        /// local-function button actions that are per-client and unsynced. We let VGE
+        /// handle all condition logic and dialog creation natively, then swap the
+        /// button actions with synced versions.
         /// </summary>
-        private static bool PreTakeoffEndedPatch(WorldComponent_GravshipController __0)
+        private static void PostTakeoffEndedPatch(WorldComponent_GravshipController __0)
         {
             if (!MP.IsInMultiplayer)
-                return true;
+                return;
 
-            if (__0.mapHasGravAnchor || __0.map?.info?.parent == null)
-                return false;
+            // Check if VGE added a Dialog_MessageBox
+            if (Find.WindowStack.Count == 0)
+                return;
+            if (Find.WindowStack.Windows[Find.WindowStack.Count - 1] is not Dialog_MessageBox dialog)
+                return;
 
-            var map = __0.map;
-            var mapParent = map.Parent;
+            var mapParent = __0.map?.Parent;
             if (mapParent == null)
-                return false;
+                return;
 
-            if (canEverKeepThisMapMethod != null && !(bool)canEverKeepThisMapMethod.Invoke(null, new object[] { mapParent }))
-                return false;
+            // buttonB is SettleTile in both dialog variants
+            if (dialog.buttonBAction != null)
+                dialog.buttonBAction = () => SyncedSettleTile(mapParent);
 
-            if (shouldAlwaysKeepThisMapMethod != null && (bool)shouldAlwaysKeepThisMapMethod.Invoke(null, new object[] { mapParent }))
-            {
-                __0.mapHasGravAnchor = true;
-                if (mapParent.CanBeSettled && !map.attackTargetsCache.TargetsHostileToColony
-                    .Any(item => GenHostility.IsActiveThreatToPlayer(item)))
-                {
-                    Find.WindowStack.Add(new Dialog_MessageBox(
-                        "VGE_MapDecisionSettleText".Translate(),
-                        "VGE_DontSettle".Translate(),
-                        null,
-                        "VGE_SettleMap".Translate(),
-                        () => SyncedSettleTile(mapParent),
-                        buttonADestructive: false
-                    ));
-                }
-            }
-            else if (shouldHaveKeepMapUIMethod != null && (bool)shouldHaveKeepMapUIMethod.Invoke(null, new object[] { mapParent }))
-            {
-                __0.mapHasGravAnchor = true;
-                Find.WindowStack.Add(new Dialog_MessageBox(
-                    "VGE_MapDecisionText".Translate(),
-                    "VGE_DiscardMap".Translate(),
-                    () => SyncedAbandonTile(mapParent),
-                    "VGE_KeepMap".Translate(),
-                    () => SyncedSettleTile(mapParent),
-                    buttonADestructive: true
-                ));
-            }
-            else
-            {
-                __0.mapHasGravAnchor = true;
-                SyncedAbandonTile(mapParent);
-            }
-
-            return false;
+            // buttonA is AbandonTile in the keep/abandon dialog, null in the settle-only dialog
+            if (dialog.buttonAAction != null)
+                dialog.buttonAAction = () => SyncedAbandonTile(mapParent);
         }
 
 
