@@ -66,12 +66,14 @@ namespace Multiplayer.Compat
         private static MethodInfo initiateTakeoffMethod;
         private static PropertyInfo validSubstructureProperty;
 
-        //
-        private static MethodInfo BuildVacBarrierRoofMethod;
+        // MP stuffs to modify MpComp.factionData[factionID].areaManager
+        // Should be replaced if MPAPI exposed these
         private static Type areaType;
-        private static MethodInfo MpCompMethod;
-        private static FieldInfo FactionDataField;
-        private static FieldInfo AreaManagerField;
+        private static MethodInfo mpCompMethod;
+        private static FieldInfo factionDataField;
+        private static FieldInfo areaManagerField;
+        // VGE gets current roof area
+        private static MethodInfo BuildVacBarrierRoofMethod;
 
         public VanillaGravshipExpanded(ModContentPack mod)
         {
@@ -304,7 +306,7 @@ namespace Multiplayer.Compat
                 MpCompat.harmony.Patch(
                     AccessTools.DeclaredMethod(typeof(Precept_Ritual), "ShowRitualBeginWindow"),
                     prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreShowRitualClearStaleState))
-                        { priority = Priority.First });
+                    { priority = Priority.First });
 
                 // Patch CheckConfirmSettle to sync VGE's tile selection
                 MpCompat.harmony.Patch(
@@ -320,10 +322,10 @@ namespace Multiplayer.Compat
                 var preLaunchMethod = AccessTools.DeclaredMethod(typeof(GravshipUtility), "PreLaunchConfirmation");
                 MpCompat.harmony.Patch(preLaunchMethod,
                     prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(CaptureOriginalLaunchAction))
-                        { priority = Priority.First });
+                    { priority = Priority.First });
                 MpCompat.harmony.Patch(preLaunchMethod,
                     prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(WrapVgeLaunchAction))
-                        { priority = Priority.Last });
+                    { priority = Priority.Last });
 
                 MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedVgeLaunchConfirm));
 
@@ -392,11 +394,17 @@ namespace Multiplayer.Compat
 
             #endregion
 
-            BuildVacBarrierRoofMethod = AccessTools.Method(AccessTools.TypeByName("VanillaGravshipExpanded.AreaManagerExtensions"), "BuildVacBarrierRoof");
-            areaType = AccessTools.TypeByName("VanillaGravshipExpanded.Area_BuildVacBarrierRoof");
-            MpCompMethod = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Extensions"), "MpComp");
-            FactionDataField = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.MultiplayerMapComp"), "factionData");
-            AreaManagerField = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.FactionMapData"), "areaManager");
+            #region MultiFaction sync
+
+            {
+                areaType = AccessTools.TypeByName("VanillaGravshipExpanded.Area_BuildVacBarrierRoof");
+                mpCompMethod = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Extensions"), "MpComp");
+                factionDataField = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.MultiplayerMapComp"), "factionData");
+                areaManagerField = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.FactionMapData"), "areaManager");
+
+                BuildVacBarrierRoofMethod = AccessTools.Method(AccessTools.TypeByName("VanillaGravshipExpanded.AreaManagerExtensions"), "BuildVacBarrierRoof");
+            }
+            #endregion
         }
 
         #region Patches
@@ -853,43 +861,30 @@ namespace Multiplayer.Compat
             notifyBarrierColorChangedMethod?.Invoke(barrier, null);
         }
 
-        #endregion
 
-
-
-
+        /// <summary>
+        /// VGE create VacBarrierRoofArea only for map owner's faction at their mapcomponet's finalizer
+        /// Patch this so everytime a new factiondata on map is created we create same area for them if they dont have one
+        /// </summary>
         [HarmonyPatch("Multiplayer.Client.MapSetup", "InitNewFactionData")]
         static class MapSetup_InitNewFactionData_Patch
         {
 
             static void Postfix(Map map, Faction f)
             {
-                var mpComp = MpCompMethod?.Invoke(null, new object[] { map });
-                var factionData = (FactionDataField?.GetValue(mpComp) as SortedDictionary<int, object>)[f.loadID];
-
-                AreaManager manager = (AreaManager)AreaManagerField?.GetValue(factionData);
-
+                var mpComp = mpCompMethod?.Invoke(null, new object[] { map });
+                var factionDataDict = factionDataField?.GetValue(mpComp) as System.Collections.IDictionary;
+                var factionData = factionDataDict[f.loadID];
+                AreaManager manager = (AreaManager)areaManagerField?.GetValue(factionData);
                 var area = BuildVacBarrierRoofMethod?.Invoke(null, new object[] { manager });
                 if (area == null)
                 {
-                    var newArea = (Area)Activator.CreateInstance(areaType, map.areaManager);
+                    var newArea = (Area)Activator.CreateInstance(areaType, manager);
                     manager.areas.Add(newArea);
                 }
             }
         }
-        [HarmonyPatch("VanillaGravshipExpanded.VacBarrierRoofUtility", "BuildVacBarrierRoof")]
-        static class VacBarrierRoofUtility_BuildVacBarrierRoof_Patch
-        {
-            static void Postfix(AreaManager manager, ref object __result)
-            {
-                if (__result != null) return;
-                if (!MP.IsInMultiplayer) return;
-
-                var newArea = (Area)Activator.CreateInstance(areaType, manager);
-                manager.areas.Add(newArea);
-                __result = newArea;
-            }
-        }
+        #endregion
     }
 
 }
