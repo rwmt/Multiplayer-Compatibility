@@ -1,13 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using UnityEngine;
 using Verse;
+using Verse.Noise;
 using Verse.Sound;
 
 namespace Multiplayer.Compat
@@ -73,6 +74,13 @@ namespace Multiplayer.Compat
         private static MethodInfo consumeFuelMethod;
         private static MethodInfo initiateTakeoffMethod;
         private static PropertyInfo validSubstructureProperty;
+
+        //
+        private static MethodInfo BuildVacBarrierRoofMethod;
+        private static Type areaType;
+        private static MethodInfo MpCompMethod;
+        private static FieldInfo FactionDataField;
+        private static FieldInfo AreaManagerField;
 
         public VanillaGravshipExpanded(ModContentPack mod)
         {
@@ -449,6 +457,12 @@ namespace Multiplayer.Compat
             }
 
             #endregion
+
+            BuildVacBarrierRoofMethod = AccessTools.Method(AccessTools.TypeByName("VanillaGravshipExpanded.AreaManagerExtensions"), "BuildVacBarrierRoof");
+            areaType = AccessTools.TypeByName("VanillaGravshipExpanded.Area_BuildVacBarrierRoof");
+            MpCompMethod = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Extensions"), "MpComp");
+            FactionDataField = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.MultiplayerMapComp"), "factionData");
+            AreaManagerField = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.FactionMapData"), "areaManager");
         }
 
         #region Patches
@@ -1007,5 +1021,42 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+
+
+
+        [HarmonyPatch("Multiplayer.Client.MapSetup", "InitNewFactionData")]
+        static class MapSetup_InitNewFactionData_Patch
+        {
+
+            static void Postfix(Map map, Faction f)
+            {
+                var mpComp = MpCompMethod?.Invoke(null, new object[] { map });
+                var factionData = (FactionDataField?.GetValue(mpComp) as SortedDictionary<int, object>)[f.loadID];
+
+                AreaManager manager = (AreaManager)AreaManagerField?.GetValue(factionData);
+
+                var area = BuildVacBarrierRoofMethod?.Invoke(null, new object[] { manager });
+                if (area == null)
+                {
+                    var newArea = (Area)Activator.CreateInstance(areaType, map.areaManager);
+                    manager.areas.Add(newArea);
+                }
+            }
+        }
+        [HarmonyPatch("VanillaGravshipExpanded.VacBarrierRoofUtility", "BuildVacBarrierRoof")]
+        static class VacBarrierRoofUtility_BuildVacBarrierRoof_Patch
+        {
+            static void Postfix(AreaManager manager, ref object __result)
+            {
+                if (__result != null) return;
+                if (!MP.IsInMultiplayer) return;
+
+                var newArea = (Area)Activator.CreateInstance(areaType, manager);
+                manager.areas.Add(newArea);
+                __result = newArea;
+            }
+        }
     }
+
 }
