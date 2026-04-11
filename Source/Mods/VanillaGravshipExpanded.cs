@@ -378,21 +378,6 @@ namespace Multiplayer.Compat
 
             #endregion
 
-            #region Gravship naming dialog sync
-
-            {
-                // Dialog_NamePlayerGravship is created from UpdateSubstructureIfNeeded during tick.
-                // Each client can type and submit a different name independently.
-                // Sync the Named method and close the dialog on all clients.
-                MpCompat.harmony.Patch(
-                    AccessTools.DeclaredMethod(typeof(Dialog_NamePlayerGravship), "Named"),
-                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreGravshipNamed)));
-
-                MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedGravshipNamed));
-            }
-
-            #endregion
-
             #region Gizmo_OxygenProvider
 
             {
@@ -759,43 +744,6 @@ namespace Multiplayer.Compat
             }
         }
 
-        /// <summary>
-        /// Intercept Dialog_NamePlayerGravship.Named to sync the gravship name.
-        /// Without this, each client can submit a different name independently.
-        /// </summary>
-        private static bool PreGravshipNamed(Window __instance, string s)
-        {
-            if (!MP.IsInMultiplayer)
-                return true;
-
-            // Get the engine from the dialog via reflection
-            var engineField = AccessTools.Field(typeof(Dialog_NamePlayerGravship), "engine");
-            if (engineField?.GetValue(__instance) is Building_GravEngine engine)
-            {
-                if (!MP.IsExecutingSyncCommand)
-                    SyncedGravshipNamed(engine, s);
-            }
-
-            return false;
-        }
-
-
-        private static void SyncedGravshipNamed(Building_GravEngine engine, string name)
-        {
-            engine.RenamableLabel = name;
-            engine.nameHidden = false;
-            Messages.Message("PlayerGravshipGainsName".Translate(name), MessageTypeDefOf.TaskCompletion, false);
-
-            // Close the naming dialog on all clients
-            for (var i = Find.WindowStack.Windows.Count - 1; i >= 0; i--)
-            {
-                if (Find.WindowStack.Windows[i] is Dialog_NamePlayerGravship)
-                {
-                    Find.WindowStack.Windows[i].Close();
-                    break;
-                }
-            }
-        }
 
         /// <summary>
         /// Force orbitalObjectsMultiplier to its default value during
