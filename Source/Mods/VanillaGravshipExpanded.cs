@@ -403,6 +403,10 @@ namespace Multiplayer.Compat
                 areaManagerField = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.FactionMapData"), "areaManager");
 
                 BuildVacBarrierRoofMethod = AccessTools.Method(AccessTools.TypeByName("VanillaGravshipExpanded.AreaManagerExtensions"), "BuildVacBarrierRoof");
+
+                MpCompat.harmony.Patch(
+                    AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.MapSetup"), "InitNewFactionData"),
+                    postfix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PostMapSetupInitNewFactionData)));
             }
             #endregion
         }
@@ -866,22 +870,18 @@ namespace Multiplayer.Compat
         /// VGE create VacBarrierRoofArea only for map owner's faction at their mapcomponet's finalizer
         /// Patch this so everytime a new factiondata on map is created we create same area for them if they dont have one
         /// </summary>
-        [HarmonyPatch("Multiplayer.Client.MapSetup", "InitNewFactionData")]
-        static class MapSetup_InitNewFactionData_Patch
-        {
 
-            static void Postfix(Map map, Faction f)
+        private static void PostMapSetupInitNewFactionData(Map map, Faction f)
+        {
+            var mpComp = mpCompMethod?.Invoke(null, new object[] { map });
+            var factionDataDict = factionDataField?.GetValue(mpComp) as System.Collections.IDictionary;
+            var factionData = factionDataDict[f.loadID];
+            AreaManager manager = (AreaManager)areaManagerField?.GetValue(factionData);
+            var area = BuildVacBarrierRoofMethod?.Invoke(null, new object[] { manager });
+            if (area == null)
             {
-                var mpComp = mpCompMethod?.Invoke(null, new object[] { map });
-                var factionDataDict = factionDataField?.GetValue(mpComp) as System.Collections.IDictionary;
-                var factionData = factionDataDict[f.loadID];
-                AreaManager manager = (AreaManager)areaManagerField?.GetValue(factionData);
-                var area = BuildVacBarrierRoofMethod?.Invoke(null, new object[] { manager });
-                if (area == null)
-                {
-                    var newArea = (Area)Activator.CreateInstance(areaType, manager);
-                    manager.areas.Add(newArea);
-                }
+                var newArea = (Area)Activator.CreateInstance(areaType, manager);
+                manager.areas.Add(newArea);
             }
         }
         #endregion
