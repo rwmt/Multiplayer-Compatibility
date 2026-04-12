@@ -20,8 +20,7 @@ namespace Multiplayer.Compat
     class VanillaGravshipExpanded
     {
         // Dialog_ConfigureVacuumRequirement
-        private static AccessTools.FieldRef<object, float> vacCheckpointResistanceField;
-        private static AccessTools.FieldRef<object, bool> vacCheckpointAllowDraftedField;
+        private static MethodInfo setSelectedVacCheckpointsToMethod;
 
         // Window_SetDesiredMaintenance
         private static ISyncField maintenanceThresholdSync;
@@ -65,6 +64,10 @@ namespace Multiplayer.Compat
         private static MethodInfo consumeFuelMethod;
         private static MethodInfo initiateTakeoffMethod;
         private static PropertyInfo validSubstructureProperty;
+
+        // Dialog_NamePlayerGravship
+        private static MethodInfo gravshipNamedMethod;
+
 
         // MP stuffs to modify MpComp.factionData[factionID].areaManager
         // Should be replaced if MPAPI exposed these
@@ -164,16 +167,15 @@ namespace Multiplayer.Compat
             #region Dialog_ConfigureVacuumRequirement
 
             {
-                var checkpointType = AccessTools.TypeByName("VanillaGravshipExpanded.Building_VacCheckpoint");
-                vacCheckpointResistanceField = AccessTools.FieldRefAccess<float>(checkpointType, "requiredResistance");
-                vacCheckpointAllowDraftedField = AccessTools.FieldRefAccess<bool>(checkpointType, "allowDrafted");
-
                 var dialogType = AccessTools.TypeByName("VanillaGravshipExpanded.Dialog_ConfigureVacuumRequirement");
+                setSelectedVacCheckpointsToMethod = AccessTools.DeclaredMethod(dialogType, "SetSelectedVacCheckpointsTo");
+
                 MpCompat.harmony.Patch(
-                    AccessTools.DeclaredMethod(dialogType, "SetSelectedVacCheckpointsTo"),
+                    setSelectedVacCheckpointsToMethod,
                     prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreSetSelectedVacCheckpoints)));
 
-                MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedSetVacCheckpoint));
+                MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedSetVacCheckpoints))
+                    .SetContext(SyncContext.MapSelected);
             }
 
             #endregion
@@ -329,7 +331,7 @@ namespace Multiplayer.Compat
 
                 MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedVgeLaunchConfirm));
 
-                // Reflect VGE methods used in the launch action reconstruction
+                // Cache VGE methods called in the launch action
                 destroyTreesAroundSubstructureMethod = AccessTools.DeclaredMethod(
                     typeof(WorldComponent_GravshipController), "DestroyTreesAroundSubstructure");
                 consumeFuelMethod = AccessTools.DeclaredMethod(typeof(Building_GravEngine), "ConsumeFuel");
@@ -365,9 +367,10 @@ namespace Multiplayer.Compat
             {
                 // Dialog_NamePlayerGravship is created from UpdateSubstructureIfNeeded during tick.
                 // Each client can type and submit a different name independently.
-                // Sync the Named method and close the dialog on all clients.
-                MpCompat.harmony.Patch(
-                    AccessTools.DeclaredMethod(typeof(Dialog_NamePlayerGravship), "Named"),
+                // Sync the Named method — the prefix lets the original run during sync execution
+                // so we call vanilla's Named on the dialog instance (open on all clients).
+                gravshipNamedMethod = AccessTools.DeclaredMethod(typeof(Dialog_NamePlayerGravship), "Named");
+                MpCompat.harmony.Patch(gravshipNamedMethod,
                     prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreGravshipNamed)));
 
                 MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedGravshipNamed));
@@ -414,49 +417,27 @@ namespace Multiplayer.Compat
         #region Patches
 
         /// <summary>
-        /// In MP, replace the Find.Selector iteration in SetSelectedVacCheckpointsTo
-        /// with per-building synced calls.
+        /// In MP, redirect SetSelectedVacCheckpointsTo through a synced call.
+        /// SyncContext.MapSelected restores the initiating player's selection on
+        /// all clients, so the original method sees the correct checkpoints.
         /// </summary>
         private static bool PreSetSelectedVacCheckpoints(float resistance, bool allowDrafted)
         {
             if (!MP.IsInMultiplayer)
                 return true;
 
-            foreach (var selected in Find.Selector.SelectedObjects)
-            {
-                if (selected is Thing thing && thing.GetType().Name == "Building_VacCheckpoint"
-                    && thing.Faction == Faction.OfPlayer)
-                {
-                    SyncedSetVacCheckpoint(thing, resistance, allowDrafted);
-                }
-            }
+            // During sync execution, let the original run — SyncContext.MapSelected
+            // has already restored the correct selection on all clients.
+            if (MP.IsExecutingSyncCommand)
+                return true;
 
+            SyncedSetVacCheckpoints(resistance, allowDrafted);
             return false;
         }
 
-
-        private static void SyncedSetVacCheckpoint(Thing checkpoint, float resistance, bool allowDrafted)
+        private static void SyncedSetVacCheckpoints(float resistance, bool allowDrafted)
         {
-            resistance = UnityEngine.Mathf.Clamp01(resistance);
-            vacCheckpointResistanceField(checkpoint) = resistance;
-            vacCheckpointAllowDraftedField(checkpoint) = allowDrafted;
-
-            var map = checkpoint.Map;
-            if (map?.Biome?.inVacuum == true)
-            {
-                // Clear reachability cache for player pawns on vacuum maps
-                var tmpEntries = new List<ReachabilityCache.CachedEntry>();
-
-                foreach (var entry in map.reachability.cache.cacheDict)
-                {
-                    var pawn = entry.Key.TraverseParms.pawn;
-                    if (pawn != null && pawn.Faction == Faction.OfPlayer)
-                        tmpEntries.Add(entry.Key);
-                }
-
-                for (var i = 0; i < tmpEntries.Count; i++)
-                    map.reachability.cache.cacheDict.Remove(tmpEntries[i]);
-            }
+            setSelectedVacCheckpointsToMethod.Invoke(null, new object[] { resistance, allowDrafted });
         }
 
         private static void PreMaintenanceDoWindowContents()
@@ -651,12 +632,13 @@ namespace Multiplayer.Compat
         }
 
         /// <summary>
-        /// Synced VGE launch confirmation. Replicates VGE's replacement launchAction
-        /// (from GravshipUtility_PreLaunchConfirmation_Patch) on all clients.
-        /// The target tile was stored in vgeCheckConfirmSettleTargetTileField during
-        /// the earlier tile selection step.
+        /// Synced VGE launch confirmation. Calls VGE's launch methods directly
+        /// via reflection. The tile was stored in vgeCheckConfirmSettleTargetTileField
+        /// during the earlier tile selection step.
+        /// Note: we cannot invoke VGE's PreLaunchConfirmation prefix to construct
+        /// the delegate because it looks up the ritual lordJob, which may have
+        /// completed by sync execution time.
         /// </summary>
-
         private static void SyncedVgeLaunchConfirm(Building_GravEngine engine)
         {
             var tile = vgeCheckConfirmSettleTargetTileField();
@@ -674,8 +656,9 @@ namespace Multiplayer.Compat
                 }
             }
 
-            // Replicate VGE's launch action:
-            // DestroyTreesAroundSubstructure, ConsumeFuel, InitiateTakeoff, clear state
+            // Call VGE's launch methods via reflection.
+            // DestroyTreesAroundSubstructure has optional params — must pass all 4 via reflection.
+            // VGE calls it with 2 args (compiler fills defaults), but Invoke needs all of them.
             if (destroyTreesAroundSubstructureMethod != null && validSubstructureProperty != null)
             {
                 var substructure = validSubstructureProperty.GetValue(engine);
@@ -760,37 +743,37 @@ namespace Multiplayer.Compat
         /// <summary>
         /// Intercept Dialog_NamePlayerGravship.Named to sync the gravship name.
         /// Without this, each client can submit a different name independently.
+        /// The dialog is opened from tick context (UpdateSubstructureIfNeeded),
+        /// so it exists on all clients — we call the original Named during sync.
         /// </summary>
         private static bool PreGravshipNamed(Window __instance, string s)
         {
             if (!MP.IsInMultiplayer)
                 return true;
 
-            // Get the engine from the dialog via reflection
+            // During sync execution, let the original Named run on the dialog
+            if (MP.IsExecutingSyncCommand)
+                return true;
+
+            // Get the engine from the dialog to use as sync-safe reference
             var engineField = AccessTools.Field(typeof(Dialog_NamePlayerGravship), "engine");
             if (engineField?.GetValue(__instance) is Building_GravEngine engine)
-            {
-                if (!MP.IsExecutingSyncCommand)
-                    SyncedGravshipNamed(engine, s);
-            }
+                SyncedGravshipNamed(engine, s);
 
             return false;
         }
 
-
         private static void SyncedGravshipNamed(Building_GravEngine engine, string name)
         {
-            engine.RenamableLabel = name;
-            engine.nameHidden = false;
-            Messages.Message("PlayerGravshipGainsName".Translate(name), MessageTypeDefOf.TaskCompletion, false);
-
-            // Close the naming dialog on all clients
+            // Dialog is open on all clients (opened from tick context).
+            // Find it and call the original Named — the prefix lets it through
+            // because IsExecutingSyncCommand is true.
             for (var i = Find.WindowStack.Windows.Count - 1; i >= 0; i--)
             {
-                if (Find.WindowStack.Windows[i] is Dialog_NamePlayerGravship)
+                if (Find.WindowStack.Windows[i] is Dialog_NamePlayerGravship dialog)
                 {
-                    Find.WindowStack.Windows[i].Close();
-                    break;
+                    gravshipNamedMethod.Invoke(dialog, new object[] { name });
+                    return;
                 }
             }
         }
