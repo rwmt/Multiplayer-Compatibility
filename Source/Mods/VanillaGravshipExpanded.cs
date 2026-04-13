@@ -34,9 +34,9 @@ namespace Multiplayer.Compat
 
         // Gizmo_OxygenProvider
         private static Type oxygenGizmoType;
-        private static AccessTools.FieldRef<object, object> oxygenProviderFromGizmo;
-        private static ISyncField oxygenRechargeAtField;
-        private static ISyncField oxygenAutoRechargeField;
+        private static AccessTools.FieldRef<object, ThingComp> oxygenProviderFromGizmo;
+        private static ISyncField oxygenTargetValuePctField;
+        private static AccessTools.FieldRef<object, Gizmo_Slider> oxygenGizmoFromComp;
 
         // Building_VacBarrier_Recolorable color sync
         private static Type vacBarrierRecolorableType;
@@ -382,13 +382,17 @@ namespace Multiplayer.Compat
 
             {
                 var compType = AccessTools.TypeByName("VanillaGravshipExpanded.CompApparelOxygenProvider");
-                oxygenRechargeAtField = MP.RegisterSyncField(compType, "rechargeAtCharges").SetBufferChanges();
-                oxygenAutoRechargeField = MP.RegisterSyncField(compType, "automaticRechargeEnabled");
+                MP.RegisterSyncMethod(AccessTools.PropertySetter(compType, "AutomaticRechargeEnabled"));
 
                 oxygenGizmoType = AccessTools.TypeByName("VanillaGravshipExpanded.Gizmo_OxygenProvider");
-                oxygenProviderFromGizmo = AccessTools.FieldRefAccess<object>(oxygenGizmoType, "oxygenProvider");
+                oxygenProviderFromGizmo = AccessTools.FieldRefAccess<ThingComp>(oxygenGizmoType, "oxygenProvider");
+                oxygenGizmoFromComp = AccessTools.FieldRefAccess<Gizmo_Slider>(compType, "oxygenConfigurationGizmo");
 
-                // Watch both fields around GizmoOnGUI with explicit WatchBegin/WatchEnd.
+                oxygenTargetValuePctField = MP.RegisterSyncField(oxygenGizmoType, "targetValuePct").SetBufferChanges();
+                AccessTools.Field(oxygenTargetValuePctField.GetType(), "targetType")
+                    .SetValue(oxygenTargetValuePctField, oxygenGizmoType);
+                MP.RegisterSyncWorker<Gizmo_Slider>(SyncOxygenGizmo, oxygenGizmoType);
+
                 MpCompat.harmony.Patch(
                     AccessTools.DeclaredMethod(typeof(Gizmo_Slider), nameof(Gizmo_Slider.GizmoOnGUI)),
                     prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreOxygenGizmoOnGUI)),
@@ -783,10 +787,8 @@ namespace Multiplayer.Compat
             if (!MP.IsInMultiplayer || __instance.GetType() != oxygenGizmoType)
                 return;
 
-            var comp = oxygenProviderFromGizmo(__instance);
             MP.WatchBegin();
-            oxygenRechargeAtField.Watch(comp);
-            oxygenAutoRechargeField.Watch(comp);
+            oxygenTargetValuePctField.Watch(__instance);
         }
 
         private static void PostOxygenGizmoOnGUI(Gizmo_Slider __instance)
@@ -795,6 +797,19 @@ namespace Multiplayer.Compat
                 return;
 
             MP.WatchEnd();
+        }
+
+        private static void SyncOxygenGizmo(SyncWorker sync, ref Gizmo_Slider gizmo)
+        {
+            if (sync.isWriting)
+            {
+                sync.Write(oxygenProviderFromGizmo(gizmo));
+            }
+            else
+            {
+                var comp = sync.Read<ThingComp>();
+                gizmo = oxygenGizmoFromComp(comp);
+            }
         }
 
         /// <summary>
