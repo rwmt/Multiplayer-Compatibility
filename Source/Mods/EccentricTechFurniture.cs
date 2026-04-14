@@ -34,8 +34,22 @@ namespace Multiplayer.Compat.Mods
                 postfix: new HarmonyMethod(PostFillTab)
                 );
 
+            MP.RegisterSyncMethod(typeCompFabricator, "SetActiveRecipe");
             MpCompat.RegisterLambdaDelegate(type, "DoRepeatModeFloatMenu", 0, 1, 2);
             MpCompat.RegisterLambdaDelegate(type, "DoConfirmCancelDialog", 0);
+
+            // Building_CeilingLight gizmos
+            var ceilingLightType = AccessTools.TypeByName("EccentricFurniture.Building_CeilingLight");
+            MpCompat.RegisterLambdaMethod(ceilingLightType, "GetGizmos", 1);        // toggle alwaysDrawOpaque
+            MpCompat.RegisterLambdaMethod(ceilingLightType, "DoAdjustHeightDialog", 1); // set heightOffset
+
+            // Building_SmartTable gizmos
+            var smartTableType = AccessTools.TypeByName("EccentricFurniture.Building_SmartTable");
+            MpCompat.RegisterLambdaMethod(smartTableType, "GetGizmos", 1);          // toggle isForcedOn
+
+            // Building_StorageWithStackLimit gizmos
+            var storageType = AccessTools.TypeByName("EccentricFurniture.Building_StorageWithStackLimit");
+            MpCompat.RegisterLambdaMethod(storageType, "CreateCachedGizmos", 2);    // set maxItemStacks
         }
 
 
