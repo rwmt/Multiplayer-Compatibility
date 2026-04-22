@@ -41,9 +41,6 @@ namespace Multiplayer.Compat
         static ISyncField FieldNeuralDataTrackedToMatrix;
 
         static SyncType SyncTypeNeuralData;
-
-        
-
         static void LatePatch()
         {
             //CompCastingRelay
@@ -72,63 +69,36 @@ namespace Multiplayer.Compat
 
             //Building_NeuralEditor
             //All good?
-            //type = AccessTools.TypeByName("AlteredCarbon.Building_NeuralEditor");
             MP.RegisterSyncMethod(typeof(Building_NeuralEditor), nameof(Building_NeuralEditor.PostInstall));
 
-            //AC_Utils
-            //type = AccessTools.TypeByName("AlteredCarbon.AC_Utils");
-            //MP.RegisterSyncMethod(type, "CreateEmptyPawn");
-
-
             //Window_SleeveCustomization
-
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_SleeveCustomization), nameof(Window_SleeveCustomization.CreateSleeve)),
                 prefix: new HarmonyMethod(typeof(Window_SleeveCustomizationCreateSleeve_Patch), nameof(Window_SleeveCustomizationCreateSleeve_Patch.Prefix)),
                 finalizer: new HarmonyMethod(typeof(Window_SleeveCustomizationCreateSleeve_Patch), nameof(Window_SleeveCustomizationCreateSleeve_Patch.Finalizer))
             );
 
+            //MP stuffs
             DontSync = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Multiplayer"), "dontSync");
             UseLocalIdsOverride = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Patches.UniqueIdsPatch"), "useLocalIdsOverride");
 
-            //MpCompat.harmony.Patch(AccessTools.Method(AccessTools.TypeByName("AlteredCarbon.Building_SleeveGestator"), "StartGrowth"),
-            //    postfix: new HarmonyMethod(typeof(Building_SleeveGestator_StartGrowth_Patch), nameof(Building_SleeveGestator_StartGrowth_Patch.Postfix)));
-
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn_NeedsTracker), "ShouldHaveNeed"),
                 prefix: new HarmonyMethod(typeof(Pawn_NeedsTracker_ShouldHaveNeed_Patch), nameof(Pawn_NeedsTracker_ShouldHaveNeed_Patch.Prefix)));
-
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn_IdeoTracker), nameof(Pawn_IdeoTracker.ExposeData)),
                 prefix: new HarmonyMethod(typeof(Pawn_IdeoTracker_ExposeData_Patch), nameof(Pawn_IdeoTracker_ExposeData_Patch.Prefix)),
                 postfix: new HarmonyMethod(typeof(Pawn_IdeoTracker_ExposeData_Patch), nameof(Pawn_IdeoTracker_ExposeData_Patch.Postfix)));
 
             //Building_NeuralMatrix
+            //delegates 0, 1 can raise refreshDummypawn, have to use watch instead
+            MpCompat.RegisterLambdaDelegate(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawStackEntry), 2, 3);
 
-
-
-            //Window_NeuralMatrixManagement
-            //type = TypeWindow_NeuralMatrixManagement = AccessTools.TypeByName("AlteredCarbon.Window_NeuralMatrixManagement");
-            //MethodWindow_NeuralMatrixManagementRefreshItems = AccessTools.Method(type, "RefreshItems");
-            //Building_NeuralMatrix
-            //FieldWindow_NeuralMatrixManagementMatrix = AccessTools.Field(type, "matrix");
-            //TypeBuilding_NeuralMatrix = AccessTools.TypeByName("AlteredCarbon.Building_NeuralMatrix");
-            //CompNeuralCache
-            //FieldBuilding_NeuralMatrixCompCache = AccessTools.Field(TypeBuilding_NeuralMatrix, "compCache");
-            //TypeCompNeuralCache = AccessTools.TypeByName("AlteredCarbon.CompNeuralCache");
-            MpCompat.RegisterLambdaDelegate(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawStackEntry), 2, 3); //  0, 1, raise refreshDummypawn
-            
-
-
-            //MP.RegisterSyncWorker<INeedlecastable>(SyncINeedlecastable);
             MP.RegisterSyncMethod(typeof(Hediff_NeuralStack), nameof(Hediff_NeuralStack.NeedlecastTo));
             MP.RegisterSyncMethod(typeof(NeuralStack), nameof(NeuralStack.NeedlecastTo));
             MP.RegisterSyncMethod(typeof(Hediff_RemoteStack), nameof(Hediff_RemoteStack.EndNeedlecasting));
             MP.RegisterSyncMethod(typeof(NeuralStack), nameof(NeuralStack.InstallStackRecipe));
 
-            //MpCompat.RegisterLambdaDelegate(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.GetFloatList), 0);
-
             FieldCompNeuralCacheAllowColonistNeuralStacks = MP.RegisterSyncField(typeof(CompNeuralCache), nameof(CompNeuralCache.allowColonistNeuralStacks));
             FieldCompNeuralCacheAllowHostileNeuralStacks = MP.RegisterSyncField(typeof(CompNeuralCache), nameof(CompNeuralCache.allowHostileNeuralStacks));
             FieldCompNeuralCacheAllowStrangerNeuralStacks = MP.RegisterSyncField(typeof(CompNeuralCache), nameof(CompNeuralCache.allowStrangerNeuralStacks));
-
 
             MP.RegisterSyncWorker<CompNeuralCache>(SyncCompNeuralCache);
             MP.RegisterSyncWorker<NeuralData>(SyncNeuralData);
@@ -136,11 +106,9 @@ namespace Multiplayer.Compat
             MP.RegisterSyncWorker<INeedlecastable>(SyncINeedlecastable);
             MP.RegisterSyncWorker<StackInstallInfo>(SyncStackInstallInfo);
 
-            SyncTypeNeuralData = new SyncType(typeof(NeuralData)) { expose = true};
+            SyncTypeNeuralData = new SyncType(typeof(NeuralData)) { expose = true };
 
             MP.RegisterSyncWorker<Window_NeuralMatrixManagement>(SyncWindow_NeuralMatrixManagement);
-            //MpCompat.RegisterLambdaDelegate(type, "DrawLeftPanel", 0, 1, 2);
-
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DoWindowContents)),
                 prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDoWindowContents_Patch), nameof(Window_NeuralMatrixManagementDoWindowContents_Patch.Prefix)),
@@ -176,21 +144,9 @@ namespace Multiplayer.Compat
                 prefix: new HarmonyMethod(typeof(NeuralDataRefreshDummyPawn_Patch), nameof(NeuralDataRefreshDummyPawn_Patch.Prefix)),
                 postfix: new HarmonyMethod(typeof(NeuralDataRefreshDummyPawn_Patch), nameof(NeuralDataRefreshDummyPawn_Patch.Postfix)));
 
-            MpCompat.harmony.Patch(AccessTools.Method(typeof(Recipe_EditActiveNeuralStack), nameof(Recipe_EditActiveNeuralStack.Notify_IterationCompleted)),
-                prefix: new HarmonyMethod(typeof(Recipe_EditActiveNeuralStack_Patch), nameof(Recipe_EditActiveNeuralStack_Patch.Prefix))
-                );
-
-            MpCompat.harmony.Patch(AccessTools.Method(typeof(Recipe_InstallNeuralStack), nameof(Recipe_InstallNeuralStack.ApplyThoughts)),
-                prefix: new HarmonyMethod(typeof(Recipe_InstallNeuralStack_ApplyThoughts_Patch), nameof(Recipe_InstallNeuralStack_ApplyThoughts_Patch.Prefix))
-                );
-
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Map), nameof(Map.MapPreTick)),
                 prefix: new HarmonyMethod(typeof(LogStuffs), nameof(LogStuffs.Prefix)));
 
-            MpCompat.harmony.Patch(AccessTools.Method(typeof(StackSpawnModExtension), nameof(StackSpawnModExtension.TryAddStack)),
-                prefix: new HarmonyMethod(typeof(StackSpawnModExtension_TryAddStack_Patch), nameof(StackSpawnModExtension_TryAddStack_Patch.Prefix)),
-                postfix: new HarmonyMethod(typeof(StackSpawnModExtension_TryAddStack_Patch), nameof(StackSpawnModExtension_TryAddStack_Patch.Postfix))
-                );
         }
         static class Window_StackEditor_ResetIndices_Patch
         {
@@ -200,26 +156,15 @@ namespace Multiplayer.Compat
                 __instance.allFactions.AddRange(Find.FactionManager.allFactions.FindAll(faction => faction.IsPlayer && faction.Hidden && !__instance.allFactions.Contains(faction)));
             }
         }
-        static class StackSpawnModExtension_TryAddStack_Patch
-        {
-            public static void Prefix(Pawn pawn)
-            {
-                Log.Warning($"Add to {pawn.Name} at state.{Rand.StateCompressed}");
-            }
-            public static void Postfix(Pawn pawn)
-            {
-                Log.Warning($"End with state.{Rand.StateCompressed}");
-            }
-        }
 
-        static class LogStuffs 
+        static class LogStuffs
         {
             static string prev_str = "";
             public static void Prefix(Map __instance)
             {
                 var pawns = __instance.mapPawns.AllHumanlike;
                 var str = "";
-                for(int i =0; i < pawns.Count; ++i)
+                for (int i = 0; i < pawns.Count; ++i)
                 {
                     str += $"{pawns[i].GetUniqueLoadID()} is {pawns[i].Name}\n";
                 }
@@ -228,25 +173,6 @@ namespace Multiplayer.Compat
                     Log.Warning(str);
                     prev_str = str;
                 }
-            }
-        }
-        static class Recipe_InstallNeuralStack_ApplyThoughts_Patch
-        {
-            public static void Prefix(Recipe_InstallNeuralStack __instance, Pawn pawn, NeuralData neuralData)
-            {
-                //if(pawn.needs.)
-                Log.Warning("" + (neuralData is null));
-                Log.Warning("" + pawn.needs);
-                Log.Warning("" + pawn.needs?.mood);
-                Log.Warning("" + pawn.needs?.mood?.thoughts);
-                Log.Warning("" + pawn.needs?.mood?.thoughts?.memories);
-            }
-        }
-        static class Recipe_EditActiveNeuralStack_Patch
-        {
-            public static void Prefix(Recipe_EditActiveNeuralStack __instance, Pawn billDoer)
-            {
-                Log.Warning($"dealing with ${__instance.Thing(billDoer)}");
             }
         }
         static class NeuralDataRefreshDummyPawn_Patch
@@ -266,17 +192,17 @@ namespace Multiplayer.Compat
                 UseLocalIdsOverride.SetValue(null, prevUseLocalId);
             }
         }
-            //forceconstruct
+        //forceconstruct
         static void SyncStackInstallInfo(SyncWorker sync, ref StackInstallInfo obj)
         {
-            if(sync.isWriting)
+            if (sync.isWriting)
             {
                 StackInstallInfo info = obj;
                 sync.Write<ThingDef>(AC_Utils.stackRecipesByDef.First(pair => pair.Value.recipe == info.recipe).Key);
             }
             else
             {
-                AC_Utils.stackRecipesByDef.TryGetValue(sync.Read<ThingDef>(),obj);
+                AC_Utils.stackRecipesByDef.TryGetValue(sync.Read<ThingDef>(), obj);
             }
         }
         static void SyncINeedlecastable(SyncWorker sync, ref INeedlecastable obj)
@@ -308,24 +234,26 @@ namespace Multiplayer.Compat
         }
         static void SyncIStackHolder(SyncWorker sync, ref IStackHolder obj)
         {
-            if(sync.isWriting)
+            if (sync.isWriting)
             {
-                if(obj is NeuralStack)
+                if (obj is NeuralStack)
                 {
                     sync.Write<Thing>(obj as Thing);
-                } else
+                }
+                else
                 {
                     //it's heddif
                     sync.Write<Thing>(((Hediff_NeuralStack)obj)?.pawn);
                 }
-            } 
+            }
             else
             {
                 Thing t = sync.Read<Thing>();
-                if(t is NeuralStack)
+                if (t is NeuralStack)
                 {
                     obj = t as NeuralStack;
-                } else
+                }
+                else
                 {
                     obj = (t as Pawn).health.hediffSet.GetFirstHediff<Hediff_NeuralStack>();
                 }
@@ -336,11 +264,11 @@ namespace Multiplayer.Compat
             if (sync.isWriting)
             {
                 sync.Write<Building>((Building)window.matrix);
-            }else
+            }
+            else
             {
                 var matrix = sync.Read<Building>() as Building_NeuralMatrix;
                 window = new Window_NeuralMatrixManagement(matrix);
-                //MethodWindow_NeuralMatrixManagementRefreshItems.Invoke(window, null);
             }
         }
         static void SyncCompNeuralCache(SyncWorker sync, ref CompNeuralCache comp)
@@ -357,7 +285,7 @@ namespace Multiplayer.Compat
         }
         static void SyncNeuralData(SyncWorker sync, ref NeuralData neuralData)
         {
-            if(sync.isWriting)
+            if (sync.isWriting)
             {
                 if (neuralData.host.GetNeuralData() == neuralData)
                 {
@@ -365,7 +293,8 @@ namespace Multiplayer.Compat
                     //trackable data
                     sync.Write<Thing>(neuralData.host);
 
-                } else if(neuralData.hostPawn.GetNeuralData() == neuralData)
+                }
+                else if (neuralData.hostPawn.GetNeuralData() == neuralData)
                 {
                     sync.Write<bool>(true);
                     //trackable data
@@ -378,21 +307,19 @@ namespace Multiplayer.Compat
                     sync.Write(neuralData, SyncTypeNeuralData);
                     sync.Write<Ideo>(neuralData.ideo);
                     neuralData.dummyPawn = null;
-                    //Log.Warning($"Writting with Ideo.{neuralData.ideo}");
                 }
-            } 
+            }
             else
             {
-                if(sync.Read<bool>())
+                if (sync.Read<bool>())
                 {
                     neuralData = sync.Read<Thing>().GetNeuralData();
-                } else
+                }
+                else
                 {
                     neuralData = sync.Read<NeuralData>(SyncTypeNeuralData);
                     neuralData.ideo = sync.Read<Ideo>();
                     neuralData.dummyPawn = null;
-
-                    //Log.Warning($"Reading with Ideo.{neuralData.ideo}");
                 }
             }
         }
