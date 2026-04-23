@@ -26,6 +26,7 @@ namespace Multiplayer.Compat
 
         static FieldInfo DontSync;
         static FieldInfo UseLocalIdsOverride;
+        static FieldInfo IgnoreTraces;
 
         //A Buncccccccccccccch of infos ok I admit AlteredCarbon is a BIG mod
         //Should turn to referenced.
@@ -39,6 +40,7 @@ namespace Multiplayer.Compat
         static ISyncField FieldNeuralDataStackDegradationToAdd;
 
         static ISyncField FieldNeuralDataTrackedToMatrix;
+        static ISyncField FieldNeuralStackAutoLoad;
 
         static SyncType SyncTypeNeuralData;
         static void LatePatch()
@@ -80,6 +82,7 @@ namespace Multiplayer.Compat
             //MP stuffs
             DontSync = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Multiplayer"), "dontSync");
             UseLocalIdsOverride = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Patches.UniqueIdsPatch"), "useLocalIdsOverride");
+            IgnoreTraces = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Desyncs.DeferredStackTracing"), "ignoreTraces");
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Pawn_NeedsTracker), "ShouldHaveNeed"),
                 prefix: new HarmonyMethod(typeof(Pawn_NeedsTracker_ShouldHaveNeed_Patch), nameof(Pawn_NeedsTracker_ShouldHaveNeed_Patch.Prefix)));
@@ -95,6 +98,8 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(typeof(NeuralStack), nameof(NeuralStack.NeedlecastTo));
             MP.RegisterSyncMethod(typeof(Hediff_RemoteStack), nameof(Hediff_RemoteStack.EndNeedlecasting));
             MP.RegisterSyncMethod(typeof(NeuralStack), nameof(NeuralStack.InstallStackRecipe));
+
+            MpCompat.RegisterLambdaDelegate(typeof(NeuralStack), nameof(NeuralStack.GetGizmos), 10);
 
             FieldCompNeuralCacheAllowColonistNeuralStacks = MP.RegisterSyncField(typeof(CompNeuralCache), nameof(CompNeuralCache.allowColonistNeuralStacks));
             FieldCompNeuralCacheAllowHostileNeuralStacks = MP.RegisterSyncField(typeof(CompNeuralCache), nameof(CompNeuralCache.allowHostileNeuralStacks));
@@ -112,14 +117,19 @@ namespace Multiplayer.Compat
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DoWindowContents)),
                 prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDoWindowContents_Patch), nameof(Window_NeuralMatrixManagementDoWindowContents_Patch.Prefix)),
-                postfix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDoWindowContents_Patch), nameof(Window_NeuralMatrixManagementDoWindowContents_Patch.Postfix)));
+                finalizer: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDoWindowContents_Patch), nameof(Window_NeuralMatrixManagementDoWindowContents_Patch.Finalizer)));
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawRightPanel)),
                 prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawRightPanel_Patch), nameof(Window_NeuralMatrixManagementDrawRightPanel_Patch.Prefix)),
-                postfix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawRightPanel_Patch), nameof(Window_NeuralMatrixManagementDrawRightPanel_Patch.Postfix)));
+                postfix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawRightPanel_Patch), nameof(Window_NeuralMatrixManagementDrawRightPanel_Patch.Finalizer)));
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawStackEntry)),
                 prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawStackEntry_Patch), nameof(Window_NeuralMatrixManagementDrawStackEntry_Patch.Prefix))
+                );
+
+            MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawBottom)),
+                prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawBottom_Patch), nameof(Window_NeuralMatrixManagementDrawBottom_Patch.Prefix)),
+                finalizer: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawBottom_Patch), nameof(Window_NeuralMatrixManagementDrawBottom_Patch.Finalizer))
                 );
 
             //Window_StackEditor
@@ -128,25 +138,22 @@ namespace Multiplayer.Compat
                 );
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_StackEditor), nameof(Window_StackEditor.DoWindowContents)),
                 prefix: new HarmonyMethod(typeof(Window_StackEditor_Draw_Patch), nameof(Window_StackEditor_Draw_Patch.PreDoWindowContents)),
-                postfix: new HarmonyMethod(typeof(Window_StackEditor_Draw_Patch), nameof(Window_StackEditor_Draw_Patch.PostDoWindowContents)));
+                postfix: new HarmonyMethod(typeof(Window_StackEditor_Draw_Patch), nameof(Window_StackEditor_Draw_Patch.FinalizerDoWindowContents)));
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_StackEditor), nameof(Window_StackEditor.DrawAcceptCancelButtons)),
                 prefix: new HarmonyMethod(typeof(Window_StackEditor_Draw_Patch), nameof(Window_StackEditor_Draw_Patch.PreDrawAcceptCancelButtons)),
-                postfix: new HarmonyMethod(typeof(Window_StackEditor_Draw_Patch), nameof(Window_StackEditor_Draw_Patch.PostDrawAcceptCancelButtons)));
+                postfix: new HarmonyMethod(typeof(Window_StackEditor_Draw_Patch), nameof(Window_StackEditor_Draw_Patch.FinalizerDrawAcceptCancelButtons)));
 
             FieldNeuralDataNeuralDataRewritten = MP.RegisterSyncField(AccessTools.Field(typeof(NeuralData), nameof(NeuralData.neuralDataRewritten)));
             FieldNeuralDataEditTime = MP.RegisterSyncField(AccessTools.Field(typeof(NeuralData), nameof(NeuralData.editTime)));
             FieldNeuralDataStackDegradationToAdd = MP.RegisterSyncField(AccessTools.Field(typeof(NeuralData), nameof(NeuralData.stackDegradation)));
 
             FieldNeuralDataTrackedToMatrix = MP.RegisterSyncField(typeof(NeuralData), nameof(NeuralData.trackedToMatrix));
+            FieldNeuralStackAutoLoad = MP.RegisterSyncField(typeof(NeuralStack), nameof(NeuralStack.autoLoad));
 
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(NeuralData), nameof(NeuralData.RefreshDummyPawn)),
                 prefix: new HarmonyMethod(typeof(NeuralDataRefreshDummyPawn_Patch), nameof(NeuralDataRefreshDummyPawn_Patch.Prefix)),
-                postfix: new HarmonyMethod(typeof(NeuralDataRefreshDummyPawn_Patch), nameof(NeuralDataRefreshDummyPawn_Patch.Postfix)));
-
-            MpCompat.harmony.Patch(AccessTools.Method(typeof(Map), nameof(Map.MapPreTick)),
-                prefix: new HarmonyMethod(typeof(LogStuffs), nameof(LogStuffs.Prefix)));
-
+                postfix: new HarmonyMethod(typeof(NeuralDataRefreshDummyPawn_Patch), nameof(NeuralDataRefreshDummyPawn_Patch.Finalizer)));
         }
         static class Window_StackEditor_ResetIndices_Patch
         {
@@ -157,24 +164,6 @@ namespace Multiplayer.Compat
             }
         }
 
-        static class LogStuffs
-        {
-            static string prev_str = "";
-            public static void Prefix(Map __instance)
-            {
-                var pawns = __instance.mapPawns.AllHumanlike;
-                var str = "";
-                for (int i = 0; i < pawns.Count; ++i)
-                {
-                    str += $"{pawns[i].GetUniqueLoadID()} is {pawns[i].Name}\n";
-                }
-                if (str != prev_str)
-                {
-                    Log.Warning(str);
-                    prev_str = str;
-                }
-            }
-        }
         static class NeuralDataRefreshDummyPawn_Patch
         {
             static bool preDontSync;
@@ -185,9 +174,13 @@ namespace Multiplayer.Compat
                 DontSync.SetValue(null, true);
                 prevUseLocalId = (bool)UseLocalIdsOverride.GetValue(null);
                 UseLocalIdsOverride.SetValue(null, true);
+                IgnoreTraces.SetValue(null, (int)IgnoreTraces.GetValue(null) + 1);
+                Rand.PushState();
             }
-            public static void Postfix()
+            public static void Finalizer()
             {
+                Rand.PopState();
+                IgnoreTraces.SetValue(null, (int)IgnoreTraces.GetValue(null) - 1);
                 DontSync.SetValue(null, preDontSync);
                 UseLocalIdsOverride.SetValue(null, prevUseLocalId);
             }
@@ -335,7 +328,7 @@ namespace Multiplayer.Compat
                 FieldCompNeuralCacheAllowStrangerNeuralStacks.Watch(comp);
             }
 
-            public static void Postfix(Window __instance)
+            public static void Finalizer(Window __instance)
             {
                 MP.WatchEnd();
             }
@@ -348,7 +341,20 @@ namespace Multiplayer.Compat
                 FieldNeuralDataTrackedToMatrix.Watch(stack.NeuralData);
             }
         }
-
+        static class Window_NeuralMatrixManagementDrawBottom_Patch
+        {
+            public static void Prefix(Window_NeuralMatrixManagement __instance)
+            {
+                DontSync.SetValue(null, false);
+                NeuralStack neuralStack = __instance.selectedStack?.ThingHolder as NeuralStack;
+                if (neuralStack != null)
+                {
+                    Log.Warning($"{neuralStack} {neuralStack.autoLoad}");
+                    FieldNeuralStackAutoLoad.Watch(neuralStack);
+                }
+            }
+            public static void Finalizer() => DontSync.SetValue(null, true);
+        }
         static class Building_SleeveGestator_StartGrowth_Patch
         {
             public static void Postfix(Pawn newSleeve)
@@ -410,13 +416,13 @@ namespace Multiplayer.Compat
                 FieldNeuralDataStackDegradationToAdd.Watch(data);
             }
 
-            public static void PostDrawAcceptCancelButtons()
+            public static void FinalizerDrawAcceptCancelButtons()
             {
 
                 MP.WatchEnd();
                 DontSync.SetValue(null, true);
             }
-            public static void PostDoWindowContents()
+            public static void FinalizerDoWindowContents()
             {
                 DontSync.SetValue(null, preDontSync);
             }
@@ -429,7 +435,7 @@ namespace Multiplayer.Compat
                 preDontSync = (bool)DontSync.GetValue(null);
                 DontSync.SetValue(null, true);
             }
-            public static void Postfix() => DontSync.SetValue(null, preDontSync);
+            public static void Finalizer() => DontSync.SetValue(null, preDontSync);
         }
         static class Window_SleeveCustomizationCreateSleeve_Patch
         {
