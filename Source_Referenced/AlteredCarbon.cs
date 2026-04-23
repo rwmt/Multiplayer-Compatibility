@@ -89,8 +89,8 @@ namespace Multiplayer.Compat
 
             //Building_NeuralMatrix
             //delegates 0, 1 can raise refreshDummypawn, have to use watch instead
-            MpCompat.RegisterLambdaDelegate(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawStackEntry), 2, 3); 
-            
+            MpCompat.RegisterLambdaDelegate(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawStackEntry), 2, 3);
+
             MP.RegisterSyncMethod(typeof(Hediff_NeuralStack), nameof(Hediff_NeuralStack.NeedlecastTo));
             MP.RegisterSyncMethod(typeof(NeuralStack), nameof(NeuralStack.NeedlecastTo));
             MP.RegisterSyncMethod(typeof(Hediff_RemoteStack), nameof(Hediff_RemoteStack.EndNeedlecasting));
@@ -106,7 +106,7 @@ namespace Multiplayer.Compat
             MP.RegisterSyncWorker<INeedlecastable>(SyncINeedlecastable);
             MP.RegisterSyncWorker<StackInstallInfo>(SyncStackInstallInfo);
 
-            SyncTypeNeuralData = new SyncType(typeof(NeuralData)) { expose = true};
+            SyncTypeNeuralData = new SyncType(typeof(NeuralData)) { expose = true };
 
             MP.RegisterSyncWorker<Window_NeuralMatrixManagement>(SyncWindow_NeuralMatrixManagement);
 
@@ -157,14 +157,14 @@ namespace Multiplayer.Compat
             }
         }
 
-        static class LogStuffs 
+        static class LogStuffs
         {
             static string prev_str = "";
             public static void Prefix(Map __instance)
             {
                 var pawns = __instance.mapPawns.AllHumanlike;
                 var str = "";
-                for(int i =0; i < pawns.Count; ++i)
+                for (int i = 0; i < pawns.Count; ++i)
                 {
                     str += $"{pawns[i].GetUniqueLoadID()} is {pawns[i].Name}\n";
                 }
@@ -192,17 +192,17 @@ namespace Multiplayer.Compat
                 UseLocalIdsOverride.SetValue(null, prevUseLocalId);
             }
         }
-            //forceconstruct
+        //forceconstruct
         static void SyncStackInstallInfo(SyncWorker sync, ref StackInstallInfo obj)
         {
-            if(sync.isWriting)
+            if (sync.isWriting)
             {
                 StackInstallInfo info = obj;
                 sync.Write<ThingDef>(AC_Utils.stackRecipesByDef.First(pair => pair.Value.recipe == info.recipe).Key);
             }
             else
             {
-                AC_Utils.stackRecipesByDef.TryGetValue(sync.Read<ThingDef>(),obj);
+                AC_Utils.stackRecipesByDef.TryGetValue(sync.Read<ThingDef>(), obj);
             }
         }
         static void SyncINeedlecastable(SyncWorker sync, ref INeedlecastable obj)
@@ -234,24 +234,26 @@ namespace Multiplayer.Compat
         }
         static void SyncIStackHolder(SyncWorker sync, ref IStackHolder obj)
         {
-            if(sync.isWriting)
+            if (sync.isWriting)
             {
-                if(obj is NeuralStack)
+                if (obj is NeuralStack)
                 {
                     sync.Write<Thing>(obj as Thing);
-                } else
+                }
+                else
                 {
                     //it's heddif
                     sync.Write<Thing>(((Hediff_NeuralStack)obj)?.pawn);
                 }
-            } 
+            }
             else
             {
                 Thing t = sync.Read<Thing>();
-                if(t is NeuralStack)
+                if (t is NeuralStack)
                 {
                     obj = t as NeuralStack;
-                } else
+                }
+                else
                 {
                     obj = (t as Pawn).health.hediffSet.GetFirstHediff<Hediff_NeuralStack>();
                 }
@@ -262,7 +264,8 @@ namespace Multiplayer.Compat
             if (sync.isWriting)
             {
                 sync.Write<Building>((Building)window.matrix);
-            }else
+            }
+            else
             {
                 var matrix = sync.Read<Building>() as Building_NeuralMatrix;
                 window = new Window_NeuralMatrixManagement(matrix);
@@ -282,7 +285,7 @@ namespace Multiplayer.Compat
         }
         static void SyncNeuralData(SyncWorker sync, ref NeuralData neuralData)
         {
-            if(sync.isWriting)
+            if (sync.isWriting)
             {
                 if (neuralData.host.GetNeuralData() == neuralData)
                 {
@@ -290,7 +293,8 @@ namespace Multiplayer.Compat
                     //trackable data
                     sync.Write<Thing>(neuralData.host);
 
-                } else if(neuralData.hostPawn.GetNeuralData() == neuralData)
+                }
+                else if (neuralData.hostPawn.GetNeuralData() == neuralData)
                 {
                     sync.Write<bool>(true);
                     //trackable data
@@ -304,13 +308,14 @@ namespace Multiplayer.Compat
                     sync.Write<Ideo>(neuralData.ideo);
                     neuralData.dummyPawn = null;
                 }
-            } 
+            }
             else
             {
-                if(sync.Read<bool>())
+                if (sync.Read<bool>())
                 {
                     neuralData = sync.Read<Thing>().GetNeuralData();
-                } else
+                }
+                else
                 {
                     neuralData = sync.Read<NeuralData>(SyncTypeNeuralData);
                     neuralData.ideo = sync.Read<Ideo>();
