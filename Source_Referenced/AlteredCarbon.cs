@@ -117,7 +117,7 @@ namespace Multiplayer.Compat
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DoWindowContents)),
                 prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDoWindowContents_Patch), nameof(Window_NeuralMatrixManagementDoWindowContents_Patch.Prefix)),
-                postfix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDoWindowContents_Patch), nameof(Window_NeuralMatrixManagementDoWindowContents_Patch.Postfix)));
+                finalizer: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDoWindowContents_Patch), nameof(Window_NeuralMatrixManagementDoWindowContents_Patch.Finalizer)));
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawRightPanel)),
                 prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawRightPanel_Patch), nameof(Window_NeuralMatrixManagementDrawRightPanel_Patch.Prefix)),
@@ -125,6 +125,11 @@ namespace Multiplayer.Compat
 
             MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawStackEntry)),
                 prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawStackEntry_Patch), nameof(Window_NeuralMatrixManagementDrawStackEntry_Patch.Prefix))
+                );
+
+            MpCompat.harmony.Patch(AccessTools.Method(typeof(Window_NeuralMatrixManagement), nameof(Window_NeuralMatrixManagement.DrawBottom)),
+                prefix: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawBottom_Patch), nameof(Window_NeuralMatrixManagementDrawBottom_Patch.Prefix)),
+                finalizer: new HarmonyMethod(typeof(Window_NeuralMatrixManagementDrawBottom_Patch), nameof(Window_NeuralMatrixManagementDrawBottom_Patch.Finalizer))
                 );
 
             //Window_StackEditor
@@ -323,7 +328,7 @@ namespace Multiplayer.Compat
                 FieldCompNeuralCacheAllowStrangerNeuralStacks.Watch(comp);
             }
 
-            public static void Postfix(Window __instance)
+            public static void Finalizer(Window __instance)
             {
                 MP.WatchEnd();
             }
@@ -340,8 +345,15 @@ namespace Multiplayer.Compat
         {
             public static void Prefix(Window_NeuralMatrixManagement __instance)
             {
-                FieldNeuralStackAutoLoad.Watch(__instance.selectedStack.ThingHolder as NeuralStack);
+                DontSync.SetValue(null, false);
+                NeuralStack neuralStack = __instance.selectedStack?.ThingHolder as NeuralStack;
+                if (neuralStack != null)
+                {
+                    Log.Warning($"{neuralStack} {neuralStack.autoLoad}");
+                    FieldNeuralStackAutoLoad.Watch(neuralStack);
+                }
             }
+            public static void Finalizer() => DontSync.SetValue(null, true);
         }
         static class Building_SleeveGestator_StartGrowth_Patch
         {
