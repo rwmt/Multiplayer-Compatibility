@@ -241,6 +241,10 @@ namespace Multiplayer.Compat
         // ProcessUtility
         private static AccessTools.FieldRef<IDictionary> processUtilityClipboardField;
 
+        // Overclock
+        private static AccessTools.FieldRef<object, ThingComp> processorField;
+        private static ISyncField overclockMultiplier;
+
         #endregion
 
         #region Main Patch
@@ -253,11 +257,14 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaDelegate(type, "ProcessesOptions", MethodType.Getter, 2);
             // Toggle: output to ground
             MpCompat.RegisterLambdaMethod(type, "Settings", MethodType.Getter, 0);
-            // Extract at current quality (0), and debug: finish in 10 ticks (2), advance progress 1 day (3), empty wastepacks (4).
-            MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetGizmosExtra), 0, 2, 3).Skip(2).SetDebugOnly();
+            // Extract at current quality (0), and debug: finish in 10 ticks (3), advance progress 1 day (4), empty wastepacks (5).
+            // 2 is newly added for overclock 
+            MpCompat.RegisterLambdaMethod(type, nameof(ThingComp.CompGetGizmosExtra), 0);
+            MpCompat.RegisterLambdaDelegate(type, nameof(ThingComp.CompGetGizmosExtra), 3, 4, 5).SetDebugOnly();
             // Handle paste (1) gizmo differently, since we need to also sync the clipboard.
             MpCompat.harmony.Patch(MpMethodUtil.GetLambda(type, nameof(ThingComp.CompGetGizmosExtra), lambdaOrdinal: 1),
                 prefix: new HarmonyMethod(PrePasteProcessesGizmo));
+
 
             // The process, we'll need to sync it
             type = AccessTools.TypeByName("PipeSystem.Process");
@@ -305,6 +312,15 @@ namespace Multiplayer.Compat
             MP.RegisterSyncMethod(MpMethodUtil.MethodOf(SyncedPasteProcesses)).CancelIfAnyArgNull();
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, nameof(ITab.FillTab)),
                 transpiler: new HarmonyMethod(ReplaceProcessorITabButtons));
+
+            // Sync OverclockMultiplier window
+            overclockMultiplier = MP.RegisterSyncField(AccessTools.Field(advancedResourceProcessorType, "overclockMultiplier"));
+            type = AccessTools.TypeByName("PipeSystem.Window_Overclock");
+            processorField = AccessTools.FieldRefAccess<ThingComp>(type, "building");
+            MpCompat.harmony.Patch(AccessTools.Method(type, "DoWindowContents"),
+                prefix: new HarmonyMethod(PreOverclockWindow),
+                postfix: new HarmonyMethod(PostOverclockWindow)
+                );
         }
 
         #endregion
@@ -356,6 +372,18 @@ namespace Multiplayer.Compat
             var list = processes.Cast<object>().Select(process => (processDefField(process), processTargetCountField(process))).ToList();
             SyncedPasteProcesses(__instance, list);
             return false;
+        }
+
+        private static void PreOverclockWindow(Window __instance)
+        {
+            
+            var processor = processorField(__instance);
+            MP.WatchBegin();
+            overclockMultiplier.Watch(processor);
+        }
+        private static void PostOverclockWindow(Window __instance)
+        {
+            MP.WatchEnd();
         }
 
         #endregion
