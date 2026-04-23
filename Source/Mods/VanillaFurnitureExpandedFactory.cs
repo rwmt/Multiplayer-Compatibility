@@ -31,10 +31,11 @@ namespace Multiplayer.Compat
             {
                 MpCompat.RegisterLambdaDelegate("VanillaFurnitureExpandedFactory.Building_Conveyor", "GetGizmos", 1, 2, 3, 4);
 
-                MpCompat.RegisterLambdaDelegate("VanillaFurnitureExpandedFactory.Building_UndergroundConveyorBase", "GetGizmos", 2);
-                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpandedFactory.Building_UndergroundConveyorBase", "GetGizmos", 4);
+                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpandedFactory.Building_FactoryHopper", "GetGizmos", 1, 3);
 
-                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpandedFactory.Building_Autofarmer", "GetGizmos", 0, 1, 2, 5, 7, 9);
+                MpCompat.RegisterLambdaDelegate("VanillaFurnitureExpandedFactory.Building_UndergroundConveyorBase", "GetGizmos", 2, 4);
+
+                MpCompat.RegisterLambdaMethod("VanillaFurnitureExpandedFactory.Building_Autofarmer", "GetGizmos", 0, 1, 2, 3, 5, 7, 9);
             }
         }
     }
