@@ -2153,5 +2153,12 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+        [MpCompatPrefix(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.CreateTabListPostOpen))]
+        private static bool ForceRebuildTab(ref bool thisWindowInstanceEverOpened)
+        {
+            thisWindowInstanceEverOpened = false;
+            return true;
+        }
     }
 }
