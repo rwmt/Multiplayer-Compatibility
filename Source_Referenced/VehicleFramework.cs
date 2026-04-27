@@ -2193,11 +2193,20 @@ namespace Multiplayer.Compat
         private static void SyncDialog_AssignSeats(SyncWorker sync, ref Dialog_AssignSeats dialog)
         {
             PropertyInfo PropCaravanFormingProxySession = AccessTools.Property(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingProxy"), "Session");
-            MethodInfo SessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession"), "OpenWindow");
+            MethodInfo FormingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession"), "OpenWindow");
+
+            FieldInfo FieldCaravanSplittingProxySession = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "session");
+            MethodInfo SplittingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession"), "OpenWindow");
+
             if (sync.isWriting)
             {
                 //sync the session
-                var session = PropCaravanFormingProxySession.GetValue((dialog.parent as FormationInfo).formCaravan) as ExposableSession;
+                ExposableSession session = null;
+                ICaravanInfo caravanInfo = dialog.parent;
+                if (caravanInfo is FormationInfo formationInfo)
+                    session = PropCaravanFormingProxySession.GetValue(formationInfo.formCaravan) as ExposableSession;
+                else if (caravanInfo is SplitInfo splitInfo)
+                    session = FieldCaravanSplittingProxySession.GetValue(splitInfo.splitCaravan) as ExposableSession;
                 sync.Write<ExposableSession>(session);
                 //sync the vehicle
                 sync.Write<Thing>(dialog.vehicleTransferable.AnyThing);
@@ -2218,7 +2227,12 @@ namespace Multiplayer.Compat
                 Window tempDummyDialog = null;
                 //do the first open here so VehicleFramework initialized it at PostOpen
                 if (CaravanFormation.Current == null)
-                    tempDummyDialog = SessionOpenWindow.Invoke(session, [false]) as Dialog_FormCaravan;
+                {
+                    if(session.GetType() == AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession"))
+                        tempDummyDialog = FormingSessionOpenWindow.Invoke(session, [false]) as Window;
+                    else if (session.GetType() == AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession"))
+                        tempDummyDialog = SplittingSessionOpenWindow.Invoke(session, [false]) as Window;
+                }
 
                 dialog = Find.WindowStack.WindowOfType<Dialog_AssignSeats>();
                 if (dialog == null)
