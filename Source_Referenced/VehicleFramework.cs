@@ -32,6 +32,15 @@ namespace Multiplayer.Compat
         private static Type mpTransferableReferenceType;
         private static ISyncField syncTradeableCount;
 
+        private static PropertyInfo PropCaravanFormingProxySession;
+        private static MethodInfo FormingSessionOpenWindow;
+
+        private static FieldInfo FieldCaravanSplittingProxySession;
+        private static MethodInfo SplittingSessionOpenWindow;
+
+        private static Type TypeCaravanFormingSession;
+        private static Type TypeCaravanSplittingSession;
+
         // Mp Compat fields
         private static bool shouldSyncInInterface = false;
 
@@ -598,6 +607,14 @@ namespace Multiplayer.Compat
                 // We could alternatively register our own ISyncField, but then we'd have to also make PostApply,
                 // which would require referencing more stuff from MP itself. Seemed easier to just re-use the ready ISyncField.
                 syncTradeableCount = (ISyncField)AccessTools.DeclaredField("Multiplayer.Client.SyncFields:SyncTradeableCount").GetValue(null);
+
+                PropCaravanFormingProxySession = AccessTools.Property(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingProxy"), "Session");
+                FormingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession"), "OpenWindow");
+                FieldCaravanSplittingProxySession = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "session");
+                SplittingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession"), "OpenWindow");
+
+                TypeCaravanFormingSession = AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession");
+                TypeCaravanSplittingSession = AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession");
 
                 // Insert VehicleRoleHandler as supported thing holder for syncing.
                 // The mod uses VehicleRoleHandler as IThingHolder and ends up being synced.
@@ -2179,7 +2196,7 @@ namespace Multiplayer.Compat
 
 
         [MpCompatPrefix(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.CreateTabListPostOpen))]
-        private static void ForceRebuildTab(ref bool thisWindowInstanceEverOpened)
+        private static void ForceRebuildTab(ref List<TabRecord> tabList, ref bool thisWindowInstanceEverOpened)
         {
             thisWindowInstanceEverOpened = false;
         }
@@ -2192,12 +2209,7 @@ namespace Multiplayer.Compat
 
         private static void SyncDialog_AssignSeats(SyncWorker sync, ref Dialog_AssignSeats dialog)
         {
-            PropertyInfo PropCaravanFormingProxySession = AccessTools.Property(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingProxy"), "Session");
-            MethodInfo FormingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession"), "OpenWindow");
-
-            FieldInfo FieldCaravanSplittingProxySession = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "session");
-            MethodInfo SplittingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession"), "OpenWindow");
-
+            
             if (sync.isWriting)
             {
                 //sync the session
@@ -2228,9 +2240,9 @@ namespace Multiplayer.Compat
                 //do the first open here so VehicleFramework initialized it at PostOpen
                 if (CaravanFormation.Current == null)
                 {
-                    if(session.GetType() == AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession"))
+                    if(session.GetType() == TypeCaravanFormingSession)
                         tempDummyDialog = FormingSessionOpenWindow.Invoke(session, [false]) as Window;
-                    else if (session.GetType() == AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession"))
+                    else if (session.GetType() == TypeCaravanSplittingSession)
                         tempDummyDialog = SplittingSessionOpenWindow.Invoke(session, [false]) as Window;
                 }
 
