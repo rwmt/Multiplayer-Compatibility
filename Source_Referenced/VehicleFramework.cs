@@ -1,20 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Reflection.Emit;
-using HarmonyLib;
+﻿using HarmonyLib;
 using JetBrains.Annotations;
 using Multiplayer.API;
 using RimWorld;
 using RimWorld.Planet;
 using SmashTools;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Security.Cryptography.Pkcs;
 using UnityEngine;
 using Vehicles;
 using Vehicles.Rendering;
 using Vehicles.World;
 using Verse;
 using Verse.Sound;
+using static UnityEngine.GraphicsBuffer;
 
 namespace Multiplayer.Compat
 {
@@ -30,6 +32,15 @@ namespace Multiplayer.Compat
         private static Type mpTransferableReferenceType;
         private static ISyncField syncTradeableCount;
 
+        private static PropertyInfo PropCaravanFormingProxySession;
+        private static MethodInfo FormingSessionOpenWindow;
+
+        private static FieldInfo FieldCaravanSplittingProxySession;
+        private static MethodInfo SplittingSessionOpenWindow;
+
+        private static Type TypeCaravanFormingSession;
+        private static Type TypeCaravanSplittingSession;
+
         // Mp Compat fields
         private static bool shouldSyncInInterface = false;
 
@@ -38,7 +49,7 @@ namespace Multiplayer.Compat
 
         // VehiclePawn.<>c__DisplayClass250_0
         private static AccessTools.FieldRef<object, VehiclePawn> vehiclePawnInnerClassParentField;
-        
+
         // Designator_AreaRoad
         private static Designator_AreaRoad.RoadType localRoadType = Designator_AreaRoad.RoadType.Prioritize;
 
@@ -46,6 +57,8 @@ namespace Multiplayer.Compat
         private static readonly AccessTools.FieldRef<Gizmo_RefuelableFuelTravel, CompFueledTravel> fuelGizmoRefuelableField
             = AccessTools.FieldRefAccess<Gizmo_RefuelableFuelTravel, CompFueledTravel>("refuelable");
 
+        // Use watch on this to avoid spamming
+        private static ISyncField RefuelAbleTargetFuelPercent;
         #endregion
 
         #region Constructor
@@ -146,7 +159,15 @@ namespace Multiplayer.Compat
                 // Comps
 
                 // Target fuel level setter, used from Gizmo_RefuelableFuelTravel
-                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.TargetFuelPercent));
+                //MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.TargetFuelPercent));
+                // Don't use SyncMethod on gilder setter, or spamming
+                MpCompat.harmony.Patch(
+                    AccessTools.Method(typeof(Gizmo_RefuelableFuelTravel), nameof(Gizmo_RefuelableFuelTravel.GizmoOnGUI)),
+                    prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreSyncGizmoSliderChanges)),
+                    postfix: new HarmonyMethod(typeof(VehicleFramework), nameof(PostSyncGizmoSliderChanges))
+                    );
+                RefuelAbleTargetFuelPercent = MP.RegisterSyncField(typeof(CompFueledTravel), nameof(CompFueledTravel.targetFuelPercent));
+
                 // Refuel from inventory, used from Gizmo_RefuelableFuelTravel
                 MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), [typeof(List<Thing>)]);
                 MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), [typeof(float)]);
@@ -457,7 +478,7 @@ namespace Multiplayer.Compat
             #region Flying vehicles
 
             {
-                    MP.RegisterSyncWorker<LaunchProtocol>(SyncLaunchProtocol, isImplicit: true);
+                MP.RegisterSyncWorker<LaunchProtocol>(SyncLaunchProtocol, isImplicit: true);
                 MP.RegisterSyncWorker<FlightNode>(SyncFlightNode);
                 MP.RegisterSyncWorker<VehicleArrivalAction>(SyncVehicleArrivalAction, isImplicit: true);
                 // Launch parameter type is IArrivalAction (interface), not VehicleArrivalAction (base class)
@@ -548,6 +569,9 @@ namespace Multiplayer.Compat
 
                 MP.RegisterSyncMethod(typeof(FlyingVehicleTargetedLandingSession), nameof(FlyingVehicleTargetedLandingSession.Remove));
                 MP.RegisterSyncMethod(typeof(FlyingVehicleTargetedLandingSession), nameof(FlyingVehicleTargetedLandingSession.VehicleArrivalById));
+
+                MP.RegisterSyncMethod(typeof(Dialog_AssignSeats), nameof(Dialog_AssignSeats.FinalizeSeats));
+
             }
 
             #endregion
@@ -569,6 +593,8 @@ namespace Multiplayer.Compat
                 MP.RegisterSyncWorker<VehicleRoleHandler>(SyncVehicleRoleHandler);
                 // Caravan forming
                 MP.RegisterSyncWorker<AssignedSeat>(SyncAssignedSeat);
+
+                MP.RegisterSyncWorker<Dialog_AssignSeats>(SyncDialog_AssignSeats);
             }
 
             #endregion
@@ -581,6 +607,14 @@ namespace Multiplayer.Compat
                 // We could alternatively register our own ISyncField, but then we'd have to also make PostApply,
                 // which would require referencing more stuff from MP itself. Seemed easier to just re-use the ready ISyncField.
                 syncTradeableCount = (ISyncField)AccessTools.DeclaredField("Multiplayer.Client.SyncFields:SyncTradeableCount").GetValue(null);
+
+                PropCaravanFormingProxySession = AccessTools.Property(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingProxy"), "Session");
+                FormingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession"), "OpenWindow");
+                FieldCaravanSplittingProxySession = AccessTools.Field(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "session");
+                SplittingSessionOpenWindow = AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession"), "OpenWindow");
+
+                TypeCaravanFormingSession = AccessTools.TypeByName("Multiplayer.Client.CaravanFormingSession");
+                TypeCaravanSplittingSession = AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingSession");
 
                 // Insert VehicleRoleHandler as supported thing holder for syncing.
                 // The mod uses VehicleRoleHandler as IThingHolder and ends up being synced.
@@ -602,6 +636,12 @@ namespace Multiplayer.Compat
                     // Set the original field to the value we set up
                     supportedThingHoldersField.SetValue(null, array);
                 }
+
+                //VE is trying to inject tab to PostOpen which is replaced and never happened
+                MpCompat.harmony.Patch(AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "PostOpen"),
+                    prefix: new HarmonyMethod(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.SplitCaravanPostOpen)));
+                MpCompat.harmony.Patch(AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "DoWindowContents"),
+                    transpiler: new HarmonyMethod(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.SplitCaravanTabsTranspiler)));
             }
 
             #endregion
@@ -1197,23 +1237,23 @@ namespace Multiplayer.Compat
                 switch (type)
                 {
                     case 0:
-                    {
-                        vehicle = sync.Read<Pawn>() as VehiclePawn;
-                        break;
-                    }
+                        {
+                            vehicle = sync.Read<Pawn>() as VehiclePawn;
+                            break;
+                        }
                     case 1:
-                    {
-                        var vehicleInFlight = sync.Read<AerialVehicleInFlight>();
-                        var thingId = sync.Read<int>();
-                        vehicle = vehicleInFlight?.vehicle;
+                        {
+                            var vehicleInFlight = sync.Read<AerialVehicleInFlight>();
+                            var thingId = sync.Read<int>();
+                            vehicle = vehicleInFlight?.vehicle;
 
-                        // Fallback: if the AerialVehicleInFlight was destroyed (vehicle arrived),
-                        // try to find the vehicle by thingId — it may now be spawned on a map.
-                        if (vehicle == null && MP.TryGetThingById(thingId, out var thing))
-                            vehicle = thing as VehiclePawn;
+                            // Fallback: if the AerialVehicleInFlight was destroyed (vehicle arrived),
+                            // try to find the vehicle by thingId — it may now be spawned on a map.
+                            if (vehicle == null && MP.TryGetThingById(thingId, out var thing))
+                                vehicle = thing as VehiclePawn;
 
-                        break;
-                    }
+                            break;
+                        }
                     case byte.MaxValue:
                         break;
                     default:
@@ -2091,7 +2131,7 @@ namespace Multiplayer.Compat
 
         private static void PostRenderPawnInternal(VehiclePawn __instance, ref (Rot4 rotation, float angle)? __state)
         {
-            if (__state is {} state)
+            if (__state is { } state)
                 (__instance.Rotation, __instance.angle) = (state.rotation, state.angle);
         }
 
@@ -2153,5 +2193,161 @@ namespace Multiplayer.Compat
         }
 
         #endregion
+
+
+        [MpCompatPrefix(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.CreateTabListPostOpen))]
+        private static void ForceRebuildTab(List<TabRecord> tabsList, ref bool thisWindowInstanceEverOpened)
+        {
+            thisWindowInstanceEverOpened = tabsList.Count > 0;
+        }
+
+        private static TransferableVehicleWidget GetVehicleWidget()
+        {
+            return Patch_FormCaravanDialog.vehiclesTransfer;
+        }
+
+
+        private static void SyncDialog_AssignSeats(SyncWorker sync, ref Dialog_AssignSeats dialog)
+        {
+            
+            if (sync.isWriting)
+            {
+                //sync the session
+                ExposableSession session = null;
+                ICaravanInfo caravanInfo = dialog.parent;
+                if (caravanInfo is FormationInfo formationInfo)
+                    session = PropCaravanFormingProxySession.GetValue(formationInfo.formCaravan) as ExposableSession;
+                else if (caravanInfo is SplitInfo splitInfo)
+                    session = FieldCaravanSplittingProxySession.GetValue(splitInfo.splitCaravan) as ExposableSession;
+                sync.Write<ExposableSession>(session);
+                //sync the vehicle
+                sync.Write<Thing>(dialog.vehicleTransferable.AnyThing);
+                //re sync assignments
+                sync.Write<int>(dialog.Assignments.Count);
+                foreach (AssignedSeat seat in dialog.Assignments)
+                {
+                    sync.Write<int>(seat.pawn.thingIDNumber);
+                    sync.Write<VehicleRoleHandler>(seat.handler);
+                }
+            }
+            else
+            {
+                var session = sync.Read<ExposableSession>();
+
+                var widget = Patch_FormCaravanDialog.vehiclesTransfer;
+                var vehicle = sync.Read<Thing>();
+                Window tempDummyDialog = null;
+                //do the first open here so VehicleFramework initialized it at PostOpen
+                if (CaravanFormation.Current == null)
+                {
+                    if(session.GetType() == TypeCaravanFormingSession)
+                        tempDummyDialog = FormingSessionOpenWindow.Invoke(session, [false]) as Window;
+                    else if (session.GetType() == TypeCaravanSplittingSession)
+                        tempDummyDialog = SplittingSessionOpenWindow.Invoke(session, [false]) as Window;
+                }
+
+                dialog = Find.WindowStack.WindowOfType<Dialog_AssignSeats>();
+                if (dialog == null)
+                {
+                    TransferableOneWay vehicleTransferable = widget.vehicleSection.transferables.Find(t => t.AnyThing == vehicle);
+                    dialog = new Dialog_AssignSeats(CaravanFormation.Current, widget.pawns, vehicleTransferable);
+                }
+
+                int count = sync.Read<int>();
+                for (int i = 0; i < count; i++)
+                    dialog.assigner.SetAssignment(new AssignedSeat(MP.GetThingById(sync.Read<int>()) as Pawn, sync.Read<VehicleRoleHandler>()));
+
+                if (tempDummyDialog != null)
+                    tempDummyDialog.Close();
+            }
+        }
+        // TODO This method is supposed to replace the Messages.Message and supressed it, as we will do it in sync method
+        // But it seems like it's still running the old one even replacement happened, but why??
+        private static void MessageReplacement(string text, MessageTypeDef def, bool historical = true)
+        {
+        }
+
+        [MpCompatTranspiler(typeof(Dialog_AssignSeats), nameof(Dialog_AssignSeats.DoBottomButtons))]
+        private static IEnumerable<CodeInstruction> DiscardBottomButtonMessage(IEnumerable<CodeInstruction> instr)
+        {
+            MethodInfo target = AccessTools.Method(typeof(Messages), nameof(Messages.Message), [typeof(string), typeof(MessageTypeDef), typeof(bool)]);
+            MethodInfo replacement = AccessTools.Method(typeof(VehicleFramework), nameof(VehicleFramework.MessageReplacement));
+            foreach (var ci in instr)
+            {
+                if (ci.Calls(target))
+                    ci.operand = replacement;
+                yield return ci;
+            }
+        }
+
+        [MpCompatPostfix(typeof(Dialog_AssignSeats), nameof(Dialog_AssignSeats.FinalizeSeats))]
+        private static void PostFinalizeSeats(Dialog_AssignSeats __instance, bool __result, string failReason)
+        {
+            if (!__result)
+            {
+                Messages.Message("VF_AssignFailure".Translate(failReason), MessageTypeDefOf.RejectInput);
+                return;
+            }
+            __instance.Close();
+        }
+
+        [MpCompatPrefix(typeof(TransferableVehicleWidget), nameof(TransferableVehicleWidget.DrawCard))]
+        private static void PreDrawCard(TransferableOneWay transferable, ref int __state)
+        {
+            __state = transferable.countToTransfer;
+        }
+        [MpCompatPostfix(typeof(TransferableVehicleWidget), nameof(TransferableVehicleWidget.DrawCard))]
+        private static void PostDrawCard(TransferableOneWay transferable, ref int __state)
+        {
+            if (transferable.countToTransfer != __state && transferable.countToTransfer == 0)
+            {
+                SyncedUntransferVehicle(transferable.AnyThing as VehiclePawn);
+            }
+        }
+
+        [MpCompatSyncMethod]
+        // I don't really want to do this copy paste
+        // Maybe should change to Watch on the vehicle?
+        private static void SyncedUntransferVehicle(VehiclePawn vehicle)
+        {
+            TransferableVehicleWidget widget = GetVehicleWidget();
+            TransferableOneWay transferable = widget.vehicleSection.transferables.Find(t => t.AnyThing == vehicle);
+            transferable.ForceTo(0);
+            if (vehicle != null)
+            {
+                using (List<AssignedSeat>.Enumerator enumerator = CaravanHelper.assignedSeats.GetAssignments(vehicle).GetEnumerator())
+                {
+                    while (enumerator.MoveNext())
+                    {
+                        AssignedSeat seat = enumerator.Current;
+                        TransferableOneWay pawnTransferable = widget.pawns.FirstOrDefault((TransferableOneWay trnsf) => trnsf.AnyThing == seat.pawn);
+                        if (pawnTransferable != null && !pawnTransferable.AnyThing.InVehicle())
+                        {
+                            pawnTransferable.ForceTo(0);
+                        }
+                    }
+                }
+                using (List<Pawn>.Enumerator enumerator2 = vehicle.AllPawnsAboard.GetEnumerator())
+                {
+                    while (enumerator2.MoveNext())
+                    {
+                        Pawn pawn = enumerator2.Current;
+                        TransferableOneWay pawnTransferable2 = widget.pawns.FirstOrDefault((TransferableOneWay trnsf) => trnsf.AnyThing == pawn);
+                        pawnTransferable2.ForceTo(0);
+                    }
+                }
+                CaravanHelper.assignedSeats.RemoveAssignments(vehicle);
+                CaravanFormation.Current?.NotifyTransferablesChanged();
+            }
+        }
+        static void PreSyncGizmoSliderChanges(Gizmo_RefuelableFuelTravel __instance)
+        {
+            MP.WatchBegin();
+            RefuelAbleTargetFuelPercent.Watch(__instance.refuelable);
+        }
+        static void PostSyncGizmoSliderChanges()
+        {
+            MP.WatchEnd();
+        }
     }
 }
