@@ -48,6 +48,8 @@ namespace Multiplayer.Compat
         private static readonly AccessTools.FieldRef<Gizmo_RefuelableFuelTravel, CompFueledTravel> fuelGizmoRefuelableField
             = AccessTools.FieldRefAccess<Gizmo_RefuelableFuelTravel, CompFueledTravel>("refuelable");
 
+        // Use watch on this to avoid spamming
+        private static ISyncField RefuelAbleTargetFuelPercent;
         #endregion
 
         #region Constructor
@@ -148,7 +150,15 @@ namespace Multiplayer.Compat
                 // Comps
 
                 // Target fuel level setter, used from Gizmo_RefuelableFuelTravel
-                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.TargetFuelPercent));
+                //MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.TargetFuelPercent));
+                // Don't use SyncMethod on gilder setter, or spamming
+                MpCompat.harmony.Patch(
+                    AccessTools.Method(typeof(Gizmo_RefuelableFuelTravel), nameof(Gizmo_RefuelableFuelTravel.GizmoOnGUI)),
+                    prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreSyncGizmoSliderChanges)),
+                    postfix: new HarmonyMethod(typeof(VehicleFramework), nameof(PostSyncGizmoSliderChanges))
+                    );
+                RefuelAbleTargetFuelPercent = MP.RegisterSyncField(typeof(CompFueledTravel), nameof(CompFueledTravel.targetFuelPercent));
+
                 // Refuel from inventory, used from Gizmo_RefuelableFuelTravel
                 MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), [typeof(List<Thing>)]);
                 MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.Refuel), [typeof(float)]);
@@ -2303,6 +2313,15 @@ namespace Multiplayer.Compat
                 CaravanHelper.assignedSeats.RemoveAssignments(vehicle);
                 CaravanFormation.Current?.NotifyTransferablesChanged();
             }
+        }
+        static void PreSyncGizmoSliderChanges(Gizmo_RefuelableFuelTravel __instance)
+        {
+            MP.WatchBegin();
+            RefuelAbleTargetFuelPercent.Watch(__instance.refuelable);
+        }
+        static void PostSyncGizmoSliderChanges()
+        {
+            MP.WatchEnd();
         }
     }
 }
