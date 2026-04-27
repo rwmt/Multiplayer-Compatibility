@@ -609,6 +609,12 @@ namespace Multiplayer.Compat
                     // Set the original field to the value we set up
                     supportedThingHoldersField.SetValue(null, array);
                 }
+
+                //VE is trying to inject tab to PostOpen which is replaced and never happened
+                MpCompat.harmony.Patch(AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "PostOpen"),
+                    prefix: new HarmonyMethod(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.SplitCaravanPostOpen)));
+                MpCompat.harmony.Patch(AccessTools.Method(AccessTools.TypeByName("Multiplayer.Client.Persistent.CaravanSplittingProxy"), "DoWindowContents"),
+                    transpiler: new HarmonyMethod(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.SplitCaravanTabsTranspiler)));
             }
 
             #endregion
@@ -2161,12 +2167,13 @@ namespace Multiplayer.Compat
 
         #endregion
 
+
         [MpCompatPrefix(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.CreateTabListPostOpen))]
-        private static bool ForceRebuildTab(ref bool thisWindowInstanceEverOpened)
+        private static void ForceRebuildTab(ref bool thisWindowInstanceEverOpened)
         {
             thisWindowInstanceEverOpened = false;
-            return true;
         }
+
         private static TransferableVehicleWidget GetVehicleWidget()
         {
             return Patch_FormCaravanDialog.vehiclesTransfer;
