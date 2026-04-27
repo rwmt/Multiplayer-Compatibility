@@ -2188,7 +2188,7 @@ namespace Multiplayer.Compat
                 sync.Write<int>(dialog.Assignments.Count);
                 foreach (AssignedSeat seat in dialog.Assignments)
                 {
-                    sync.Write<Pawn>(seat.pawn);
+                    sync.Write<int>(seat.pawn.thingIDNumber);
                     sync.Write<VehicleRoleHandler>(seat.handler);
                 }
             }
@@ -2212,13 +2212,14 @@ namespace Multiplayer.Compat
 
                 int count = sync.Read<int>();
                 for (int i = 0; i < count; i++)
-                    dialog.assigner.SetAssignment(new AssignedSeat(sync.Read<Pawn>(), sync.Read<VehicleRoleHandler>()));
+                    dialog.assigner.SetAssignment(new AssignedSeat(MP.GetThingById(sync.Read<int>()) as Pawn, sync.Read<VehicleRoleHandler>()));
 
                 if (tempDummyDialog != null)
                     tempDummyDialog.Close();
             }
         }
-        // TODO I Failed to aviod this running, but why??
+        // TODO This method is supposed to replace the Messages.Message and supressed it, as we will do it in sync method
+        // But it seems like it's still running the old one even replacement happened, but why??
         private static void MessageReplacement(string text, MessageTypeDef def, bool historical = true)
         {
         }
