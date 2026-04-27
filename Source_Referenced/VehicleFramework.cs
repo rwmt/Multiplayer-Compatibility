@@ -2196,9 +2196,9 @@ namespace Multiplayer.Compat
 
 
         [MpCompatPrefix(typeof(Patch_FormCaravanDialog), nameof(Patch_FormCaravanDialog.CreateTabListPostOpen))]
-        private static void ForceRebuildTab(ref List<TabRecord> tabList, ref bool thisWindowInstanceEverOpened)
+        private static void ForceRebuildTab(List<TabRecord> tabsList, ref bool thisWindowInstanceEverOpened)
         {
-            thisWindowInstanceEverOpened = false;
+            thisWindowInstanceEverOpened = tabsList.Count > 0;
         }
 
         private static TransferableVehicleWidget GetVehicleWidget()
