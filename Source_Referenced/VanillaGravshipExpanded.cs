@@ -192,6 +192,12 @@ namespace Multiplayer.Compat
             #region VGE launch flow fix
 
             {
+                MpCompat.harmony.Patch(
+                    AccessTools.DeclaredMethod(typeof(Command_Ritual), nameof(Command_Ritual.ProcessInput)),
+                    prefix: new HarmonyMethod(typeof(VanillaGravshipExpanded), nameof(PreCommandRitualProcessInput_SyncIfGravshipLaunch)));
+
+                MP.RegisterSyncMethod(typeof(VanillaGravshipExpanded), nameof(SyncedShowRitualBeginWindow));
+
                 // VGE replaces the vanilla gravship launch flow: instead of tile picker → launch,
                 // it does tile picker → ritual → launch. VGE intercepts ShowRitualBeginWindow to
                 // insert a tile selection step before the ritual.
@@ -409,6 +415,24 @@ namespace Multiplayer.Compat
         {
             if (MP.IsInMultiplayer && !inSyncedTileSelectedFlow)
                 Dialog_BeginRitual_ShowRitualBeginWindow_Patch.state = null;
+        }
+
+        private static bool PreCommandRitualProcessInput_SyncIfGravshipLaunch(Command_Ritual __instance)
+        {
+            if (!MP.IsInMultiplayer)
+                return true;
+            if (MP.IsExecutingSyncCommand)
+                return true;
+            if (!__instance.ritual.def.IsGravshipLaunch())
+                return true;
+
+            SyncedShowRitualBeginWindow(__instance.ritual, __instance.targetInfo);
+            return false;
+        }
+
+        private static void SyncedShowRitualBeginWindow(Precept_Ritual ritual, TargetInfo targetInfo)
+        {
+            ritual.ShowRitualBeginWindow(targetInfo);
         }
 
         /// <summary>
