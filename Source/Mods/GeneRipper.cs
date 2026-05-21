@@ -4,9 +4,9 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
-    /// <summary>Gene Ripper by Obi Vayne Kenobi</summary>
-    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=2885485814"/>
-    [MpCompatFor("DanielWedemeyer.GeneRipper")]
+    /// <summary>Gene Ripper by Defi</summary>
+    /// <see href="https://steamcommunity.com/sharedfiles/filedetails/?id=3524806362"/>
+    [MpCompatFor("Defi.GeneRipper")]
     public class GeneRipper
     {
         public GeneRipper(ModContentPack mod)
