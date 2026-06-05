@@ -1847,8 +1847,6 @@ namespace Multiplayer.Compat
             graphicCustomizationCurrentVariantsField = AccessTools.FieldRefAccess<IList>(type, "currentVariants");
             graphicCustomizationCurrentNameField = AccessTools.FieldRefAccess<string>(type, "currentName");
             // Accept customization
-            var method = MpMethodUtil.GetLambda(type, nameof(Window.DoWindowContents), 0);
-            MP.RegisterSyncMethod(method);
             MpCompat.RegisterLambdaMethod(type, nameof(Window.DoWindowContents), 0);
             MP.RegisterSyncWorker<Window>(SyncGraphicCustomizationDialog, type, true);
             MpCompat.harmony.Patch(AccessTools.DeclaredMethod(type, "DrawConfirmButton"),
