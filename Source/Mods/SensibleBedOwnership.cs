@@ -13,8 +13,9 @@ public class SensibleBedOwnershipCompat
     public SensibleBedOwnershipCompat(ModContentPack mod)
     {
         // Unassign all
-        MP.RegisterSyncMethod(AccessTools.TypeByName("SensibleBedOwnership.Patch_CompAssignableToPawn_Bed_TryUnassignPawn"), "Prefix");
+        MP.RegisterSyncMethod(AccessTools.Method("SensibleBedOwnership.Patch_CompAssignableToPawn_Bed_TryUnassignPawn:Prefix"));
+        MP.RegisterSyncMethod(AccessTools.Method("SensibleBedOwnership.Patch_CompAssignableToPawn_DeathrestCasket_TryUnassignPawn:Prefix"));
         // Unassign one
-        MP.RegisterSyncMethodLambda(AccessTools.TypeByName("SensibleBedOwnership.Patch_CompAssignableToPawn"), "Postfix", 2);
+        MP.RegisterSyncDelegate(AccessTools.TypeByName("SensibleBedOwnership.Patch_CompAssignableToPawn"), "<>c__DisplayClass2_2", "<Postfix>b__3");
     }
 }
