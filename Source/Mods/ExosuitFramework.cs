@@ -37,25 +37,31 @@ public class ExosuitFramework
         }
 
         #endregion
+    }
 
+    private static void LatePatch()
+    {
         #region Gizmos
 
         {
-            // Assigned-bay get in / get off on the pawn gizmo bar.
             MpCompat.RegisterLambdaMethod("Exosuit.Patch_Pawn_GetGizmos", "Postfix", 0, 1);
 
             var maintenanceBayType = AccessTools.TypeByName("Exosuit.Building_MaintenanceBay");
-            // Assigned get in (0), target get in (3), auto repair toggle (4).
-            MpCompat.RegisterLambdaMethod(maintenanceBayType, nameof(Building.GetGizmos), 0, 3, 4);
+            if (maintenanceBayType != null)
+                MpCompat.RegisterLambdaMethod(maintenanceBayType, nameof(Building.GetGizmos), 0, 3, 4);
 
-            // Ejector bay: throw (0), launch to map (1), release (2).
-            var ejectorLambdas = MpCompat.RegisterLambdaMethod("Exosuit.Building_EjectorBay", nameof(Building.GetGizmos), 0, 1, 2);
-            ejectorLambdas[0].SetContext(SyncContext.CurrentMap);
-            ejectorLambdas[1].SetContext(SyncContext.CurrentMap);
-            PatchingUtilities.ReplaceCurrentMapUsage("Exosuit.Building_EjectorBay:GetGizmos");
+            var ejectorType = AccessTools.TypeByName("Exosuit.Building_EjectorBay");
+            if (ejectorType != null)
+            {
+                var ejectorLambdas = MpCompat.RegisterLambdaMethod(ejectorType, nameof(Building.GetGizmos), 0, 1, 2);
+                ejectorLambdas[0].SetContext(SyncContext.CurrentMap);
+                ejectorLambdas[1].SetContext(SyncContext.CurrentMap);
+                PatchingUtilities.ReplaceCurrentMapUsage("Exosuit.Building_EjectorBay:GetGizmos");
+            }
 
             var turretType = AccessTools.TypeByName("Mechsuit.CompTurretGun");
-            MpCompat.RegisterLambdaMethod(turretType, "GetGizmos", 0, 1);
+            if (turretType != null)
+                MpCompat.RegisterLambdaMethod(turretType, "GetGizmos", 0, 1);
         }
 
         #endregion
@@ -64,25 +70,28 @@ public class ExosuitFramework
 
         {
             var maintenanceBayType = AccessTools.TypeByName("Exosuit.Building_MaintenanceBay");
-            MpCompat.RegisterLambdaDelegate(maintenanceBayType, nameof(Building.GetFloatMenuOptions), 0);
-            MpCompat.RegisterLambdaDelegate("Exosuit.Building_EjectorBay", nameof(Building.GetFloatMenuOptions), 0);
+            if (maintenanceBayType != null)
+            {
+                MpCompat.RegisterLambdaDelegate(maintenanceBayType, nameof(Building.GetFloatMenuOptions), 0);
+
+                MP.RegisterSyncMethod(maintenanceBayType, "RequestInstallModule");
+                MP.RegisterSyncMethod(maintenanceBayType, "RequestRemoveModule");
+                MP.RegisterSyncMethod(maintenanceBayType, "CancelPendingWork");
+                MP.RegisterSyncMethod(maintenanceBayType, "CancelPendingInstall");
+                MP.RegisterSyncMethod(maintenanceBayType, "CancelAllCoreWork");
+                MP.RegisterSyncMethod(maintenanceBayType, "AddOrReplaceModule");
+                MP.RegisterSyncMethod(maintenanceBayType, "RemoveModules");
+            }
+
+            var ejectorType = AccessTools.TypeByName("Exosuit.Building_EjectorBay");
+            if (ejectorType != null)
+                MpCompat.RegisterLambdaDelegate(ejectorType, nameof(Building.GetFloatMenuOptions), 0);
 
             RegisterFloatMenuProviderLambdas();
-
-            MP.RegisterSyncMethod(maintenanceBayType, "RequestInstallModule");
-            MP.RegisterSyncMethod(maintenanceBayType, "RequestRemoveModule");
-            MP.RegisterSyncMethod(maintenanceBayType, "CancelPendingWork");
-            MP.RegisterSyncMethod(maintenanceBayType, "CancelPendingInstall");
-            MP.RegisterSyncMethod(maintenanceBayType, "CancelAllCoreWork");
-            MP.RegisterSyncMethod(maintenanceBayType, "AddOrReplaceModule");
-            MP.RegisterSyncMethod(maintenanceBayType, "RemoveModules");
         }
 
         #endregion
-    }
 
-    private static void LatePatch()
-    {
         #region Jobs
 
         {
@@ -110,8 +119,11 @@ public class ExosuitFramework
 
         {
             var turretType = AccessTools.TypeByName("Mechsuit.CompTurretGun");
-            MP.RegisterSyncMethod(turretType, "OrderAttack");
-            MP.RegisterSyncMethod(turretType, "ClearForcedTarget");
+            if (turretType != null)
+            {
+                MP.RegisterSyncMethod(turretType, "OrderAttack");
+                MP.RegisterSyncMethod(turretType, "ClearForcedTarget");
+            }
         }
 
         #endregion
