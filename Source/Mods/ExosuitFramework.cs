@@ -22,6 +22,7 @@ public class ExosuitFramework
     private static Type exosuitCoreType;
     private static MethodInfo getClosestCoreForPawn;
     private static MethodInfo getClosestBay;
+    private static FastInvokeHandler applyDamageToModules;
 
     public ExosuitFramework(ModContentPack mod)
     {
@@ -32,14 +33,12 @@ public class ExosuitFramework
     {
         try
         {
-            PatchRand();
             PatchGizmos();
             PatchFloatMenus();
             PatchJobs();
             PatchTurrets();
             PatchCatapult();
             PatchExosuitDamage();
-            Log.Message("MPCompat :: Initialized compatibility for aoba.exosuit.framework");
         }
         catch (Exception ex)
         {
@@ -47,88 +46,31 @@ public class ExosuitFramework
         }
     }
 
-    private static void PatchRand()
-    {
-        // Must run on the main thread: patching Exosuit_Core triggers its static ctor, which creates textures.
-        PatchingUtilities.PatchPushPopRand([
-            "Exosuit.Exosuit_Core:CheckPreAbsorbDamage",
-            "Exosuit.Exosuit_Core:GetPostArmorDamage",
-            "Exosuit.Exosuit_Core:ApplyDamageToModules",
-            "Exosuit.Exosuit_Core:ExosuitDestory",
-            "Exosuit.MechUtility:DissambleFrom",
-            "Exosuit.Verb_MeleeSweep:DoSweep",
-            "Exosuit.Building_AutoRepairArm:Tick",
-            "Mechsuit.AsyncShootVerb:TryCastShot",
-        ]);
-    }
-
     private static void PatchGizmos()
     {
-        PatchExosuitPawnGetGizmosSafety();
+        // Pawn get-in / get-out buttons (Command_Action lambdas in Patch_Pawn_GetGizmos.Postfix).
+        MpCompat.RegisterLambdaDelegate("Exosuit.Patch_Pawn_GetGizmos", "Postfix", 0, 1);
 
-        // Command_Action.action delegates — RegisterSyncDelegate so clients see and can use pawn get-in/out gizmos.
-        TryRegisterLambdaDelegate("Exosuit.Patch_Pawn_GetGizmos", "Postfix", 0, 1);
-
-        // Module weapon float-menu gizmo on worn exosuit pieces.
-        TryRegisterLambdaDelegate("Exosuit.CompModuleWeapon", nameof(ThingComp.CompGetWornGizmosExtra), 0, 1, 2);
-
-        // Maintenance bay building gizmos use Exosuit's own [SyncMethod] locals (MP.RegisterAll).
-
+        // Eject to location (0), launch to map (1). Release (2) calls synced Eject on the core.
         var ejectorType = AccessTools.TypeByName("Exosuit.Building_EjectorBay");
         if (ejectorType != null)
         {
-            var ejectorLambdas = TryRegisterLambdaDelegate(ejectorType, nameof(Building.GetGizmos), 0, 1, 2);
-            if (ejectorLambdas != null)
-            {
-                if (ejectorLambdas.Length > 0)
-                    ejectorLambdas[0].SetContext(SyncContext.CurrentMap);
-                if (ejectorLambdas.Length > 1)
-                    ejectorLambdas[1].SetContext(SyncContext.CurrentMap);
-            }
+            MpCompat.RegisterLambdaMethod(ejectorType, nameof(Building.GetGizmos), 0, 1)
+                .SetContext(SyncContext.CurrentMap);
 
             // Find.CurrentMap lives inside compiler-generated closures, not in GetGizmos itself.
             PatchEjectorBayLambdasCurrentMap(ejectorType);
         }
 
-        var turretType = AccessTools.TypeByName("Mechsuit.CompTurretGun");
-        if (turretType != null)
-            TryRegisterLambdaDelegate(turretType, "GetGizmos", 0, 1, 2, 3);
-    }
+        // Get in (0), toggle auto repair (2). Eject uses Exosuit_Core:Eject (synced in LatePatch).
+        var maintenanceBayType = AccessTools.TypeByName("Exosuit.Building_MaintenanceBay");
+        if (maintenanceBayType != null)
+            MpCompat.RegisterLambdaMethod(maintenanceBayType, nameof(Building.GetGizmos), 0, 2);
 
-    /// <summary>
-    /// Exosuit postfix calls __result.ToList() without a null check — throws and wipes every pawn gizmo in MP.
-    /// Cannot prefix Exosuit's void Postfix (Harmony: "Cannot get result from void method"); guard on Pawn.GetGizmos instead.
-    /// </summary>
-    private static void PatchExosuitPawnGetGizmosSafety()
-    {
-        var getGizmos = AccessTools.Method(typeof(Pawn), nameof(Pawn.GetGizmos));
-        if (getGizmos == null)
-            return;
-
-        var guardPostfix = new HarmonyMethod(typeof(ExosuitFramework), nameof(GuardPawnGizmoResultBeforeExosuit))
-        {
-            before = ["Exosuit.Patch_Pawn_GetGizmos"],
-        };
-        MpCompat.harmony.Patch(getGizmos,
-            postfix: guardPostfix,
-            finalizer: new HarmonyMethod(typeof(ExosuitFramework), nameof(RecoverPawnGetGizmos)));
-    }
-
-    private static void GuardPawnGizmoResultBeforeExosuit(ref IEnumerable<Gizmo> __result)
-    {
-        if (__result == null)
-            __result = [];
-    }
-
-    private static Exception RecoverPawnGetGizmos(Exception __exception, ref IEnumerable<Gizmo> __result)
-    {
-        if (__exception == null)
-            return null;
-
-        Log.Warning($"MPCompat :: Exosuit pawn GetGizmos failed — other gizmos kept: {__exception.Message}");
-        if (__result == null)
-            __result = [];
-        return null;
+        // Toggle safety (1). Synced for parity with other emergency UI; eject itself goes through Eject().
+        var emergencyEjectType = AccessTools.TypeByName("Exosuit.ModuleComp_EmergencyEject");
+        if (emergencyEjectType != null)
+            MpCompat.RegisterLambdaMethod(emergencyEjectType, nameof(ThingComp.CompGetWornGizmosExtra), 1);
     }
 
     private static void PatchEjectorBayLambdasCurrentMap(Type ejectorType)
@@ -151,11 +93,16 @@ public class ExosuitFramework
     {
         var maintenanceBayType = AccessTools.TypeByName("Exosuit.Building_MaintenanceBay");
         if (maintenanceBayType != null)
-            TryRegisterLambdaDelegate(maintenanceBayType, nameof(Building.GetFloatMenuOptions), 0);
+        {
+            // Add/replace/remove modules, called from ITab_MechGear.
+            MP.RegisterSyncMethod(maintenanceBayType, "AddOrReplaceModule");
+            MP.RegisterSyncMethod(maintenanceBayType, "RemoveModules");
+            MpCompat.RegisterLambdaDelegate(maintenanceBayType, nameof(Building.GetFloatMenuOptions), 0);
+        }
 
         var ejectorType = AccessTools.TypeByName("Exosuit.Building_EjectorBay");
         if (ejectorType != null)
-            TryRegisterLambdaDelegate(ejectorType, nameof(Building.GetFloatMenuOptions), 0);
+            MpCompat.RegisterLambdaDelegate(ejectorType, nameof(Building.GetFloatMenuOptions), 0);
 
         RegisterFloatMenuProviderLambdas();
     }
@@ -185,6 +132,11 @@ public class ExosuitFramework
             [typeof(Job), typeof(JobTag), typeof(bool)]);
         if (tryTake != null)
             MpCompat.harmony.Patch(tryTake, prefix: new HarmonyMethod(typeof(ExosuitFramework), nameof(RedirectExosuitTryTakeOrderedJob)));
+
+        // Eject, only called from emergency UI. Safer to sync the method than every eject lambda.
+        var eject = AccessTools.DeclaredMethod("Exosuit.Exosuit_Core:Eject");
+        if (eject != null)
+            MP.RegisterSyncMethod(eject);
     }
 
     private static void PatchExosuitDamage()
@@ -196,6 +148,10 @@ public class ExosuitFramework
         var healthField = AccessTools.Field(coreType, "healthInt");
         if (healthField != null)
             MP.RegisterSyncField(healthField);
+
+        var applyMethod = AccessTools.Method(coreType, "ApplyDamageToModules");
+        if (applyMethod != null)
+            applyDamageToModules = MethodInvoker.GetHandler(applyMethod);
 
         var onHealthChanged = AccessTools.Method(coreType, "OnHealthChanged");
         if (onHealthChanged != null)
@@ -218,8 +174,10 @@ public class ExosuitFramework
         if (amount <= 0f)
             return true;
 
-        var apply = AccessTools.Method(__instance.GetType(), "ApplyDamageToModules");
-        apply?.Invoke(__instance, [amount]);
+        if (applyDamageToModules == null)
+            return true;
+
+        applyDamageToModules(__instance, amount);
         return false;
     }
 
@@ -230,87 +188,21 @@ public class ExosuitFramework
             return;
 
         // ITab/gizmo actions are already covered by Exosuit's MP.RegisterAll(); only sync explicit API entry points.
-        TryRegisterSyncMethod(turretType, "OrderAttack", typeof(LocalTargetInfo));
-        TryRegisterSyncMethod(turretType, "ClearForcedTarget");
+        var orderAttack = AccessTools.Method(turretType, "OrderAttack", [typeof(LocalTargetInfo)]);
+        if (orderAttack != null)
+            MP.RegisterSyncMethod(orderAttack);
+
+        var clearTarget = AccessTools.Method(turretType, "ClearForcedTarget");
+        if (clearTarget != null)
+            MP.RegisterSyncMethod(clearTarget);
     }
 
     private static void PatchCatapult()
     {
+        // WG_PawnFlyer catapult UI — not covered by ability sync. DoJump is already synced by MP ability sync.
         var flyerType = AccessTools.TypeByName("Exosuit.WG_PawnFlyer");
         if (flyerType != null)
-            TryRegisterLambdaDelegate(flyerType, "GetOptionsForTile", 0, 1);
-
-        var jumpType = AccessTools.TypeByName("Exosuit.WG_AbilityVerb_QuickJump");
-        var doJump = AccessTools.Method(jumpType, "DoJump",
-        [
-            typeof(Pawn), typeof(Map), typeof(LocalTargetInfo), typeof(LocalTargetInfo), typeof(bool), typeof(bool)
-        ]);
-        if (doJump != null)
-            MP.RegisterSyncMethod(doJump);
-    }
-
-    private static ISyncMethod[] TryRegisterLambdaMethod(Type parentType, string parentMethod, params int[] lambdaOrdinals)
-    {
-        var registered = new List<ISyncMethod>();
-        foreach (var ord in lambdaOrdinals)
-        {
-            try
-            {
-                registered.AddRange(MpCompat.RegisterLambdaMethod(parentType, parentMethod, ord));
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"MPCompat :: Exosuit skipped lambda sync for {parentType?.FullName}.{parentMethod} ordinal {ord}: {ex.Message}");
-            }
-        }
-
-        return registered.Count > 0 ? registered.ToArray() : null;
-    }
-
-    private static ISyncMethod[] TryRegisterLambdaMethod(string parentType, string parentMethod, params int[] lambdaOrdinals)
-    {
-        var type = AccessTools.TypeByName(parentType);
-        return type == null ? null : TryRegisterLambdaMethod(type, parentMethod, lambdaOrdinals);
-    }
-
-    private static ISyncDelegate[] TryRegisterLambdaDelegate(Type parentType, string parentMethod, params int[] lambdaOrdinals)
-    {
-        var registered = new List<ISyncDelegate>();
-        foreach (var ord in lambdaOrdinals)
-        {
-            try
-            {
-                registered.AddRange(MpCompat.RegisterLambdaDelegate(parentType, parentMethod, ord));
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"MPCompat :: Exosuit skipped lambda delegate for {parentType?.FullName}.{parentMethod} ordinal {ord}: {ex.Message}");
-            }
-        }
-
-        return registered.Count > 0 ? registered.ToArray() : null;
-    }
-
-    private static void TryRegisterLambdaDelegate(string parentType, string parentMethod, params int[] lambdaOrdinals)
-    {
-        var type = AccessTools.TypeByName(parentType);
-        if (type != null)
-            TryRegisterLambdaDelegate(type, parentMethod, lambdaOrdinals);
-    }
-
-    private static void TryRegisterSyncMethod(Type parentType, string methodName, params Type[] args)
-    {
-        var method = args.Length == 0
-            ? AccessTools.Method(parentType, methodName)
-            : AccessTools.Method(parentType, methodName, args);
-
-        if (method == null)
-        {
-            Log.Warning($"MPCompat :: Exosuit skipped missing sync method {parentType?.FullName}.{methodName}");
-            return;
-        }
-
-        MP.RegisterSyncMethod(method);
+            MpCompat.RegisterLambdaDelegate(flyerType, "GetOptionsForTile", 0, 1);
     }
 
     private static void RewriteExosuitSleepJob(ref Job newJob, Pawn ___pawn)
