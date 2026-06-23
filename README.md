@@ -53,6 +53,7 @@ Dubs Paint Shop | [![url][steam]](https://steamcommunity.com/sharedfiles/filedet
 Eccentric Tech - Fusion Power | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2742125879) 
 Enhanced Vat Learning | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2908453851) [![url][repo]](https://github.com/SmArtKar/EnhancedVatLearning)
 Extended Bioengineering for VFE Insectoids | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2706534548) 
+Exosuit Framework | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=3352894993) [![url][repo]](https://github.com/AobaKuma/MechsuitFramework)
 Fertile Fields | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2012735237) 
 Follow Me | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=715759739) [![url][repo]](https://github.com/fluffy-mods/FollowMe)
 Gastronomy | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2279786905) [![url][repo]](https://github.com/OrionFive/Gastronomy)
