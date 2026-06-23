@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -19,30 +20,13 @@ public class ExosuitFramework
     public ExosuitFramework(ModContentPack mod)
     {
         LongEventHandler.ExecuteWhenFinished(LatePatch);
-
-        #region RNG
-
-        {
-            // Combat, disassembly, turret spread, and repair timing all consume Rand and can desync.
-            PatchingUtilities.PatchPushPopRand([
-                "Exosuit.Exosuit_Core:CheckPreAbsorbDamage",
-                "Exosuit.Exosuit_Core:GetPostArmorDamage",
-                "Exosuit.Exosuit_Core:ApplyDamageToModules",
-                "Exosuit.Exosuit_Core:ExosuitDestory",
-                "Exosuit.MechUtility:DissambleFrom",
-                "Exosuit.Verb_MeleeSweep:DoSweep",
-                "Exosuit.Building_AutoRepairArm:Tick",
-                "Mechsuit.AsyncShootVerb:TryCastShot",
-            ]);
-        }
-
-        #endregion
     }
 
     private static void LatePatch()
     {
         try
         {
+            PatchRand();
             PatchGizmos();
             PatchFloatMenus();
             PatchJobs();
@@ -56,13 +40,26 @@ public class ExosuitFramework
         }
     }
 
+    private static void PatchRand()
+    {
+        // Must run on the main thread: patching Exosuit_Core triggers its static ctor, which creates textures.
+        PatchingUtilities.PatchPushPopRand([
+            "Exosuit.Exosuit_Core:CheckPreAbsorbDamage",
+            "Exosuit.Exosuit_Core:GetPostArmorDamage",
+            "Exosuit.Exosuit_Core:ApplyDamageToModules",
+            "Exosuit.Exosuit_Core:ExosuitDestory",
+            "Exosuit.MechUtility:DissambleFrom",
+            "Exosuit.Verb_MeleeSweep:DoSweep",
+            "Exosuit.Building_AutoRepairArm:Tick",
+            "Mechsuit.AsyncShootVerb:TryCastShot",
+        ]);
+    }
+
     private static void PatchGizmos()
     {
         TryRegisterLambdaMethod("Exosuit.Patch_Pawn_GetGizmos", "Postfix", 0, 1);
 
-        var maintenanceBayType = AccessTools.TypeByName("Exosuit.Building_MaintenanceBay");
-        if (maintenanceBayType != null)
-            TryRegisterLambdaMethod(maintenanceBayType, nameof(Building.GetGizmos), 0, 3, 4);
+        // Maintenance bay gizmos use Exosuit's own [SyncMethod] locals (MP.RegisterAll); no lambda ordinals here.
 
         var ejectorType = AccessTools.TypeByName("Exosuit.Building_EjectorBay");
         if (ejectorType != null)
@@ -70,16 +67,35 @@ public class ExosuitFramework
             var ejectorLambdas = TryRegisterLambdaMethod(ejectorType, nameof(Building.GetGizmos), 0, 1, 2);
             if (ejectorLambdas != null)
             {
-                ejectorLambdas[0].SetContext(SyncContext.CurrentMap);
-                ejectorLambdas[1].SetContext(SyncContext.CurrentMap);
+                if (ejectorLambdas.Length > 0)
+                    ejectorLambdas[0].SetContext(SyncContext.CurrentMap);
+                if (ejectorLambdas.Length > 1)
+                    ejectorLambdas[1].SetContext(SyncContext.CurrentMap);
             }
 
-            PatchingUtilities.ReplaceCurrentMapUsage("Exosuit.Building_EjectorBay:GetGizmos");
+            // Find.CurrentMap lives inside compiler-generated closures, not in GetGizmos itself.
+            PatchEjectorBayLambdasCurrentMap(ejectorType);
         }
 
         var turretType = AccessTools.TypeByName("Mechsuit.CompTurretGun");
         if (turretType != null)
             TryRegisterLambdaMethod(turretType, "GetGizmos", 0, 1);
+    }
+
+    private static void PatchEjectorBayLambdasCurrentMap(Type ejectorType)
+    {
+        for (var ord = 0; ord <= 1; ord++)
+        {
+            try
+            {
+                var lambda = MpMethodUtil.GetLambda(ejectorType, nameof(Building.GetGizmos), MethodType.Normal, null, ord);
+                PatchingUtilities.ReplaceCurrentMapUsage(lambda, logIfNothingPatched: false, logIfMissingMethod: false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"MPCompat :: Exosuit skipped ejector bay map patch for lambda {ord}: {ex.Message}");
+            }
+        }
     }
 
     private static void PatchFloatMenus()
@@ -143,28 +159,26 @@ public class ExosuitFramework
 
     private static ISyncMethod[] TryRegisterLambdaMethod(Type parentType, string parentMethod, params int[] lambdaOrdinals)
     {
-        try
+        var registered = new List<ISyncMethod>();
+        foreach (var ord in lambdaOrdinals)
         {
-            return MpCompat.RegisterLambdaMethod(parentType, parentMethod, lambdaOrdinals);
+            try
+            {
+                registered.AddRange(MpCompat.RegisterLambdaMethod(parentType, parentMethod, ord));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"MPCompat :: Exosuit skipped lambda sync for {parentType?.FullName}.{parentMethod} ordinal {ord}: {ex.Message}");
+            }
         }
-        catch (Exception ex)
-        {
-            Log.Warning($"MPCompat :: Exosuit skipped lambda sync for {parentType?.FullName}.{parentMethod}: {ex.Message}");
-            return null;
-        }
+
+        return registered.Count > 0 ? registered.ToArray() : null;
     }
 
     private static ISyncMethod[] TryRegisterLambdaMethod(string parentType, string parentMethod, params int[] lambdaOrdinals)
     {
-        try
-        {
-            return MpCompat.RegisterLambdaMethod(parentType, parentMethod, lambdaOrdinals);
-        }
-        catch (Exception ex)
-        {
-            Log.Warning($"MPCompat :: Exosuit skipped lambda sync for {parentType}.{parentMethod}: {ex.Message}");
-            return null;
-        }
+        var type = AccessTools.TypeByName(parentType);
+        return type == null ? null : TryRegisterLambdaMethod(type, parentMethod, lambdaOrdinals);
     }
 
     private static void TryRegisterLambdaDelegate(Type parentType, string parentMethod, params int[] lambdaOrdinals)
