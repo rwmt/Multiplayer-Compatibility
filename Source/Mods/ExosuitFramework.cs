@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -15,7 +16,11 @@ namespace Multiplayer.Compat;
 public class ExosuitFramework
 {
     private static JobDef wgSleepJobDef;
+    private static JobDef wgGetInJobDef;
+    private static JobDef wgGetOffJobDef;
     private static Type exosuitCoreType;
+    private static MethodInfo getClosestCoreForPawn;
+    private static MethodInfo getClosestBay;
 
     public ExosuitFramework(ModContentPack mod)
     {
@@ -122,13 +127,14 @@ public class ExosuitFramework
         if (jobReplacer != null)
             MpCompat.harmony.Patch(jobReplacer, prefix: new HarmonyMethod(typeof(ExosuitFramework), nameof(SkipIfMultiplayer)));
 
-        // JobGiver_GetRest/Work GetPriority call these every think tick and spawn local jobs.
+        // JobGiver_GetRest/Work call these every think tick via TryTakeOrderedJob (unsynced job ids in MP).
+        // Redirect to StartJob so gear on/off keeps working without desyncing.
         var gearOn = AccessTools.Method("Exosuit.MechUtility:TryMakeJob_GearOn");
         var gearOff = AccessTools.Method("Exosuit.MechUtility:TryMakeJob_GearOff");
         if (gearOn != null)
-            MpCompat.harmony.Patch(gearOn, prefix: new HarmonyMethod(typeof(ExosuitFramework), nameof(SkipIfMultiplayer)));
+            MpCompat.harmony.Patch(gearOn, prefix: new HarmonyMethod(typeof(ExosuitFramework), nameof(RedirectExosuitGearOn)));
         if (gearOff != null)
-            MpCompat.harmony.Patch(gearOff, prefix: new HarmonyMethod(typeof(ExosuitFramework), nameof(SkipIfMultiplayer)));
+            MpCompat.harmony.Patch(gearOff, prefix: new HarmonyMethod(typeof(ExosuitFramework), nameof(RedirectExosuitGearOff)));
     }
 
     private static void PatchTurrets()
@@ -242,7 +248,67 @@ public class ExosuitFramework
     }
 
     /// <summary>Blocks exosuit patches that create jobs outside of MP's synced StartJob path.</summary>
-    private static bool SkipIfMultiplayer() => !MP.IsInMultiplayer;
+    private static bool SkipIfMultiplayer() => MP.IsInMultiplayer;
+
+    private static bool RedirectExosuitGearOn(Pawn pawn)
+    {
+        if (!MP.IsInMultiplayer)
+            return true;
+
+        EnsureGearJobHelpers();
+        var closest = getClosestCoreForPawn?.Invoke(null, [pawn]) as Thing;
+        if (closest == null)
+            return false;
+
+        TryStartExosuitGearJob(pawn, wgGetInJobDef, closest);
+        return false;
+    }
+
+    private static bool RedirectExosuitGearOff(Pawn pawn)
+    {
+        if (!MP.IsInMultiplayer)
+            return true;
+
+        EnsureGearJobHelpers();
+        var closest = getClosestBay?.Invoke(null, [pawn, true]) as Thing;
+        if (closest == null)
+            return false;
+
+        TryStartExosuitGearJob(pawn, wgGetOffJobDef, closest);
+        return false;
+    }
+
+    private static void EnsureGearJobHelpers()
+    {
+        wgGetInJobDef ??= DefDatabase<JobDef>.GetNamedSilentFail("WG_GetInWalkerCore_NonDrafted");
+        wgGetOffJobDef ??= DefDatabase<JobDef>.GetNamedSilentFail("WG_GetOffWalkerCore");
+
+        var mechUtility = AccessTools.TypeByName("Exosuit.MechUtility");
+        if (mechUtility == null)
+            return;
+
+        getClosestCoreForPawn ??= AccessTools.Method(mechUtility, "GetClosestCoreForPawn");
+        getClosestBay ??= AccessTools.Method(mechUtility, "GetClosestBay", [typeof(Pawn), typeof(bool)]);
+    }
+
+    private static void TryStartExosuitGearJob(Pawn pawn, JobDef jobDef, Thing target)
+    {
+        if (jobDef == null || pawn?.jobs == null || target == null)
+            return;
+
+        var curJob = pawn.jobs.curJob;
+        if (curJob?.def == jobDef && curJob.targetA.Thing == target)
+            return;
+
+        foreach (var queued in pawn.jobs.jobQueue)
+        {
+            if (queued.job.def == jobDef && queued.job.targetA.Thing == target)
+                return;
+        }
+
+        var job = JobMaker.MakeJob(jobDef, target);
+        pawn.jobs.StartJob(job, JobCondition.InterruptOptional, null, resumeCurJobAfterwards: false);
+    }
 
     private static void RegisterFloatMenuProviderLambdas()
     {
