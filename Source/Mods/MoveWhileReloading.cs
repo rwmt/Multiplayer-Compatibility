@@ -99,8 +99,15 @@ public class MoveWhileReloadingCompat
         return DefDatabase<JobDef>.GetNamedSilentFail("ReloadWeapon");
     }
 
-    private static bool IsAnyRunAndGunActive() =>
-        ModsConfig.IsActive("roolo.RunAndGun")
-        || ModsConfig.IsActive("roolo.RunAndGun.kotobike")
-        || ModsConfig.IsActive("memegoddess.RunAndGun");
+    private static bool IsAnyRunAndGunActive()
+    {
+        foreach (var mod in LoadedModManager.RunningMods)
+        {
+            var id = mod.PackageId.NoModIdSuffix().ToLower();
+            if (id is "roolo.runandgun" or "roolo.runandgun.kotobike" or "memegoddess.runandgun")
+                return true;
+        }
+
+        return false;
+    }
 }
