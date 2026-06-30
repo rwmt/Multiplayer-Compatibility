@@ -12,6 +12,9 @@ public class GeneAssistant
     public GeneAssistant(ModContentPack mod)
     {
         // Eject Genepacks
-        MP.RegisterSyncMethod(AccessTools.Method("RandomsGeneAssistant.PatchGeneAssemblerEject:EjectDuplicateGenepacks"));
+        var type = AccessTools.TypeByName("RandomsGeneAssistant.PatchGeneAssemblerEject");
+        MP.RegisterSyncMethod(AccessTools.Method(type, "EjectDuplicateGenepacks"));
+        MP.RegisterSyncMethod(AccessTools.Method(type, "EjectCosmeticGenepacks"));
+        MP.RegisterSyncMethod(AccessTools.Method(type, "EjectCombinedGenepacks"));
     }
 }
