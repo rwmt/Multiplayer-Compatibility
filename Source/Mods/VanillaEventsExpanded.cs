@@ -1,4 +1,6 @@
-﻿using RimWorld;
+using HarmonyLib;
+using Multiplayer.API;
+using RimWorld;
 using Verse;
 
 namespace Multiplayer.Compat
@@ -14,19 +16,8 @@ namespace Multiplayer.Compat
         {
             MpSyncWorkers.Requires<GameCondition>();
 
-            var methodsForAll = new[]
-            {
-                "VEE.RegularEvents.ApparelPod:TryExecuteWorker",
-                "VEE.RegularEvents.CaravanAnimalWI:GenerateGroup",
-                "VEE.RegularEvents.MeteoriteShower:TryExecuteWorker",
-                "VEE.RegularEvents.WeaponPod:TryExecuteWorker",
-                "VEE.RegularEvents.EarthQuake:DamageInRadius",
-            };
-
-            PatchingUtilities.PatchSystemRand(methodsForAll, false);
-
-            // Unity RNG
-            PatchingUtilities.PatchUnityRand("VEE.Shuttle:Tick", false);
+            PatchingUtilities.PatchSystemRand("VEE.RegularEvents.MeteoriteShower:TryExecuteWorker", false);
+            PatchingUtilities.PatchPushPopRand("VEE.IncomingSmoker:ThrowBlackSmoke");
 
             // Current map usage, picks between rain and snow based on current map temperature, instead of using map it affects
             PatchingUtilities.ReplaceCurrentMapUsage("VEE.PurpleEvents.PsychicRain:ForcedWeather");
@@ -37,9 +28,17 @@ namespace Multiplayer.Compat
             MpCompat.RegisterLambdaDelegate("VEE.Settings.VEESettings", "ResetWorldCondButton", 0).SetDebugOnly();
             MpCompat.RegisterLambdaDelegate("VEE.Settings.VEESettings", "ResetMapCondButton", 0).SetDebugOnly();
 
-            LongEventHandler.ExecuteWhenFinished(LatePatch);
+            RegisterChoiceLetterLambdas("VEE.ChoiceLetter_AcceptCrashlanders");
+            RegisterChoiceLetterLambdas("VEE.ChoiceLetter_WhiteoutRefugees");
+
+            MpCompat.RegisterLambdaMethod("VEE.HediffComp_Traitor", "CompGetGizmos", 0).SetDebugOnly();
         }
 
-        public static void LatePatch() => PatchingUtilities.PatchSystemRand("VEE.RegularEvents.SpaceBattle:GameConditionTick", false);
+        private static void RegisterChoiceLetterLambdas(string typeName)
+        {
+            var type = AccessTools.TypeByName(typeName);
+            foreach (var method in MpMethodUtil.GetLambda(type, "Choices", MethodType.Getter, null, 0, 1))
+                MP.RegisterSyncMethod(method);
+        }
     }
 }
