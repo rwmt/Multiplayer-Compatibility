@@ -19,9 +19,6 @@ namespace Multiplayer.Compat
             PatchingUtilities.PatchSystemRand("VEE.RegularEvents.MeteoriteShower:TryExecuteWorker", false);
             PatchingUtilities.PatchPushPopRand("VEE.IncomingSmoker:ThrowBlackSmoke");
 
-            // Current map usage, picks between rain and snow based on current map temperature, instead of using map it affects
-            PatchingUtilities.ReplaceCurrentMapUsage("VEE.PurpleEvents.PsychicRain:ForcedWeather");
-
             // Reset game conditions - technically does not require debug mode,
             // but lets you end (almost?) any game condition at any time
             // so I'd consider it close enough to justify `SetDebugOnly` on it.
