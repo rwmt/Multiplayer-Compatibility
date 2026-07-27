@@ -21,8 +21,7 @@ namespace Multiplayer.Compat
             /// Attempt to sync "Allow Harvest" Gizmo
             /// really just copied from other patches until it works X.x
             Type allowHarvest = AccessTools.TypeByName("TD_Enhancement_Pack.Zone_Growing_Extensions");
-            if (allowHarvest != null)
-                MP.RegisterSyncMethod(allowHarvest, "ToggleHarvest");
+            MP.RegisterSyncMethod(allowHarvest, "ToggleHarvest");
         }
     }
 }
