@@ -93,6 +93,7 @@ RimFridge | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?
 Rimsential - Spaceports | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2663999215) [![url][repo]](https://github.com/SomewhereOutInSpace/Rimworld-Spaceports)
 RPG Style Inventory | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1561221991) [![url][repo]](https://github.com/SandyTheGreat/RPG-Style-Inventory)
 RunAndGun | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550) [![url][repo]](https://github.com/rheirman/RunAndGun)
+RunAndGun Continued | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=3562365100) [![url][repo]](https://github.com/MemeGoddess/RunAndGun)
 Search and Destroy | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1467764609) [![url][repo]](https://github.com/rheirman/SearchAndDestroy)
 Signs and Comments | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2576219203) [![url][repo]](https://github.com/JTJutajoh/RimWorld.Signs)
 Simple Sidearms | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=927155256) [![url][repo]](https://github.com/PeteTimesSix/SimpleSidearms)
