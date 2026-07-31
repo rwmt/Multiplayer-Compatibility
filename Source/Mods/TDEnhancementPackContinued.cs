@@ -22,6 +22,9 @@ namespace Multiplayer.Compat
             /// really just copied from other patches until it works X.x
             Type allowHarvest = AccessTools.TypeByName("TD_Enhancement_Pack.Zone_Growing_Extensions");
             MP.RegisterSyncMethod(allowHarvest, "ToggleHarvest");
+            /// Add Building Gizmo sync
+            Type allowHarvestBuilding = AccessTools.TypeByName("TD_Enhancement_Pack.Building_PlantGrower_Extensions");
+            MP.RegisterSyncMethod(allowHarvestBuilding, "ToggleHarvest");
         }
     }
 }
