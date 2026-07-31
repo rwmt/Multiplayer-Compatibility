@@ -106,6 +106,7 @@ Sparkling Worlds | [![url][steam]](https://steamcommunity.com/sharedfiles/filede
 SRTS Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1845423808) [![url][repo]](https://github.com/Neceros/SRTS-Expanded)
 Stuffed Floors | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=853043503) [![url][repo]](https://github.com/fluffy-mods/StuffedFloors)
 Tacticowl | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2936140288) [![url][repo]](https://github.com/Owlchemist/RunGunAndDestroy)
+TD Enhancement Pack - Continued | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=3525414162) [![url][repo]](https://github.com/MemeGoddess/RimWorld-EnhancementPack)
 Time of day switches | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=776114412) 
 Toggleable Shields | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2690413766) [![url][repo]](https://github.com/Owlchemist/toggleable-shields)
 Utility Columns | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2013476665) [![url][repo]](https://github.com/RealTelefonmast/UtilityColumns)
