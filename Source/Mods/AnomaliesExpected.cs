@@ -1,3 +1,6 @@
+using System.Linq;
+using HarmonyLib;
+using Multiplayer.API;
 using Verse;
 
 namespace Multiplayer.Compat;
@@ -9,14 +12,32 @@ class AnomaliesExpected
 {
     public AnomaliesExpected(ModContentPack mod)
     {
+        // Hospital bed
+        {
+            var type = AccessTools.TypeByName("AnomaliesExpected.Comp_AnomalyHospitalBed");
+            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 0, 2, 3, 4, 5, 6);
+            PatchingUtilities.PatchPushPopRand(AccessTools.Method(type, "Sign"));
+        }
+
         // Pie
         MpCompat.RegisterLambdaMethod("AnomaliesExpected.Comp_BakingPies", "CompGetGizmosExtra", 1, 2, 3, 4, 5, 6, 7);
 
         // Beam
-        MpCompat.RegisterLambdaMethod("AnomaliesExpected.Comp_BeamTarget", "CompGetGizmosExtra", 1, 2, 3, 4, 5, 6, 7, 8);
+        {
+            var type = AccessTools.TypeByName("AnomaliesExpected.Comp_BeamTarget");
+            MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 1, 2, 3, 4, 5, 6, 7, 8);
+            MP.RegisterSyncDelegateLambda(type, "TargetLocation", 1);
+        }
 
         // Blood pump 
         MpCompat.RegisterLambdaMethod("AnomaliesExpected.Comp_BloodPump", "CompGetGizmosExtra", 0);
+
+        // Broken statue
+        {
+            MpCompat.RegisterLambdaMethod("AnomaliesExpected.Comp_BrokenStatue", "CompGetGizmosExtra", 0);
+            var hediff = AccessTools.Method("AnomaliesExpected.HediffComp_ObservingStage:CompPostTick");
+            MpCompat.harmony.Patch(hediff, prefix: new HarmonyMethod(ObservePawnsInstead));
+        }
 
         // Destroyable
         MpCompat.RegisterLambdaMethod("AnomaliesExpected.Comp_CanDestroyedAfterStudy", "CompGetGizmosExtra", 0);
@@ -39,5 +60,31 @@ class AnomaliesExpected
 
         // Clockwork
         MpCompat.RegisterLambdaMethod("AnomaliesExpected.CompObelisk_Clockwork", "CompGetGizmosExtra", 0, 1, 2, 4, 6, 8, 9);
+    }
+
+    // Can't test area visibility across all player cameras in multiplayer
+    // Replace it with pawn line of sight instead
+    static bool ObservePawnsInstead(HediffComp __instance)
+    {
+        if (!MP.IsInMultiplayer) return true;
+
+        const float distance = 8f;
+        float newSeverity = 1f;
+
+        var subject = __instance.parent.pawn;
+
+        foreach (Pawn observer in subject.Map.mapPawns.AllHumanlikeSpawned.ToList())
+        {
+            if (observer.Position.InHorDistOf(subject.Position, distance) && GenSight.LineOfSightToThing(subject.Position, observer, subject.Map))
+            {
+                newSeverity = 0.5f;
+
+                break;
+            }
+        }
+        
+        __instance.parent.Severity = newSeverity;
+
+        return false;
     }
 }
