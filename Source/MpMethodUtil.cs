@@ -73,6 +73,25 @@ namespace Multiplayer.Compat
             // Non-capturing lambda
             lambda ??= AccessTools.Method(parentType, lambdaNameFull);
 
+            // Iterator state machines nest display classes inside <Method>d__N
+            if (lambda == null)
+            {
+                var stateMachinePrefix = $"<{parent.Name}>{EnumerableStateMachineInfix}{parentId}";
+                var stateMachine = parentType.GetNestedTypes(AccessTools.all)
+                    .FirstOrDefault(t => t.Name.StartsWith(stateMachinePrefix));
+
+                if (stateMachine != null)
+                {
+                    lambda = stateMachine.GetNestedTypes(AccessTools.all)
+                        .Where(t => t.Name.StartsWith(displayClassPrefix))
+                        .SelectMany(AccessTools.GetDeclaredMethods)
+                        .FirstOrDefault(m => m.Name == lambdaNameShort);
+
+                    lambda ??= AccessTools.GetDeclaredMethods(stateMachine)
+                        .FirstOrDefault(m => m.Name == lambdaNameFull);
+                }
+            }
+
             // Non-capturing cached lambda
             if (lambda == null && AccessTools.Inner(parentType, SharedDisplayClass) is { } sharedDisplayClass)
                 lambda = AccessTools.Method(sharedDisplayClass, lambdaNameFull);
