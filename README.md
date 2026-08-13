@@ -143,6 +143,7 @@ Vanilla Skills Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles
 Vanilla Social Interactions Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2439736083) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaSocialInteractionsExpanded)
 Vanilla Storytellers Expanded - Winston Waves | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2734032569) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaStorytellersExpanded-WinstonWave)
 Vanilla Traits Expanded | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2296404655) [![url][repo]](https://github.com/Vanilla-Expanded/VanillaTraitsExpanded)
+Vehicle Framework | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=3014915404) [![url][repo]](https://github.com/SmashPhil/Vehicle-Framework)
 What the hack?! | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1505914869) [![url][repo]](https://github.com/rheirman/WhatTheHack/)
 Windows | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2571189146) [![url][repo]](https://github.com/Owlchemist/OpenTheWindows)
 Work Tab | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=725219116) [![url][repo]](https://github.com/fluffy-mods/WorkTab)
