@@ -86,6 +86,7 @@ ReGrowth: Core | [![url][steam]](https://steamcommunity.com/sharedfiles/filedeta
 Reinforced Mechanoid 2 | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2910050186) [![url][repo]](https://github.com/Helixien/ReinforcedMechanoids-2)
 ResearchPowl | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2877856030) 
 Reunion | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1985186461) [![url][repo]](https://github.com/kyrun/rimworld-reunion)
+[RH2] Faction: V.O.I.D | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2883208829)
 Rim-Effect: Core | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2479560240) [![url][repo]](https://github.com/AndroidQuazar/RimEffect-Core)
 Rim-Effect: Drell | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2651150217) [![url][repo]](https://github.com/AndroidQuazar/RimEffect-Drell)
 Rim-Effect: Extended Cut | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2479492267) [![url][repo]](https://github.com/Helixien/RimEffect-ExtendedCut)
