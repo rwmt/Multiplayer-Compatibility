@@ -44,10 +44,10 @@ namespace Multiplayer.Compat
 
         static bool WindowStackAddPrefix(Window window)
         {
-            if (window != null
-                && window.GetType() == messageDialogType
-                && MP.IsInMultiplayer
-                && !MP.IsExecutingSyncCommandIssuedBySelf)
+            if (MP.IsInMultiplayer
+                && !MP.IsExecutingSyncCommandIssuedBySelf
+                && window != null
+                && window.GetType() == messageDialogType)
             {
                 return false; // Clients
             }
