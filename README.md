@@ -91,6 +91,7 @@ Rim-Effect: Core | [![url][steam]](https://steamcommunity.com/sharedfiles/filede
 Rim-Effect: Drell | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2651150217) [![url][repo]](https://github.com/AndroidQuazar/RimEffect-Drell)
 Rim-Effect: Extended Cut | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2479492267) [![url][repo]](https://github.com/Helixien/RimEffect-ExtendedCut)
 RimFridge | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1180721235) [![url][repo]](https://github.com/KiameV/rimworld-rimfridge)
+RimImmortal-Core | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=3296476341)
 Rimsential - Spaceports | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2663999215) [![url][repo]](https://github.com/SomewhereOutInSpace/Rimworld-Spaceports)
 RPG Style Inventory | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1561221991) [![url][repo]](https://github.com/SandyTheGreat/RPG-Style-Inventory)
 RunAndGun | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=1204108550) [![url][repo]](https://github.com/rheirman/RunAndGun)
