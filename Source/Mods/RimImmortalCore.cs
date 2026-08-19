@@ -6,6 +6,8 @@ using Verse;
 
 namespace Multiplayer.Compat
 {
+    // Synchs only upgrade ritual and toggable abilities
+    // Things like random qi flowers spawn not synching and still can (and mustly will) cause desynch
     [MpCompatFor("RI.RimImmortal.Core")]
     public class RimImmortalCore
     {
