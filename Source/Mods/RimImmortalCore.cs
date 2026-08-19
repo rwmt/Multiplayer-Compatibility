@@ -7,12 +7,12 @@ using Verse;
 namespace Multiplayer.Compat
 {
     [MpCompatFor("RI.RimImmortal.Core")]
-    public class RimImmortalCompat
+    public class RimImmortalCore
     {
         static Type messageDialogType;
         static FieldInfo pawnField, targetField, upgradeSpotField;
 
-        public RimImmortalCompat(ModContentPack mod)
+        public RimImmortalCore(ModContentPack mod)
         {
             var harmony = new Harmony("rimworld.multiplayer.compat.rimimmortal");
 
@@ -33,7 +33,7 @@ namespace Multiplayer.Compat
 
             harmony.Patch(
                 AccessTools.Method(typeof(WindowStack), nameof(WindowStack.Add)),
-                prefix: new HarmonyMethod(typeof(RimImmortalCompat), nameof(WindowStackAddPrefix))
+                prefix: new HarmonyMethod(typeof(RimImmortalCore), nameof(WindowStackAddPrefix))
             );
 
             MP.RegisterSyncWorker<Window>(SyncMessageDialog, messageDialogType, isImplicit: true, shouldConstruct: false);
