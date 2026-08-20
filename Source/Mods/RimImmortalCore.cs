@@ -8,6 +8,9 @@ namespace Multiplayer.Compat
 {
     // Synchs only upgrade ritual and toggable abilities
     // Things like random qi flowers spawn not synching and still can (and mustly will) cause desynch
+
+    /// <summary>RimImmortal-Core by LingLuo, 堂丸, 骸鸾, 玉米淀粉, chitoseender, 爱新觉罗—派大星, 逍逍客</summary>
+    /// <see href="https://steamcommunity.com/workshop/filedetails/?id=3296476341"/>
     [MpCompatFor("RI.RimImmortal.Core")]
     public class RimImmortalCore
     {
@@ -16,7 +19,7 @@ namespace Multiplayer.Compat
 
         public RimImmortalCore(ModContentPack mod)
         {
-            var harmony = new Harmony("rimworld.multiplayer.compat.rimimmortal");
+            var harmony = MpCompat.harmony;
 
             // Toggable abilities
             var abilitiesType = AccessTools.TypeByName("WhoXiuXian.Abilities.CompAbilityEffect_ToggleHediff");
@@ -44,8 +47,7 @@ namespace Multiplayer.Compat
 
         static bool WindowStackAddPrefix(Window window)
         {
-            if (MP.IsInMultiplayer
-                && !MP.IsExecutingSyncCommandIssuedBySelf
+            if (!MP.IsExecutingSyncCommandIssuedBySelf
                 && window != null
                 && window.GetType() == messageDialogType)
             {
@@ -61,18 +63,15 @@ namespace Multiplayer.Compat
                 var pawn = (Pawn)pawnField.GetValue(dialog);
                 var target = (LocalTargetInfo)targetField.GetValue(dialog);
                 var spot = (LocalTargetInfo)upgradeSpotField.GetValue(dialog);
-                sync.Bind(ref pawn);
-                sync.Bind(ref target);
-                sync.Bind(ref spot);
+                sync.Write(pawn);
+                sync.Write(target);
+                sync.Write(spot);
             }
             else
             {
-                Pawn pawn = null;
-                LocalTargetInfo target = default;
-                LocalTargetInfo spot = default;
-                sync.Bind(ref pawn);
-                sync.Bind(ref target);
-                sync.Bind(ref spot);
+                var pawn = sync.Read<Pawn>();
+                var target = sync.Read<LocalTargetInfo>();
+                var spot = sync.Read<LocalTargetInfo>();
 
                 dialog = (Window)Activator.CreateInstance(messageDialogType, pawn, target, spot, true);
             }
