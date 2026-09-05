@@ -139,6 +139,17 @@ namespace Multiplayer.Compat
                     MpMethodUtil.GetLambda(typeof(VehiclePawn), nameof(VehiclePawn.GetGizmos), lambdaOrdinal: 13),
                     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreDisembarkSinglePawn)));
                 MP.RegisterSyncMethod(typeof(VehicleFramework), nameof(SyncedDisembarkPawn));
+                // (Dev) 9 more state-mutating GetGizmos action lambdas, all behind
+                // DebugSettings.ShowDevGizmos and none registered anywhere: 2=Teleport,
+                // 17=DestroyComponent, 19=DamageComponent (also consumes Rand),
+                // 21=ExplodeComponent, 22=HealAllComponents, 24=GiveRandomPawnMentalState (Rand),
+                // 25=DownRandomPawn (Rand), 26=KillRandomPawn (Rand), 28=ToggleLoitering. Each runs
+                // on the clicking peer only if unregistered - an instant desync in dev mode.
+                // Verified against the currently Workshop-live build (3014915404); if a newer
+                // Vehicle Framework build renumbers GetGizmos (as it evidently has before - see the
+                // ordinal 0/1 note on CompVehicleTurrets.CompGetGizmosExtra above), this registration
+                // should throw/no-op harmlessly on the wrong lambdas rather than break anything.
+                MpCompat.RegisterLambdaDelegate(typeof(VehiclePawn), nameof(VehiclePawn.GetGizmos), 2, 17, 19, 21, 22, 24, 25, 26, 28).SetDebugOnly();
 
                 // Toggle drafted or (if moving) engage brakes.
                 MpCompat.RegisterLambdaMethod(typeof(VehicleIgnitionController), nameof(VehicleIgnitionController.GetGizmos), 1);
@@ -164,13 +175,29 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(VehicleFramework), nameof(PreToggleFuelSwitch)));
                 MP.RegisterSyncMethod(typeof(VehicleFramework), nameof(SyncedToggleFuelSwitch));
                 // (Dev) set fuel to 0 (0), set fuel to max (1), set fuel to 99.99% (2)
-                // RefuelHalfway is a method reference (not a lambda), so doesn't consume an ordinal
+                // RefuelHalfway is a method reference (not a lambda), so doesn't consume an ordinal,
+                // but it does still need its own registration: it calls the unsynced
+                // ConsumeFuel(float.MaxValue) directly (runs immediately at UI time) and then the
+                // synced Refuel(FuelCapacity / 2). Refuel is additive (fuel = Clamp(fuel + amount,
+                // 0, cap)), so the issuing peer ends at cap/2 while every other peer adds cap/2 onto
+                // its own untouched fuel value - CompFueledTravel.fuel diverges whenever the tank
+                // wasn't already empty.
+                MP.RegisterSyncMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.RefuelHalfway)).SetDebugOnly();
                 MpCompat.RegisterLambdaMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.DevModeGizmos), 0, 1, 2).SetDebugOnly();
                 // (Dev) set fuel to 0/max
                 MpCompat.RegisterLambdaMethod(typeof(CompFueledTravel), nameof(CompFueledTravel.CompCaravanGizmos), 0, 1).SetDebugOnly();
 
                 MP.RegisterSyncMethod(typeof(CompVehicleTurrets), nameof(CompVehicleTurrets.SetQuotaLevel));
-                // Deploy turret is now a cached field (deployToggle), no lambda to register
+                // Deploy turret is now a cached field (deployToggle), no lambda to register in
+                // CompGetGizmosExtra - but the toggleAction closure that flips it is still a lambda,
+                // just compiled inside RecacheGizmos (where deployToggle is built) instead. Verified
+                // against the currently Workshop-live build (3014915404): CompVehicleTurrets.
+                // RecacheGizmos's ordinal 0 is exactly that toggleAction (starts the DeployVehicle
+                // job, sets deployTicks). It was never registered anywhere, so only the clicking
+                // peer's vehicle ever deployed - Deployed then drives CanMove/TurretsAligned/
+                // DeploymentSatisfied and (with RimThunder installed) LaunchRestriction_WingDeployed,
+                // a straight sim-state divergence the moment anyone deploys or undeploys.
+                MpCompat.RegisterLambdaMethod(typeof(CompVehicleTurrets), nameof(CompVehicleTurrets.RecacheGizmos), 0);
                 // (Dev) full reload turret — only lambda in CompGetGizmosExtra now
                 MpCompat.RegisterLambdaDelegate(typeof(CompVehicleTurrets), nameof(CompVehicleTurrets.CompGetGizmosExtra), 0).SetDebugOnly();
 
@@ -246,6 +273,32 @@ namespace Multiplayer.Compat
                 MpCompat.RegisterLambdaDelegate(typeof(VehiclePawn), nameof(VehiclePawn.GetFloatMenuOptions), 0);
                 // MultiplePawnFloatMenuOptions now uses OrderPawns method reference, no lambda to sync
                 // The boarding action is handled through the method reference directly.
+                //
+                // Verified against the currently Workshop-live build (3014915404): OrderPawns is a
+                // local function compiled inside MultiplePawnFloatMenuOptions (the "board vehicle for
+                // every selected pawn" multi-select action) and does need registering there - live
+                // 2-instance testing showed it running host-only (confirmed via a normalized diff of
+                // both peers' JIT'd-method lists), filing the seat assignment locally and shipping
+                // only the nested TryTakeOrderedJob call, so receivers ran the Board job with no
+                // assignment and it silently no-opped. If a newer Vehicle Framework build genuinely
+                // reworked this into a plain method reference with no local function, this
+                // registration should throw/no-op harmlessly rather than break anything.
+                //
+                // Also sync PromptToBoardVehicle itself: it does two things (GiveLoadJob, which adds
+                // an AssignedSeat to vehicle.boardingAssignments - plain local state - and
+                // TryTakeOrderedJob, which is already an MP sync method), so any OTHER caller (other
+                // mods, future Vehicle Framework paths) that reaches it outside the OrderPawns loop
+                // is covered too; nested inside an already-executing command it just runs.
+                MP.RegisterSyncMethod(typeof(VehiclePawn), nameof(VehiclePawn.PromptToBoardVehicle));
+                try
+                {
+                    var orderPawns = MpMethodUtil.GetLocalFunc(typeof(VehiclePawn), nameof(VehiclePawn.MultiplePawnFloatMenuOptions), localFunc: "OrderPawns");
+                    MP.RegisterSyncDelegate(typeof(VehiclePawn), orderPawns.DeclaringType!.Name, orderPawns.Name);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Multiplayer Compat :: Could not sync VehiclePawn.MultiplePawnFloatMenuOptions/OrderPawns (multi-select boarding will desync on other peers): {ex.Message}");
+                }
             }
 
             #endregion
@@ -384,12 +437,23 @@ namespace Multiplayer.Compat
                 var typesTransferable = new[] { typeof(TransferableImmutable), typeof(AerialVehicleInFlight) };
 
                 // Abandon non-pawn Thing
+                //
+                // Verified against the currently Workshop-live build (3014915404): for THIS overload
+                // (Thing, AerialVehicleInFlight), ordinal 0 is the bool(Pawn) LINQ predicate used by
+                // GenCollection.Any(...) on the pawn-banish branch (redirected below anyway), not the
+                // void confirm action that actually removes the item from its owning pawn's inventory
+                // and destroys it - that's ordinal 1. The sibling (TransferableImmutable,
+                // AerialVehicleInFlight) overload below numbers its own two lambdas the other way
+                // (confirm action = 0 there), which is what made this easy to get wrong. Registering
+                // ordinal 0 here means the confirm action never runs synced - the item is removed and
+                // destroyed on the issuing peer only, diverging inventory contents / Thing existence
+                // the next time that item or its owner's inventory is touched.
                 method = MpMethodUtil.GetLambda(
                     typeof(AerialVehicleAbandonOrBanishHelper),
                     nameof(AerialVehicleAbandonOrBanishHelper.TryAbandonOrBanishViaInterface),
                     MethodType.Normal,
                     typesThing,
-                    0);
+                    1);
                 MP.RegisterSyncDelegate(typeof(AerialVehicleAbandonOrBanishHelper), method.DeclaringType!.Name, method.Name);
                 // Abandon specific Pawn, replace the vanilla banish interaction with our synced one as
                 // syncing of the pawn fails here. All the other methods redirect pawn banishing here.
@@ -1064,42 +1128,57 @@ namespace Multiplayer.Compat
             return targetData;
         }
 
+        // Rewritten from a type-name + Activator.CreateInstance reconstruction that only carried the
+        // vehicle's thingIDNumber (unused on read - "Vehicle will be resolved when Launch executes")
+        // and dropped every other field: ArrivalAction_LoadMap.arrivalModeDef,
+        // ArrivalAction_LandInMap.mapParent, AerialVehicleArrivalAction_StrafeMap.parent. Verified
+        // against the currently Workshop-live build (3014915404): ArrivalAction_LoadMap.Arrived's
+        // long-event lambda generates the destination map and THEN calls
+        // arrivalModeDef.Worker.VehicleArrived(...) with a null arrivalModeDef -
+        // NullReferenceException inside a synced long event. Vanilla's LongEventHandler only sends
+        // MP's freeze-Unfreeze signal on the success path of UpdateCurrentSynchronousEvent /
+        // UpdateCurrentEnumeratorEvent, so an uncaught exception there leaves every player stuck on
+        // "Waiting for other players" until someone quits - reported live (Discord, laoune/Basilic,
+        // 2026-08-26) as: sending a helicopter to another tile shows "Generating map" on everyone,
+        // then a permanent freeze. Every VehicleArrivalAction is IExposable and already scribes
+        // exactly the fields each subclass needs, so this sends the real object through MP's
+        // exposable serialization (SyncType.expose) instead - Scribe_Deep records the concrete class,
+        // so the abstract base type works on both ends. The vehicle field is blanked for the write:
+        // the receiving side re-attaches it anyway (SyncedLaunch / SyncedCaravanLaunch /
+        // SyncedOrderFlyToTiles / PreMoveForwardFixArrivalVehicle below), and an in-flight vehicle is
+        // despawned so its cross-reference wouldn't resolve and would only log a warning.
+        private static readonly SyncType vehicleArrivalActionExposeType = new SyncType(typeof(VehicleArrivalAction)) { expose = true };
+
         private static void SyncVehicleArrivalAction(SyncWorker sync, ref VehicleArrivalAction action)
         {
             if (sync.isWriting)
             {
                 var isNull = action == null;
                 sync.Write(isNull);
-                if (!isNull)
+                if (isNull)
+                    return;
+
+                var vehicle = arrivalActionVehicleField(action);
+                arrivalActionVehicleField(action) = null;
+                try
                 {
-                    sync.Write(action.GetType().FullName);
-                    // Write vehicle thingIDNumber — can't use sync.Write<VehiclePawn> because
-                    // the vehicle may be in a transitional state (inside skyfaller).
-                    // We'll resolve it from the comp's vehicle during Launch execution.
-                    var vehicle = arrivalActionVehicleField(action);
-                    sync.Write(vehicle?.thingIDNumber ?? -1);
+                    sync.Write(action, vehicleArrivalActionExposeType);
+                }
+                finally
+                {
+                    arrivalActionVehicleField(action) = vehicle;
                 }
             }
             else
             {
                 var isNull = sync.Read<bool>();
                 if (isNull)
+                {
+                    action = null;
                     return;
+                }
 
-                var typeName = sync.Read<string>();
-                var vehicleId = sync.Read<int>();
-
-                if (string.IsNullOrEmpty(typeName))
-                    return;
-
-                var type = AccessTools.TypeByName(typeName);
-                if (type == null)
-                    return;
-
-                action = (VehicleArrivalAction)Activator.CreateInstance(type);
-                // Vehicle will be resolved when Launch executes — the CompVehicleLauncher
-                // target is synced separately and has the correct vehicle reference.
-                // Store the ID for now; the Launch method sets it via the comp's Vehicle.
+                action = sync.Read<VehicleArrivalAction>(vehicleArrivalActionExposeType);
             }
         }
 
