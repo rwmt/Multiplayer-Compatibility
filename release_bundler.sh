@@ -7,7 +7,7 @@ dotnet build -c Release
 rm -rf Multiplayer-Compatibility/
 mkdir -p Multiplayer-Compatibility
 
-cp -r About Assemblies Referenced Languages Multiplayer-Compatibility
+cp -r --no-preserve=all  About Assemblies Referenced Languages Multiplayer-Compatibility
 
 # Zip for Github releases
 rm -f Multiplayer-Compatibility.zip
