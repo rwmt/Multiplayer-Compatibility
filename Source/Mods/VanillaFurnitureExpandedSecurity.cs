@@ -52,10 +52,8 @@ namespace Multiplayer.Compat
                 propsSubmergeSeconds = AccessTools.FieldRefAccess<int>(propsType, "submergeSeconds");
                 propsDeploySeconds = AccessTools.FieldRefAccess<int>(propsType, "deploySeconds");
 
-                // Sync StartTransition directly. The gizmo actions call it as an
-                // instance method on CompConcealed (a ThingComp), which the MP
-                // framework can serialize. No need to sync the lambdas themselves.
-                MP.RegisterSyncMethod(type, "StartTransition");
+                // Sync the Deploy/Submerge gizmos in CompGetGizmosExtra
+                MpCompat.RegisterLambdaMethod(type, "CompGetGizmosExtra", 3, 4);
 
                 // StartTransition iterates Find.Selector.SelectedObjects which won't
                 // contain the right objects on the remote client. In MP we replace it
