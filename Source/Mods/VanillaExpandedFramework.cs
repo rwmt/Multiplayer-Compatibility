@@ -46,7 +46,6 @@ namespace Multiplayer.Compat
                 (PatchWeatherOverlayEffects, "Weather Overlay Effects", false),
                 (PatchExtraPregnancyApproaches, "Extra Pregnancy Approaches", false),
                 (PatchWorkGiverDeliverResources, "Building stuff requiring non-construction skill", false),
-                (PatchStaticCaches, "Static caches", false),
                 (PatchGraphicCustomizationDialog, "Graphic Customization Dialog", true),
                 (PatchDraftedAi, "Drafted AI", true),
                 (PatchMapObjectGeneration, "Thing spawning on map generation (ObjectSpawnsDef)", false),
@@ -1798,18 +1797,6 @@ namespace Multiplayer.Compat
             }
 
             lastThing = null;
-        }
-
-        #endregion
-
-        #region Caches
-
-        private static void PatchStaticCaches()
-        {
-            // TODO: Go through Vanilla Expanded Framework's VanillaGenesExpanded.StaticCollectionsClass and clean some of those on join.
-            // While not critical for fixing MP desyncs, it should help with RAM usage as many of those have data unique to a specific
-            // game, and leaving it will just leave garbage data. In the context of MP it could be especially useful in case of
-            // frequent (unrelated) desyncs, as the players joining in would gain more and more garbage data each time they join.
         }
 
         #endregion

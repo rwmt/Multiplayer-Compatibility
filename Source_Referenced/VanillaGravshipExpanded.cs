@@ -26,8 +26,8 @@ namespace Multiplayer.Compat
         // Flag to preserve VGE state during our SyncedGravshipTileSelected flow
         private static bool inSyncedTileSelectedFlow;
 
-        // Gizmo_OxygenProvider sync field (#880 workaround)
-        private static ISyncField oxygenTargetValuePctField;
+        // Gizmo_OxygenProvider refill threshold
+        private static ISyncField oxygenRechargeThresholdField;
 
         // VGE launch flow — MP internals (not publicized, reached via reflection)
         private static Action<PlanetTile> closeGravshipSession;
@@ -286,17 +286,10 @@ namespace Multiplayer.Compat
             #region Gizmo_OxygenProvider
 
             {
-                MP.RegisterSyncMethod(AccessTools.PropertySetter(typeof(CompApparelOxygenProvider), nameof(CompApparelOxygenProvider.AutomaticRechargeEnabled)));
+                MP.RegisterSyncMethod(typeof(CompApparelOxygenProvider), nameof(CompApparelOxygenProvider.AutomaticRechargeEnabled));
 
-                oxygenTargetValuePctField = MP.RegisterSyncField(typeof(Gizmo_OxygenProvider), "targetValuePct").SetBufferChanges();
-
-                // MP issue #880 workaround: RegisterSyncField resolves targetType via ReflectedType,
-                // which returns Gizmo_Slider (the base declaring "targetValuePct"), not Gizmo_OxygenProvider.
-                // Rewrite the private targetType field so Watch() matches our subclass instance.
-                AccessTools.Field(oxygenTargetValuePctField.GetType(), "targetType")
-                    .SetValue(oxygenTargetValuePctField, typeof(Gizmo_OxygenProvider));
-
-                MP.RegisterSyncWorker<Gizmo_Slider>(SyncOxygenGizmo, typeof(Gizmo_OxygenProvider));
+                // The released mod recreates this gizmo; sync its persistent comp instead.
+                oxygenRechargeThresholdField = MP.RegisterSyncField(typeof(CompApparelOxygenProvider), nameof(CompApparelOxygenProvider.rechargeAtCharges)).SetBufferChanges();
 
                 MpCompat.harmony.Patch(
                     AccessTools.DeclaredMethod(typeof(Gizmo_Slider), nameof(Gizmo_Slider.GizmoOnGUI)),
@@ -611,7 +604,9 @@ namespace Multiplayer.Compat
                 return;
 
             MP.WatchBegin();
-            oxygenTargetValuePctField.Watch(__instance);
+            oxygenRechargeThresholdField.Watch(((Gizmo_OxygenProvider)__instance).oxygenProvider);
+            // Refresh the vanilla slider cache after Watch restores any pending local value.
+            __instance.targetValuePct = ((Gizmo_OxygenProvider)__instance).Target;
         }
 
         private static void PostOxygenGizmoOnGUI(Gizmo_Slider __instance)
@@ -620,19 +615,6 @@ namespace Multiplayer.Compat
                 return;
 
             MP.WatchEnd();
-        }
-
-        private static void SyncOxygenGizmo(SyncWorker sync, ref Gizmo_Slider gizmo)
-        {
-            if (sync.isWriting)
-            {
-                sync.Write<ThingComp>(((Gizmo_OxygenProvider)gizmo).oxygenProvider);
-            }
-            else
-            {
-                var comp = (CompApparelOxygenProvider)sync.Read<ThingComp>();
-                gizmo = comp.oxygenConfigurationGizmo;
-            }
         }
 
         /// <summary>
