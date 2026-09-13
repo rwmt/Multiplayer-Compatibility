@@ -44,7 +44,7 @@ namespace Multiplayer.Compat
                 var anyMod = attr.Any(a =>
                 {
                     var modId = ((string)a.ConstructorArguments.First().Value).ToLower();
-                    var mod = LoadedModManager.RunningMods.FirstOrDefault(m => m.PackageId.NoModIdSuffix() == modId);
+                    var mod = LoadedModManager.RunningMods.FirstOrDefault(m => m.PackageId.NoModIdSuffix().ToLower() == modId);
                     return mod != null;
                 });
                 
@@ -69,7 +69,7 @@ namespace Multiplayer.Compat
                 )
                 .Join(LoadedModManager.RunningMods,
                     box => box.compat.PackageId.ToLower(),
-                    mod => mod.PackageId.NoModIdSuffix(),
+                    mod => mod.PackageId.NoModIdSuffix().ToLower(),
                     (box, mod) => new { box.type, mod });
 
             foreach (var action in queue) 
