@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Emit;
 using HarmonyLib;
 using Multiplayer.API;
 using RimWorld;
@@ -35,6 +37,7 @@ namespace Multiplayer.Compat
 
         // Designator_SelectSimilar
         private static Type selectSimilarType;
+        private static FastInvokeHandler trySelectThing;
 
         // Override for shift/control key press and visible map rect
         private static bool? shiftHeldState = null;
@@ -124,6 +127,11 @@ namespace Multiplayer.Compat
 
                 // Remove syncing from select similar designator (breaks the designator otherwise)
                 selectSimilarType = AccessTools.TypeByName("AllowTool.Designator_SelectSimilar");
+                trySelectThing = MethodInvoker.GetHandler(AccessTools.Method(selectSimilarType, "TrySelectThing"));
+
+                // Shape selection must stay local, just like the right-click select similar options.
+                MpCompat.harmony.Patch(AccessTools.DeclaredMethod("AllowTool.Designator_SelectableThings:DesignateMultiThing"),
+                    transpiler: new HarmonyMethod(typeof(AllowTool), nameof(LocalSelectionTranspiler)));
 
                 // Patch MP to not sync select similar designator
                 type = AccessTools.TypeByName("Multiplayer.Client.DesignatorPatches");
@@ -232,6 +240,29 @@ namespace Multiplayer.Compat
             // We can't call ActivationResult.ShowMessage(), as it has historical: true
             // which causes issues due to the message getting a global ID (and we're calling it locally).
             Messages.Message(message, messageType, false);
+        }
+
+        private static IEnumerable<CodeInstruction> LocalSelectionTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var original = AccessTools.Method(typeof(Designator), nameof(Designator.DesignateThing));
+            var replacement = AccessTools.Method(typeof(AllowTool), nameof(DesignateThingOrSelectLocally));
+            foreach (var instruction in instructions)
+            {
+                if (instruction.Calls(original))
+                {
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = replacement;
+                }
+                yield return instruction;
+            }
+        }
+
+        private static void DesignateThingOrSelectLocally(Designator designator, Thing thing)
+        {
+            if (selectSimilarType.IsInstanceOfType(designator))
+                trySelectThing(designator, thing);
+            else
+                designator.DesignateThing(thing);
         }
 
         private static bool StopDesignatorSyncing([HarmonyArgument("__instance")] Designator instance, ref bool __result)
