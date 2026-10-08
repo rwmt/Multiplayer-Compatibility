@@ -1,0 +1,54 @@
+{
+  "name": "mpcompat-session-health",
+  "continueOnError": false,
+  "steps": [
+    {
+      "id": "ready",
+      "call": "rimbridge/wait_for_game_loaded",
+      "arguments": {
+        "timeoutMs": 30000,
+        "readiness": "visual",
+        "pauseIfNeeded": false
+      }
+    },
+    {
+      "id": "multiplayer",
+      "call": "mpcompat/multiplayer/get_session_state"
+    },
+    {
+      "id": "game",
+      "call": "rimworld/get_game_info"
+    },
+    {
+      "id": "mods",
+      "call": "rimworld/get_mod_configuration_status"
+    },
+    {
+      "id": "messages",
+      "call": "rimworld/list_messages",
+      "arguments": {
+        "limit": 40
+      }
+    },
+    {
+      "id": "alerts",
+      "call": "rimworld/list_alerts"
+    },
+    {
+      "id": "warnings",
+      "call": "rimbridge/list_logs",
+      "arguments": {
+        "limit": 200,
+        "minimumLevel": "warning"
+      }
+    },
+    {
+      "id": "screenshot",
+      "call": "rimworld/take_screenshot",
+      "arguments": {
+        "fileName": "mpcompat-session-health",
+        "includeTargets": true
+      }
+    }
+  ]
+}

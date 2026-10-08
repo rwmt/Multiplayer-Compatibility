@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "toolNormalization": {
+    "enableOpenAINormalization": true,
+    "maxToolNameLength": 64,
+    "preserveOriginalName": true
+  },
+  "stripOutputSchema": true,
+  "timeouts": {
+    "startup": {
+      "processStartSeconds": 20,
+      "gabpConnectSeconds": 180
+    }
+  },
+  "games": {
+    "mp-host": {
+      "id": "mp-host",
+      "name": "RimWorld MP test host",
+      "description": "Visible host instance with isolated saves and logs",
+      "launchMode": "DirectPath",
+      "target": "REPLACE_WITH_ABSOLUTE_RIMWORLD_EXECUTABLE",
+      "workingDir": "REPLACE_WITH_ABSOLUTE_RIMWORLD_DIRECTORY",
+      "args": [
+        "-savedatafolder=REPLACE_WITH_ABSOLUTE_HOST_PROFILE",
+        "-logfile",
+        "REPLACE_WITH_ABSOLUTE_HOST_LOG",
+        "-popupwindow",
+        "-screen-width",
+        "1280",
+        "-screen-height",
+        "720"
+      ]
+    },
+    "mp-client": {
+      "id": "mp-client",
+      "name": "RimWorld MP test client",
+      "description": "Visible client instance with isolated saves and logs",
+      "launchMode": "DirectPath",
+      "target": "REPLACE_WITH_ABSOLUTE_RIMWORLD_EXECUTABLE",
+      "workingDir": "REPLACE_WITH_ABSOLUTE_RIMWORLD_DIRECTORY",
+      "args": [
+        "-savedatafolder=REPLACE_WITH_ABSOLUTE_CLIENT_PROFILE",
+        "-logfile",
+        "REPLACE_WITH_ABSOLUTE_CLIENT_LOG",
+        "-popupwindow",
+        "-screen-width",
+        "1280",
+        "-screen-height",
+        "720"
+      ],
+      "launchInputs": {
+        "connect": {
+          "description": "Multiplayer direct-connect address, for example 127.0.0.1:30502",
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9.:-]+$",
+          "args": [
+            "-connect=${value}"
+          ]
+        }
+      }
+    }
+  }
+}

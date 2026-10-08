@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>MPCompat.Multiplayer.BridgeTools</AssemblyName>
+    <RootNamespace>MPCompat.Multiplayer.BridgeTools</RootNamespace>
+    <OutputPath>..\..\artifacts\BridgeTools\MPCompat.Multiplayer\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="RimBridgeServer.Sdk">
+      <HintPath>$(RimBridgeSdkPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Multiplayer">
+      <HintPath>$(MultiplayerAssembly)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MultiplayerCommon">
+      <HintPath>$(MultiplayerCommonAssembly)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="ValidateBridgeReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(RimBridgeSdkPath)' == '' Or !Exists('$(RimBridgeSdkPath)')"
+           Text="Set RimBridgeSdkPath to the installed RimBridgeServer.Sdk.dll." />
+    <Error Condition="'$(MultiplayerAssembly)' == '' Or !Exists('$(MultiplayerAssembly)')"
+           Text="Set MultiplayerAssembly to the installed Multiplayer.dll." />
+    <Error Condition="'$(MultiplayerCommonAssembly)' == '' Or !Exists('$(MultiplayerCommonAssembly)')"
+           Text="Set MultiplayerCommonAssembly to the installed MultiplayerCommon.dll." />
+  </Target>
+</Project>

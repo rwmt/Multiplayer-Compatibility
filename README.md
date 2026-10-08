@@ -10,6 +10,28 @@ Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=1629973374
 
 Requires latest Zetrith's Multiplayer: [Download](https://github.com/rwmt/Multiplayer)
 
+## LLM-assisted contributions
+
+Start with the repository [contributor rules](AGENTS.md) and the reusable
+[MP compatibility skill](.agents/skills/rimworld-mp-compat/SKILL.md). The skill
+covers patching, desync investigation, builds, and manual or automated multiplayer
+verification. It does not require a particular editor or testing service.
+
+For assistants that support repository skills, the skill is in
+`.agents/skills/rimworld-mp-compat/`. Otherwise, ask the assistant to read
+`AGENTS.md` and that folder's `SKILL.md` before working. To install it elsewhere,
+copy the entire `rimworld-mp-compat` folder, including `references` and `assets`, into your
+assistant's configured skill directory. Keep it updated with this repository.
+Review generated patches and require evidence for compatibility claims.
+
+The optional [automated QA setup](.agents/skills/rimworld-mp-compat/references/automation.md)
+explains GABS and RimBridgeServer installation, isolated host/client profiles,
+and the test loop. Configuration examples, scenarios, and Multiplayer companion
+source are bundled under the skill's `assets/automation/`. The companion is a
+separate test tool, not a shipped mod patch.
+
+## Supported mods
+
 Support added to these mods | _
 ---|---
 Allow Tool | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=761421485) [![url][repo]](https://github.com/UnlimitedHugs/RimworldAllowTool)

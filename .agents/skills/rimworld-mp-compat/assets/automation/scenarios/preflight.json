@@ -1,0 +1,38 @@
+{
+  "name": "mpcompat-preflight",
+  "continueOnError": false,
+  "steps": [
+    {
+      "id": "ping",
+      "call": "rimbridge/ping"
+    },
+    {
+      "id": "bridge",
+      "call": "rimbridge/get_bridge_status"
+    },
+    {
+      "id": "game",
+      "call": "rimworld/get_game_info"
+    },
+    {
+      "id": "mods",
+      "call": "rimworld/get_mod_configuration_status"
+    },
+    {
+      "id": "warnings",
+      "call": "rimbridge/list_logs",
+      "arguments": {
+        "limit": 100,
+        "minimumLevel": "warning"
+      }
+    },
+    {
+      "id": "screenshot",
+      "call": "rimworld/take_screenshot",
+      "arguments": {
+        "fileName": "mpcompat-preflight",
+        "includeTargets": true
+      }
+    }
+  ]
+}
