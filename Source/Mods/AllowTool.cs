@@ -146,6 +146,9 @@ namespace Multiplayer.Compat
                 var type = AccessTools.TypeByName("AllowTool.HaulUrgentlyCacheHandler");
                 MpCompat.harmony.Patch(AccessTools.Method(type, "RecacheIfNeeded"),
                     prefix: new HarmonyMethod(typeof(AllowTool), nameof(DeterministicallyHandleReCaching)));
+                // FixedUpdate can otherwise consume the map loading RNG from the main thread.
+                MpCompat.harmony.Patch(AccessTools.Method(type, "ProcessCacheEntries"),
+                    prefix: new HarmonyMethod(typeof(AllowTool), nameof(StopCacheProcessingDuringLoading)));
                 type = AccessTools.Inner(type, "ThingsCacheEntry");
                 MpCompat.harmony.Patch(AccessTools.Method(type, "IsValid"),
                     prefix: new HarmonyMethod(typeof(AllowTool), nameof(ScaleReCachingTimerToTickSpeed)));
@@ -297,6 +300,9 @@ namespace Multiplayer.Compat
         #endregion
 
         #region Cache
+
+        private static bool StopCacheProcessingDuringLoading()
+            => !MP.IsInMultiplayer || !LongEventHandler.AnyEventNowOrWaiting;
 
         private static bool DeterministicallyHandleReCaching(ref float currentTime)
         {
