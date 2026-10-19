@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
@@ -119,12 +119,18 @@ public class AncientUrbanRuins
 
             customMapEntranceField = AccessTools.FieldRefAccess<MapPortal>("AncientMarket_Libraray.MapParent_Custom:entrance");
 
-            // Add to allowed (2), remove from allowed (4)
+            // The newer window also assigns sleep/work/joy floors. Its captured
+            // callbacks have different ordinals; UI label callbacks must not sync.
+            bool hasActivityFloors = AccessTools.Field(type, "sleepLevel") != null;
             MpCompat.RegisterLambdaDelegate(
                 "AncientMarket_Libraray.Window_AllowLevel",
                 nameof(Window.DoWindowContents),
                 ["schedule"], // Skip x and y, syncing them is not needed - they're only used for UI
-                2, 4);
+                hasActivityFloors ? new[] { 1, 3, 5, 8, 10, 12, 13, 14 } : new[] { 2, 4 });
+            MpCompat.harmony.Patch(MpMethodUtil.GetLambda(
+                AccessTools.TypeByName("AncientMarket_Libraray.Window_AllowLevel"),
+                nameof(Window.DoWindowContents), lambdaOrdinal: hasActivityFloors ? 8 : 2),
+                prefix: new HarmonyMethod(typeof(AncientUrbanRuins), nameof(PreMapAddedToSchedule)));
         }
 
         #endregion
@@ -256,7 +262,6 @@ public class AncientUrbanRuins
         }
     }
 
-    [MpCompatPrefix("AncientMarket_Libraray.Window_AllowLevel", nameof(Window.DoWindowContents), 2)]
     private static bool PreMapAddedToSchedule(PocketMapParent m, object ___schedule)
     {
         if (!MP.IsInMultiplayer || !MP.IsExecutingSyncCommand)

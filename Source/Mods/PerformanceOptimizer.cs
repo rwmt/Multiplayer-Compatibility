@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -38,7 +39,12 @@ namespace Multiplayer.Compat
                     prefix: new HarmonyMethod(typeof(PerformanceOptimizer), nameof(CancelIfAutosaving)));
                 refreshCache = MethodInvoker.GetHandler(resetDataMethod);
 
-                var method = AccessTools.DeclaredMethod("Multiplayer.Client.Autosaving:SaveGameToFile_Overwrite");
+                // Current MP has both replay-flag and snapshot overloads. All paths
+                // reach the snapshot overload; patch it once rather than nesting flags.
+                var autosavingType = AccessTools.TypeByName("Multiplayer.Client.Autosaving");
+                var method = autosavingType == null ? null : AccessTools.GetDeclaredMethods(autosavingType)
+                    .SingleOrDefault(m => m.Name == "SaveGameToFile_Overwrite" &&
+                        m.GetParameters().Length == 2 && m.GetParameters()[1].ParameterType != typeof(bool));
                 // Backwards compat
                 method ??= AccessTools.DeclaredMethod("Multiplayer.Client.MultiplayerSession:SaveGameToFile_Overwrite");
                 // Even more backwards compat

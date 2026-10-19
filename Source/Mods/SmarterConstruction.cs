@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Reflection;
 using HarmonyLib;
 using Verse;
@@ -38,6 +38,18 @@ namespace Multiplayer.Compat
             {
                 workGiverScannerCacheField = AccessTools.StaticFieldRefAccess<IDictionary>(AccessTools.DeclaredField(type, "cache"));
 
+                var pawnCacheType = AccessTools.TypeByName("SmarterConstruction.Core.PawnPositionCache");
+                if (typeof(MapComponent).IsAssignableFrom(pawnCacheType))
+                {
+                    // Current caches belong to maps and are rebuilt when a map is
+                    // loaded. Only the two remaining static caches need resetting.
+                    constructFinishFrameCurrentTickField = AccessTools.StaticFieldRefAccess<int>(
+                        AccessTools.DeclaredField("SmarterConstruction.Patches.WorkGiver_ConstructFinishFrames_JobOnThing:currentTick"));
+                    MpCompat.harmony.Patch(AccessTools.DeclaredMethod(typeof(GameComponentUtility), nameof(GameComponentUtility.FinalizeInit)),
+                        postfix: new HarmonyMethod(typeof(SmarterConstruction), nameof(ClearStaticCaches)));
+                    return;
+                }
+
                 closedRegionDetectorCacheField = AccessTools.StaticFieldRefAccess<object>(
                     AccessTools.DeclaredField("SmarterConstruction.Core.ClosedRegionDetector:cache"));
                 encloseThingsCacheField = AccessTools.FieldRefAccess<IDictionary>("SmarterConstruction.Core.EncloseThingsCache:cache");
@@ -69,6 +81,12 @@ namespace Multiplayer.Compat
             constructFinishFrameCurrentTickField() = -1;
             // Since we set the current tick to -1 (as opposed to 0), there's no chance unless something
             // is very wrong for `thingsUpdatedThisTick` field to be valid and kept by the mod. No need to clean it.
+        }
+
+        private static void ClearStaticCaches()
+        {
+            workGiverScannerCacheField().Clear();
+            constructFinishFrameCurrentTickField() = -1;
         }
     }
 }

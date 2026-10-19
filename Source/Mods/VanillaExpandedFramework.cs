@@ -356,21 +356,27 @@ namespace Multiplayer.Compat
             offset = num - index;
         }
 
-        private static bool PrePasteProcessesGizmo(ThingComp __instance)
+        private static bool PrePasteProcessesGizmo(object __instance)
         {
             if (!MP.IsInMultiplayer)
                 return true;
 
+            // The callback is a compiler-generated closure in current Pipe System releases.
+            // Retrieve its owning component instead of asking Harmony to bind the closure as a ThingComp.
+            var ownerField = AccessTools.Field(__instance.GetType(), "<>4__this");
+            if (ownerField?.GetValue(__instance) is not ThingComp owner)
+                return true;
+
             var clipboard = processUtilityClipboardField();
-            if (!clipboard.Contains(__instance.parent.def))
+            if (!clipboard.Contains(owner.parent.def))
                 return false;
 
-            if (clipboard[__instance.parent.def] is not IList processes || processes.Count == 0)
+            if (clipboard[owner.parent.def] is not IList processes || processes.Count == 0)
                 return false;
 
             // Rather than using the processes themselves, grab a list of their defs and target count
             var list = processes.Cast<object>().Select(process => (processDefField(process), processTargetCountField(process))).ToList();
-            SyncedPasteProcesses(__instance, list);
+            SyncedPasteProcesses(owner, list);
             return false;
         }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Runtime.Serialization;
 using HarmonyLib;
@@ -20,6 +20,12 @@ namespace Multiplayer.Compat
 
         public VanillaFishingExpanded(ModContentPack mod)
         {
+            // With Odyssey this mod extends the vanilla fishing simulation and
+            // no longer ships the custom fishing zone or its UI commands.
+            if (ModsConfig.OdysseyActive &&
+                AccessTools.TypeByName("VCE_Fishing.VCE_Fishing_FishingUtility_GetCatchesFor_Patch") != null &&
+                AccessTools.TypeByName("VCE_Fishing.Command_SetFishList") == null)
+                return;
             // RNG fix
             {
                 PatchingUtilities.PatchSystemRandCtor("VCE_Fishing.JobDriver_Fish", false);

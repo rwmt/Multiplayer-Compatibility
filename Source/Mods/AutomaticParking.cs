@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using HarmonyLib;
 using Multiplayer.API;
 using Verse;
@@ -18,6 +18,16 @@ public class AutomaticParking
 
     public AutomaticParking(ModContentPack mod)
     {
+        var currentComp = AccessTools.TypeByName("VehicleAutoParking.Core.CompParkingController");
+        if (currentComp != null && AccessTools.TypeByName("VehicleAutoParking.Core.ParkingController") == null)
+        {
+            // The controller moved into the vehicle's ThingComp, which MP can serialize.
+            MP.RegisterSyncMethod(currentComp, "SaveParkingPosition");
+            MP.RegisterSyncMethod(currentComp, "ResetParkingPosition");
+            MP.RegisterSyncMethod(currentComp, "ResetAllParkingPositions");
+            MP.RegisterSyncMethod(currentComp, "MoveToParkingPosition", [typeof(bool)]);
+            return;
+        }
         MpCompatPatchLoader.LoadPatch(this);
 
         // CompParkingController

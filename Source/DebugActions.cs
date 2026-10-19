@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -245,24 +245,24 @@ namespace Multiplayer.Compat
                 nameof(Unity),
                 nameof(UnityEditor),
                 nameof(UnityEngine),
-                nameof(UnityEngineInternal),
+                "UnityEngineInternal",
                 nameof(Multiplayer),
                 nameof(Microsoft),
                 nameof(HarmonyLib),
                 nameof(Mono),
                 nameof(MonoMod),
                 nameof(Ionic),
-                nameof(NVorbis),
-                nameof(RuntimeAudioClipLoader),
+                "NVorbis",
+                "RuntimeAudioClipLoader",
                 nameof(JetBrains),
-                nameof(AOT),
+                "AOT",
                 nameof(Steamworks),
                 nameof(UnityStandardAssets),
-                nameof(ObjCRuntimeInternal),
+                "ObjCRuntimeInternal",
                 nameof(TMPro),
-                nameof(NAudio),
-                nameof(ICSharpCode),
-                nameof(MS),
+                "NAudio",
+                "ICSharpCode",
+                "MS",
                 "DynDelegate",
                 "I18N",
                 "LiteNetLib",
